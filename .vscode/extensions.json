@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "golang.go",
+    "ms-python.python",
+    "charliermarsh.ruff",
+    "ms-python.mypy-type-checker",
+    "oxc.oxc-vscode",
+    "vitest.explorer"
+  ]
+}
