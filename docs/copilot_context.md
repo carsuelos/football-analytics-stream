@@ -41,7 +41,7 @@ Decisions from planning sessions. The full roadmap and design rules are in [`PLA
 | Project goals | Portfolio piece, personal match-watching tool and product prototype; also a way to learn Go | — |
 | Languages | Go for the stream simulator; Python for the analytics engine; TypeScript for the dashboard | Go for the whole live pipeline (more Go, slower MVP); all Python |
 | Infrastructure | Phased: in-memory (Phase 1) → Docker Compose with a broker (Phase 2) → Azure (Phase 4). Interfaces behave like a broker log from day one (stable IDs, offsets, safe-to-repeat processing, seek to offset). Redis only if justified (several engine instances or crash recovery) | Real broker and cache from day one; in-memory only |
-| Schema | JSON Schema in `schema/` as the single source of truth. Types generated for Python (pydantic), TS and Go. Shared fixtures are tested in every language; messages carry `schema_version` | Protobuf + `buf`; hand-written types |
+| Schema | JSON Schema in `schema/jsonschema/` as the single source of truth. Types generated for Python (pydantic), TS and Go. Shared fixtures are tested in every language; messages carry `schema_version` | Protobuf + `buf`; hand-written types |
 | Simulator → engine link | WebSocket, one JSON event per message, each with an `offset`; resume with `?from_offset=N`. Playback controls go over a separate HTTP API | SSE; gRPC streaming |
 | Data | StatsBomb open data replay, starting with the 2022 FIFA World Cup. The final (Argentina vs France) is the fixed end-to-end test match. A pluggable source adapter leaves room for a live provider later | Real live provider now |
 | Match concurrency | One match at a time in v1; all state, topics and APIs keyed by `match_id` | Several matches at once from the start |

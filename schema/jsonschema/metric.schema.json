@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MetricSnapshot",
+  "description": "Rolling-window metrics for both teams at a point in match time.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "offset": {
+      "description": "Offset of the last event included.",
+      "$ref": "common.schema.json#/definitions/Offset"
+    },
+    "period": { "$ref": "common.schema.json#/definitions/Period" },
+    "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+    "window_s": {
+      "description": "Window length in match seconds (e.g. 300 or 600).",
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
+    "teams": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": {
+        "title": "TeamMetrics",
+        "type": "object",
+        "properties": {
+          "team_id": { "type": "integer" },
+          "field_tilt": {
+            "description": "Share of attacking-third touches in the window (0-1).",
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "xt_added": { "type": "number" },
+          "xt_velocity": {
+            "description": "xT added per match minute.",
+            "type": "number"
+          },
+          "pressure_index": { "type": "number", "minimum": 0 }
+        },
+        "required": ["team_id", "field_tilt", "xt_added", "xt_velocity", "pressure_index"]
+      }
+    }
+  },
+  "required": ["schema_version", "match_id", "offset", "period", "match_clock_s", "window_s", "teams"]
+}

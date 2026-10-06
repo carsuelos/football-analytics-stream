@@ -43,7 +43,7 @@ flowchart LR
 ### Repository layout
 
 ```
-schema/        JSON Schemas for events, controls, metrics, alerts (single source of truth) + fixtures/
+schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts) + fixtures/{valid,invalid}/
 simulator/     Go module: cmd/simulator, internal/{loader,playback,clock,server}
 engine/        Python package (uv): sources/, clock/, windows/, metrics/, detectors/, sinks/, api/
 dashboard/     React + Vite + TypeScript
@@ -57,12 +57,13 @@ Makefile       gen, dev, test, lint, run-all targets
 
 ## Key design rules
 - **Match time, not wall-clock.** Windows, metrics and alerts are based on match time (period + game clock), so results are identical at any playback speed and after a seek.
-- **Canonical event schema.** The simulator converts StatsBomb events into a slim format: `id`, `match_id`, `offset`, `period`, `match_clock_s`, `type`, `team`, `player`, `location`, `end_location`, `outcome`, `possession_id`, plus `schema_version`. The JSON Schemas in `schema/` are the single source of truth.
+- **Canonical event schema.** The simulator converts StatsBomb events into a slim format: `id`, `match_id`, `offset`, `period`, `match_clock_s`, `type`, `team`, `player`, `location`, `end_location`, `outcome`, `possession_id`, plus `schema_version`. The JSON Schemas in `schema/jsonschema/` are the single source of truth.
   - Types are generated for each language:
     - Python: pydantic, via `datamodel-code-generator`
     - TypeScript: via `json-schema-to-typescript`
-    - Go: via `go-jsonschema`, with hand-written structs as a fallback
-  - Shared example messages in `schema/fixtures/` are validated by the tests in all three languages.
+    - Go: via `go-jsonschema` (generated `UnmarshalJSON` also enforces the schema constraints)
+  - Generated code is committed, and CI fails if `make gen` would change it.
+  - Shared example messages in `schema/fixtures/` (valid and invalid) are checked by the tests in all three languages.
   - Raw StatsBomb JSON never leaves the simulator, which keeps the boundary clean for a future live provider.
 - **Events behave like a broker log.**
   - Every event has a stable `id` and a per-match sequence `offset`.
@@ -104,15 +105,15 @@ Makefile       gen, dev, test, lint, run-all targets
 ## Roadmap
 
 ### Phase 0: Foundations
-- [ ] Monorepo scaffold:
+- [x] Monorepo scaffold:
   - Go modules
   - uv + ruff + pytest + mypy
-  - pnpm + Vite + eslint
+  - pnpm + Vite + oxlint + vitest
   - Makefile
   - `.gitignore` (including `data/`)
-- [ ] JSON Schemas + fixtures for events, controls, metrics and alerts; `make gen` generates Go, Python and TS types.
-- [ ] Data fetch script for the 2022 FIFA World Cup (StatsBomb open data).
-- [ ] CI that runs:
+- [x] JSON Schemas + fixtures for events, controls, metrics and alerts; `make gen` generates Go, Python and TS types.
+- [x] Data fetch script for the 2022 FIFA World Cup (StatsBomb open data).
+- [x] CI that runs:
   - lint and tests for Go, Python and TS
   - fixture contract tests
   - a check that generated code is up to date

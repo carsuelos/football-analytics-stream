@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "id": "x",
+  "match_id": 1,
+  "offset": 0,
+  "period": 1,
+  "match_clock_s": 0,
+  "type": "pass",
+  "possession_id": 1,
+  "possession_team_id": 1
+}

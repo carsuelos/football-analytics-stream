@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PlaybackStatus",
+  "description": "Current simulator playback state.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "state": {
+      "title": "PlaybackState",
+      "type": "string",
+      "enum": ["idle", "playing", "paused", "ended"]
+    },
+    "speed": { "type": "number", "exclusiveMinimum": 0 },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "offset": {
+      "description": "Next offset to be emitted.",
+      "$ref": "common.schema.json#/definitions/Offset"
+    },
+    "period": { "$ref": "common.schema.json#/definitions/Period" },
+    "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" }
+  },
+  "required": ["schema_version", "state", "speed"]
+}

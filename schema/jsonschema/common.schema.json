@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Common",
+  "description": "Shared definitions referenced by the other schemas.",
+  "definitions": {
+    "SchemaVersion": {
+      "description": "Wire-format version. Bump only for breaking changes.",
+      "type": "integer",
+      "const": 1
+    },
+    "MatchId": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "Offset": {
+      "description": "Per-match sequence number of an event in the feed, starting at 0.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "Period": {
+      "description": "1-2 regular halves, 3-4 extra time, 5 penalty shootout.",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 5
+    },
+    "MatchClockSeconds": {
+      "description": "Game clock in seconds (e.g. the second half starts at 2700). Clocks overlap across periods because of stoppage time, so always pair with period.",
+      "type": "number",
+      "minimum": 0
+    },
+    "Team": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Player": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "integer" },
+        "name": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Point": {
+      "description": "Pitch coordinates [x, y] on a 120x80 pitch, oriented so the acting team attacks towards x = 120.",
+      "type": "array",
+      "items": { "type": "number" },
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "c4a1c7ea-bff4-4b94-891f-72628bc08657",
+  "match_id": 3869685,
+  "offset": 2946,
+  "period": 2,
+  "match_clock_s": 4803.905,
+  "type": "pass",
+  "team": { "id": 779, "name": "Argentina" },
+  "possession_id": 164,
+  "possession_team_id": 779,
+  "player": { "id": 19597, "name": "Marcos Javier Acuña" },
+  "location": [51.2, 4.9],
+  "end_location": [62.5, 0.8],
+  "outcome": "failure"
+}

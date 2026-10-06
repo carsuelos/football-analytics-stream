@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "match_id": 3869685,
+  "offset": 2986,
+  "period": 2,
+  "match_clock_s": 4859.025,
+  "window_s": 300,
+  "teams": [
+    { "team_id": 779, "field_tilt": 0.31, "xt_added": 0.042, "xt_velocity": 0.0084, "pressure_index": 3.5 },
+    { "team_id": 771, "field_tilt": 0.69, "xt_added": 0.215, "xt_velocity": 0.043, "pressure_index": 11.25 }
+  ]
+}
