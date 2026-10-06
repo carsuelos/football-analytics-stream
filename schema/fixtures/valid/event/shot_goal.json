@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "03fb2918-e1e7-4ec8-89ff-7bc5531e853d",
+  "match_id": 3869685,
+  "offset": 2986,
+  "period": 2,
+  "match_clock_s": 4859.025,
+  "type": "shot",
+  "team": { "id": 771, "name": "France" },
+  "possession_id": 165,
+  "possession_team_id": 771,
+  "player": { "id": 3009, "name": "Kylian Mbappé Lottin" },
+  "location": [104.8, 30.1],
+  "end_location": [120.0, 41.5],
+  "shot": { "xg": 0.1017, "outcome": "goal" }
+}

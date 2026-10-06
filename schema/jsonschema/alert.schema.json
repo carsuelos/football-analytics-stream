@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Alert",
+  "description": "A tactical alert raised by a detector.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "id": { "type": "string", "minLength": 1 },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "offset": {
+      "description": "Offset of the event that triggered the alert.",
+      "$ref": "common.schema.json#/definitions/Offset"
+    },
+    "period": { "$ref": "common.schema.json#/definitions/Period" },
+    "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+    "type": {
+      "title": "AlertType",
+      "type": "string",
+      "enum": ["momentum_shift", "goal_threat", "control_shift"]
+    },
+    "team_id": { "type": "integer" },
+    "value": {
+      "description": "Detector output (e.g. z-score or heuristic goal score).",
+      "type": "number"
+    },
+    "threshold": { "type": "number" },
+    "window_s": { "type": "integer", "exclusiveMinimum": 0 },
+    "features": {
+      "description": "Inputs that contributed to the alert, by name.",
+      "type": "object",
+      "additionalProperties": { "type": "number" }
+    },
+    "message": { "type": "string" }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "match_id",
+    "offset",
+    "period",
+    "match_clock_s",
+    "type",
+    "team_id",
+    "value",
+    "threshold",
+    "window_s",
+    "features",
+    "message"
+  ]
+}

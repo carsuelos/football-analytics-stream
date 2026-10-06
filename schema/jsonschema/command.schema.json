@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PlaybackCommand",
+  "description": "Request body for the simulator's HTTP control API.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "command": {
+      "title": "PlaybackCommandType",
+      "type": "string",
+      "enum": ["load_match", "play", "pause", "set_speed", "seek"]
+    },
+    "match_id": {
+      "description": "Required for load_match.",
+      "$ref": "common.schema.json#/definitions/MatchId"
+    },
+    "speed": {
+      "description": "Playback speed multiplier. Required for set_speed.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000
+    },
+    "seek_to": {
+      "title": "SeekTarget",
+      "description": "Required for seek.",
+      "type": "object",
+      "properties": {
+        "period": { "$ref": "common.schema.json#/definitions/Period" },
+        "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" }
+      },
+      "required": ["period", "match_clock_s"]
+    }
+  },
+  "required": ["schema_version", "command"]
+}

@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "id": "59fab05a-1ecb-4ee3-a486-d9cdb5d3ad16",
+  "match_id": 3869685,
+  "offset": 2943,
+  "period": 2,
+  "match_clock_s": 4800.474,
+  "type": "pass",
+  "team": { "id": 779, "name": "Argentina" },
+  "possession_id": 164,
+  "possession_team_id": 779,
+  "player": { "id": 6909, "name": "Damián Emiliano Martínez" },
+  "location": [6.0, 37.0],
+  "end_location": [51.4, 4.9],
+  "outcome": "success"
+}

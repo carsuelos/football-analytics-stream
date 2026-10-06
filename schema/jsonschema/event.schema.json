@@ -1,0 +1,88 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MatchEvent",
+  "description": "A single normalized match event. Raw provider data never crosses the simulator boundary.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "id": {
+      "description": "Stable unique event id (used for de-duplication).",
+      "type": "string",
+      "minLength": 1
+    },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "offset": { "$ref": "common.schema.json#/definitions/Offset" },
+    "period": { "$ref": "common.schema.json#/definitions/Period" },
+    "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+    "type": {
+      "title": "EventType",
+      "type": "string",
+      "enum": [
+        "pass",
+        "carry",
+        "shot",
+        "ball_receipt",
+        "ball_recovery",
+        "interception",
+        "duel",
+        "dribble",
+        "dribbled_past",
+        "clearance",
+        "block",
+        "pressure",
+        "foul_committed",
+        "foul_won",
+        "miscontrol",
+        "dispossessed",
+        "goalkeeper",
+        "fifty_fifty",
+        "offside",
+        "substitution",
+        "half_start",
+        "half_end",
+        "other"
+      ]
+    },
+    "team": { "$ref": "common.schema.json#/definitions/Team" },
+    "possession_id": {
+      "description": "Possession sequence number within the match.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "possession_team_id": { "type": "integer" },
+    "player": { "$ref": "common.schema.json#/definitions/Player" },
+    "location": { "$ref": "common.schema.json#/definitions/Point" },
+    "end_location": { "$ref": "common.schema.json#/definitions/Point" },
+    "outcome": {
+      "title": "EventOutcome",
+      "description": "Success or failure for actions that have one (e.g. pass completion). Omitted otherwise.",
+      "type": "string",
+      "enum": ["success", "failure"]
+    },
+    "shot": {
+      "title": "ShotDetail",
+      "type": "object",
+      "properties": {
+        "xg": { "type": "number", "minimum": 0, "maximum": 1 },
+        "outcome": {
+          "title": "ShotOutcome",
+          "type": "string",
+          "enum": ["goal", "saved", "blocked", "off_target", "post", "other"]
+        }
+      },
+      "required": ["xg", "outcome"]
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "match_id",
+    "offset",
+    "period",
+    "match_clock_s",
+    "type",
+    "team",
+    "possession_id",
+    "possession_team_id"
+  ]
+}

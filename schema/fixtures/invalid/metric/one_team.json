@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "match_id": 1,
+  "offset": 0,
+  "period": 1,
+  "match_clock_s": 0,
+  "window_s": 300,
+  "teams": [{ "team_id": 1, "field_tilt": 0.5, "xt_added": 0, "xt_velocity": 0, "pressure_index": 0 }]
+}

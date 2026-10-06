@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "id": "half-start-2-771",
+  "match_id": 3869685,
+  "offset": 1751,
+  "period": 2,
+  "match_clock_s": 2700,
+  "type": "half_start",
+  "team": { "id": 771, "name": "France" },
+  "possession_id": 0,
+  "possession_team_id": 771
+}

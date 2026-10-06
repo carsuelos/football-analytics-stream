@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "id": "3869685-2986-momentum_shift-771",
+  "match_id": 3869685,
+  "offset": 2986,
+  "period": 2,
+  "match_clock_s": 4859.025,
+  "type": "momentum_shift",
+  "team_id": 771,
+  "value": 2.8,
+  "threshold": 2.0,
+  "window_s": 300,
+  "features": { "pressure_index_z": 2.8, "field_tilt": 0.69, "xt_velocity": 0.043 },
+  "message": "France pressure is 2.8σ above their match baseline over the last 5 minutes."
+}

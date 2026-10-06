@@ -1,0 +1,30 @@
+# Local StatsBomb data cache (fetched by `make fetch-data`; never commit)
+data/
+
+# OS / editors
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+
+# Go
+/simulator/bin/
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+
+*.log

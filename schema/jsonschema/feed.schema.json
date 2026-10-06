@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "FeedMessage",
+  "description": "One WebSocket message on the simulator feed. `kind` says which payload field is set.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "kind": {
+      "title": "FeedMessageKind",
+      "type": "string",
+      "enum": ["event", "match_start", "reset", "match_end"]
+    },
+    "event": { "$ref": "event.schema.json" },
+    "marker": {
+      "title": "FeedMarker",
+      "description": "Stream position for non-event messages. On `reset`, consumers drop state and rebuild up to this position.",
+      "type": "object",
+      "properties": {
+        "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+        "offset": { "$ref": "common.schema.json#/definitions/Offset" },
+        "period": { "$ref": "common.schema.json#/definitions/Period" },
+        "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" }
+      },
+      "required": ["match_id", "offset", "period", "match_clock_s"]
+    }
+  },
+  "required": ["schema_version", "kind"]
+}
