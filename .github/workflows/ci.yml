@@ -38,7 +38,7 @@ jobs:
         working-directory: engine
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: engine
           enable-cache: true
@@ -80,7 +80,7 @@ jobs:
         with:
           go-version-file: simulator/go.mod
           cache-dependency-path: simulator/go.sum
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: engine
           enable-cache: true
