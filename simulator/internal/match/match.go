@@ -5,7 +5,15 @@
 // provider. Swapping in a live feed later means writing another Catalog.
 package match
 
-import "github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
+import (
+	"errors"
+
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
+)
+
+// ErrNotFound is returned, wrapped, by Catalog.Load for an unknown match id.
+// Check for it with errors.Is.
+var ErrNotFound = errors.New("match not found")
 
 // Info describes a match without its events. It is cheap to list.
 type Info struct {

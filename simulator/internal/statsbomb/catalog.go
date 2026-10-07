@@ -21,9 +21,6 @@ import (
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
 
-// ErrMatchNotFound is returned by Load for an id that is not in any matches file.
-var ErrMatchNotFound = errors.New("match not found")
-
 // Catalog implements match.Catalog over a local StatsBomb data directory.
 type Catalog struct {
 	dir string
@@ -80,7 +77,7 @@ func (c *Catalog) Load(id int) (*match.Match, error) {
 		}
 	}
 	if idx < 0 {
-		return nil, fmt.Errorf("match %d: %w", id, ErrMatchNotFound)
+		return nil, fmt.Errorf("match %d: %w", id, match.ErrNotFound)
 	}
 
 	var raws []rawEvent

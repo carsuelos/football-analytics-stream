@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
 
@@ -52,8 +53,8 @@ func TestCatalogLoad(t *testing.T) {
 func TestCatalogLoadUnknownMatch(t *testing.T) {
 	for _, id := range []int{999, 200} { // 200 is listed upstream but not downloaded
 		_, err := NewCatalog("testdata").Load(id)
-		if !errors.Is(err, ErrMatchNotFound) {
-			t.Errorf("Load(%d) error = %v, want ErrMatchNotFound", id, err)
+		if !errors.Is(err, match.ErrNotFound) {
+			t.Errorf("Load(%d) error = %v, want match.ErrNotFound", id, err)
 		}
 	}
 }
