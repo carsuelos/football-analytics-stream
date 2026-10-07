@@ -119,10 +119,12 @@ Makefile       gen, dev, test, lint, run-all targets
   - a check that generated code is up to date
 
 ### Azure bootstrap (free, can run alongside Phase 0)
-- [ ] Install the Azure CLI and sign in (Visual Studio subscription; spending limit on).
-- [ ] Create resource group `rg-football-analytics-dev` in a chosen region.
-- [ ] Subscription budget with email alerts.
-- [ ] Connect GitHub Actions to Azure via OIDC (federated credential, least-privilege role on the resource group, no stored secrets).
+Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscription Owner; safe to re-run).
+- [x] Install the Azure CLI and sign in (Visual Studio subscription; spending limit on).
+- [x] Create resource group `rg-football-analytics` in `westus2`.
+- [x] $50/month budget on the resource group, emailing at 50/80/100% actual and 100% forecast.
+- [x] Connect GitHub Actions to Azure via OIDC (federated credential for `main`, Contributor on the resource group only, no stored secrets; repo variables `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_SUBSCRIPTION_ID`).
+- [ ] Verify with the manual **Azure login check** workflow on `main`.
 
 ### Phase 1: MVP (one match replayed end to end, with live dashboard)
 - [ ] **Go simulator:**
