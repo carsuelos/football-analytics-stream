@@ -58,7 +58,7 @@ func (c *Catalog) List() ([]match.Info, error) {
 		if infos[i].Date != infos[j].Date {
 			return infos[i].Date < infos[j].Date
 		}
-		return infos[i].ID < infos[j].ID
+		return infos[i].MatchID < infos[j].MatchID
 	})
 	return infos, nil
 }
@@ -71,7 +71,7 @@ func (c *Catalog) Load(id int) (*match.Match, error) {
 	}
 	idx := -1
 	for i := range infos {
-		if infos[i].ID == id {
+		if int(infos[i].MatchID) == id {
 			idx = i
 			break
 		}
@@ -97,13 +97,13 @@ func (c *Catalog) eventsPath(id int) string {
 
 func toInfo(r rawMatch) match.Info {
 	return match.Info{
-		ID:          r.MatchID,
+		MatchID:     schema.MatchID(r.MatchID),
 		Competition: r.Competition.Name,
 		Season:      r.Season.Name,
 		Stage:       r.Stage.Name,
 		Date:        r.MatchDate,
-		Home:        schema.Team{ID: r.HomeTeam.ID, Name: r.HomeTeam.Name},
-		Away:        schema.Team{ID: r.AwayTeam.ID, Name: r.AwayTeam.Name},
+		HomeTeam:    schema.Team{ID: r.HomeTeam.ID, Name: r.HomeTeam.Name},
+		AwayTeam:    schema.Team{ID: r.AwayTeam.ID, Name: r.AwayTeam.Name},
 		HomeScore:   r.HomeScore,
 		AwayScore:   r.AwayScore,
 	}

@@ -171,7 +171,7 @@ func (s *Subscription) marker(kind schema.FeedMessageKind, offset int, pos posit
 		SchemaVersion: 1,
 		Kind:          kind,
 		Marker: &schema.FeedMarker{
-			MatchID:     schema.MatchID(s.f.match.ID),
+			MatchID:     s.f.match.MatchID,
 			Offset:      schema.Offset(offset),
 			Period:      schema.Period(pos.period),
 			MatchClockS: schema.MatchClockSeconds(pos.clock),

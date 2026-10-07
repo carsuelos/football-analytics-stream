@@ -16,17 +16,10 @@ import (
 var ErrNotFound = errors.New("match not found")
 
 // Info describes a match without its events. It is cheap to list.
-type Info struct {
-	ID          int         `json:"match_id"`
-	Competition string      `json:"competition"`
-	Season      string      `json:"season"`
-	Stage       string      `json:"stage"`
-	Date        string      `json:"date"`
-	Home        schema.Team `json:"home_team"`
-	Away        schema.Team `json:"away_team"`
-	HomeScore   int         `json:"home_score"`
-	AwayScore   int         `json:"away_score"`
-}
+//
+// It is an alias of the generated wire type, so GET /matches serves exactly
+// what match_list.schema.json describes.
+type Info = schema.MatchInfo
 
 // Match is a fully loaded match, ready to replay.
 type Match struct {

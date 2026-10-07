@@ -17,12 +17,12 @@ func TestCatalogListOnlyDownloadedMatches(t *testing.T) {
 		t.Fatalf("got %d matches, want 1 (match 200 has no events file): %+v", len(infos), infos)
 	}
 	got := infos[0]
-	if got.ID != 100 || got.Competition != "Test Cup" || got.Season != "2030" || got.Stage != "Final" ||
+	if got.MatchID != 100 || got.Competition != "Test Cup" || got.Season != "2030" || got.Stage != "Final" ||
 		got.Date != "2030-07-14" || got.HomeScore != 1 || got.AwayScore != 0 {
 		t.Errorf("unexpected info: %+v", got)
 	}
-	if got.Home != (schema.Team{ID: 1, Name: "Home FC"}) || got.Away != (schema.Team{ID: 2, Name: "Away FC"}) {
-		t.Errorf("unexpected teams: %+v / %+v", got.Home, got.Away)
+	if got.HomeTeam != (schema.Team{ID: 1, Name: "Home FC"}) || got.AwayTeam != (schema.Team{ID: 2, Name: "Away FC"}) {
+		t.Errorf("unexpected teams: %+v / %+v", got.HomeTeam, got.AwayTeam)
 	}
 }
 
@@ -31,7 +31,7 @@ func TestCatalogLoad(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.ID != 100 || m.Home.Name != "Home FC" {
+	if m.MatchID != 100 || m.HomeTeam.Name != "Home FC" {
 		t.Errorf("unexpected info: %+v", m.Info)
 	}
 	wantIDs := []string{"e1-half-start", "e2-xi", "e3-pass", "e4-receipt", "e5-shot"}

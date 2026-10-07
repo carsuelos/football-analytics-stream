@@ -325,7 +325,7 @@ func at(period int, clock float64) position { return position{period, clock} }
 
 // newMatch builds a match whose event ids read "m<match>-e<offset>".
 func newMatch(id int, positions ...position) *match.Match {
-	m := &match.Match{Info: match.Info{ID: id}}
+	m := &match.Match{Info: match.Info{MatchID: schema.MatchID(id)}}
 	for i, p := range positions {
 		m.Events = append(m.Events, schema.MatchEvent{
 			SchemaVersion: 1,
@@ -377,7 +377,7 @@ type harness struct {
 func start(t *testing.T, matches ...*match.Match) *harness {
 	catalog := stubCatalog{}
 	for _, m := range matches {
-		catalog[m.ID] = m
+		catalog[int(m.MatchID)] = m
 	}
 	p := New(catalog)
 	go p.Run(t.Context())

@@ -27,7 +27,7 @@ func loadFinal(t *testing.T) []schema.MatchEvent {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if m.Home.Name != "Argentina" || m.Away.Name != "France" || m.HomeScore != 3 || m.AwayScore != 3 {
+	if m.HomeTeam.Name != "Argentina" || m.AwayTeam.Name != "France" || m.HomeScore != 3 || m.AwayScore != 3 {
 		t.Errorf("unexpected match info: %+v", m.Info)
 	}
 	return m.Events

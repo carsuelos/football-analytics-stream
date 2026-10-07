@@ -282,7 +282,7 @@ func (s *state) status(t time.Time) schema.PlaybackStatus {
 		return st
 	}
 	pos := s.now(t)
-	id := schema.MatchID(s.match.ID)
+	id := s.match.MatchID
 	offset := schema.Offset(s.head)
 	period := schema.Period(pos.period)
 	clock := schema.MatchClockSeconds(pos.clock)
