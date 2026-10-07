@@ -203,3 +203,6 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - The goal window X (e.g. 5 or 10 minutes) and the alert thresholds; tune in Phase 3.
 - Whether generated code is committed or generated in CI.
 - Whether a more compact wire format is worth it on the broker (unlikely at this scale).
+
+## Known gaps
+- **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
