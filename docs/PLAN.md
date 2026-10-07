@@ -123,8 +123,8 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - [x] Install the Azure CLI and sign in (Visual Studio subscription; spending limit on).
 - [x] Create resource group `rg-football-analytics` in `westus2`.
 - [x] $50/month budget on the resource group, emailing at 50/80/100% actual and 100% forecast.
-- [x] Connect GitHub Actions to Azure via OIDC (federated credential for `main`, Contributor on the resource group only, no stored secrets; repo variables `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_SUBSCRIPTION_ID`).
-- [ ] Verify with the manual **Azure login check** workflow on `main`.
+- [x] Connect GitHub Actions to Azure via OIDC (federated credential for `main` using GitHub's immutable ID-based subject, Contributor on the resource group only, no stored secrets; repo variables `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/`AZURE_SUBSCRIPTION_ID`).
+- [x] Verify with the manual **Azure login check** workflow on `main`.
 
 ### Phase 1: MVP (one match replayed end to end, with live dashboard)
 - [ ] **Go simulator:**
