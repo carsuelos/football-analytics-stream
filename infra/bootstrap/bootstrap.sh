@@ -59,14 +59,25 @@ SP_OBJECT_ID="$(az ad sp show --id "$APP_ID" --query id -o tsv)"
 
 log "Federated credential for $REPO main branch"
 FIC_NAME="github-main"
-if [[ -z "$(az ad app federated-credential list --id "$APP_ID" --query "[?name=='$FIC_NAME'].name" -o tsv)" ]]; then
-  az ad app federated-credential create --id "$APP_ID" --only-show-errors --output none --parameters "{
-    \"name\": \"$FIC_NAME\",
-    \"issuer\": \"https://token.actions.githubusercontent.com\",
-    \"subject\": \"repo:$REPO:ref:refs/heads/main\",
-    \"audiences\": [\"api://AzureADTokenExchange\"]
-  }"
+# Ask GitHub for the exact subject prefix its OIDC tokens use. With immutable
+# subjects it embeds owner/repo IDs (repo:owner@id/name@id), so a renamed or
+# re-created repo with the same name cannot match.
+SUB_PREFIX="$(gh api "repos/$REPO/actions/oidc/customization/sub" --jq '.sub_claim_prefix // empty' 2>/dev/null || true)"
+SUBJECT="${SUB_PREFIX:-repo:$REPO}:ref:refs/heads/main"
+FIC_JSON="{
+  \"name\": \"$FIC_NAME\",
+  \"issuer\": \"https://token.actions.githubusercontent.com\",
+  \"subject\": \"$SUBJECT\",
+  \"audiences\": [\"api://AzureADTokenExchange\"]
+}"
+CURRENT_SUBJECT="$(az ad app federated-credential list --id "$APP_ID" --query "[?name=='$FIC_NAME'].subject | [0]" -o tsv)"
+if [[ -z "$CURRENT_SUBJECT" ]]; then
+  az ad app federated-credential create --id "$APP_ID" --only-show-errors --output none --parameters "$FIC_JSON"
+elif [[ "$CURRENT_SUBJECT" != "$SUBJECT" ]]; then
+  az ad app federated-credential update --id "$APP_ID" --federated-credential-id "$FIC_NAME" \
+    --only-show-errors --output none --parameters "$FIC_JSON"
 fi
+echo "Subject: $SUBJECT"
 
 log "Contributor on $RG"
 if [[ -z "$(az role assignment list --assignee "$SP_OBJECT_ID" --scope "$RG_ID" --role Contributor --query '[0].id' -o tsv)" ]]; then
