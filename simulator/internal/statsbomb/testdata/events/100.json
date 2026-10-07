@@ -1,0 +1,64 @@
+[
+  {
+    "id": "e3-pass",
+    "index": 3,
+    "period": 1,
+    "timestamp": "00:00:02.500",
+    "type": { "id": 30, "name": "Pass" },
+    "possession": 2,
+    "possession_team": { "id": 1, "name": "Home FC" },
+    "team": { "id": 1, "name": "Home FC" },
+    "player": { "id": 10, "name": "Player Ten" },
+    "location": [60.0, 40.0],
+    "pass": { "end_location": [80.5, 30.25] }
+  },
+  {
+    "id": "e1-half-start",
+    "index": 1,
+    "period": 1,
+    "timestamp": "00:00:00.000",
+    "type": { "id": 18, "name": "Half Start" },
+    "possession": 1,
+    "possession_team": { "id": 1, "name": "Home FC" },
+    "team": { "id": 1, "name": "Home FC" }
+  },
+  {
+    "id": "e2-xi",
+    "index": 2,
+    "period": 1,
+    "timestamp": "00:00:00.000",
+    "type": { "id": 35, "name": "Starting XI" },
+    "possession": 1,
+    "possession_team": { "id": 1, "name": "Home FC" },
+    "team": { "id": 2, "name": "Away FC" }
+  },
+  {
+    "id": "e4-receipt",
+    "index": 4,
+    "period": 1,
+    "timestamp": "00:00:02.400",
+    "type": { "id": 42, "name": "Ball Receipt*" },
+    "possession": 2,
+    "possession_team": { "id": 1, "name": "Home FC" },
+    "team": { "id": 1, "name": "Home FC" },
+    "player": { "id": 9, "name": "Player Nine" },
+    "location": [80.5, 30.25]
+  },
+  {
+    "id": "e5-shot",
+    "index": 5,
+    "period": 2,
+    "timestamp": "00:12:03.250",
+    "type": { "id": 16, "name": "Shot" },
+    "possession": 7,
+    "possession_team": { "id": 1, "name": "Home FC" },
+    "team": { "id": 1, "name": "Home FC" },
+    "player": { "id": 9, "name": "Player Nine" },
+    "location": [108.0, 38.0],
+    "shot": {
+      "statsbomb_xg": 0.31,
+      "end_location": [120.0, 37.5, 1.2],
+      "outcome": { "id": 97, "name": "Goal" }
+    }
+  }
+]

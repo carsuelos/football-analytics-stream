@@ -9,7 +9,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -67,3 +67,6 @@ ci: check-gen lint test ## Run everything CI runs
 
 fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup). Pass extra flags via ARGS="..."
 	uv run scripts/fetch_statsbomb.py $(ARGS)
+
+sim: ## Run the simulator on :8080. Pass flags via ARGS="..." (e.g. ARGS="-jitter 3s")
+	cd simulator && go run ./cmd/simulator -data ../data/statsbomb $(ARGS)
