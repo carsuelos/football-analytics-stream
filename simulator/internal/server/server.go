@@ -16,6 +16,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -37,10 +38,30 @@ type Server struct {
 	player  *playback.Player
 	catalog match.Catalog
 	log     *slog.Logger
+	feeds   sync.WaitGroup // open /feed connections
 }
 
 func New(player *playback.Player, catalog match.Catalog, log *slog.Logger) *Server {
 	return &Server{player: player, catalog: catalog, log: log}
+}
+
+// WaitFeeds blocks until every /feed connection has closed, or ctx is done.
+//
+// http.Server.Shutdown does not wait for WebSocket connections, so call this
+// after it. Feeds close themselves when their request context is cancelled
+// (see http.Server.BaseContext).
+func (s *Server) WaitFeeds(ctx context.Context) error {
+	done := make(chan struct{})
+	go func() {
+		s.feeds.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Handler returns the HTTP routes. Method and path patterns such as
@@ -115,11 +136,19 @@ func (s *Server) feed(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return // Accept has already written an HTTP error response
 	}
+	s.feeds.Add(1)
+	defer s.feeds.Done()
 	defer conn.CloseNow()
 
 	// Clients never send us data. CloseRead answers pings and returns a
-	// context that is cancelled as soon as the client disconnects.
-	ctx := conn.CloseRead(r.Context())
+	// context that is cancelled as soon as the client disconnects. It must not
+	// inherit the request's cancellation: on shutdown it would drop the
+	// connection without a close frame, before we can say StatusGoingAway.
+	clientGone := conn.CloseRead(context.WithoutCancel(r.Context()))
+	// ctx ends when the client leaves or the server shuts down.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	defer context.AfterFunc(clientGone, cancel)()
 	s.log.Info("feed client connected", "remote", r.RemoteAddr, "from_offset", from)
 	defer s.log.Info("feed client disconnected", "remote", r.RemoteAddr)
 

@@ -127,7 +127,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - [x] Verify with the manual **Azure login check** workflow on `main`.
 
 ### Phase 1: MVP (one match replayed end to end, with live dashboard)
-- [ ] **Go simulator:**
+- [x] **Go simulator:**
   - loader and normalizer
   - playback: pause, resume, speed, seek
   - match clock: halves, stoppage time, extra time

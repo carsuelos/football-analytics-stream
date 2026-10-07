@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -150,6 +151,24 @@ func TestFeedRejectsCrossOriginBrowsers(t *testing.T) {
 	}
 }
 
+func TestFeedSaysGoingAwayOnShutdown(t *testing.T) {
+	srv, api, shutdown := startShutdownable(t)
+	conn := dial(t, srv, "")
+	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "load_match", "match_id": 1}`)
+	expectFeed(t, conn, "match_start 0")
+
+	shutdown()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	_, _, err := conn.Read(ctx)
+	if got := websocket.CloseStatus(err); got != websocket.StatusGoingAway {
+		t.Errorf("close status %v (err %v), want StatusGoingAway", got, err)
+	}
+	if err := api.WaitFeeds(ctx); err != nil {
+		t.Errorf("feed handler did not return: %v", err)
+	}
+}
+
 // --- helpers ---
 
 type fakeCatalog map[int]*match.Match
@@ -171,6 +190,14 @@ func (c fakeCatalog) Load(id int) (*match.Match, error) {
 
 // startServer serves one match with events at (1, 0), (1, 10) and (2, 2700).
 func startServer(t *testing.T) *httptest.Server {
+	t.Helper()
+	srv, _, _ := startShutdownable(t)
+	return srv
+}
+
+// startShutdownable is startServer, plus the Server and a shutdown func that
+// cancels every request context the way cmd/simulator does on Ctrl-C.
+func startShutdownable(t *testing.T) (*httptest.Server, *Server, context.CancelFunc) {
 	t.Helper()
 	m := &match.Match{Info: match.Info{
 		MatchID: 1, Competition: "Test Cup", Season: "2030", Stage: "Final", Date: "2030-07-14",
@@ -196,9 +223,13 @@ func startServer(t *testing.T) *httptest.Server {
 	go player.Run(t.Context())
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	srv := httptest.NewServer(New(player, catalog, logger).Handler())
+	api := New(player, catalog, logger)
+	srv := httptest.NewUnstartedServer(api.Handler())
+	ctx, shutdown := context.WithCancel(t.Context())
+	srv.Config.BaseContext = func(net.Listener) context.Context { return ctx }
+	srv.Start()
 	t.Cleanup(srv.Close)
-	return srv
+	return srv, api, shutdown
 }
 
 func wsURL(srv *httptest.Server, query string) string {
