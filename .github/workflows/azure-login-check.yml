@@ -1,0 +1,22 @@
+name: Azure login check
+
+# Manually verifies that GitHub OIDC -> Azure works (set up by infra/bootstrap/bootstrap.sh).
+# Must run on main: the federated credential only trusts refs/heads/main.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  login:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Show project resource group
+        run: az group show --name rg-football-analytics --query "{name:name, location:location, state:properties.provisioningState}" -o table
