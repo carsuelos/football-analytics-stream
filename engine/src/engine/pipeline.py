@@ -55,6 +55,9 @@ class Pipeline:
         a seek, or a catch-up after (re)connecting."""
         self.teams: dict[int, Team] = {}
         """Teams seen in this match, in order of first appearance."""
+        self.generation = 0
+        """Goes up each time the pipeline starts over, so later stages that keep
+        their own state (detectors) know to start over too."""
         self._next_offset = 0
 
     @property
@@ -122,6 +125,7 @@ class Pipeline:
         self.ended = False
         self.replay_end_offset = 0
         self.teams = {}
+        self.generation += 1
         self._next_offset = 0
 
     def _check(self, event: MatchEvent) -> MatchEvent:

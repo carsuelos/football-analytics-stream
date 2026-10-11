@@ -179,3 +179,14 @@ def test_a_match_start_not_at_our_next_offset_starts_over(offset: int) -> None:
     feed(p, start(), *map(feed_event, e))
     feed(p, feed_marker(K.match_start, offset, head=3))
     assert p.windows is not None and p.windows.now is None
+
+
+def test_the_generation_goes_up_each_time_the_pipeline_starts_over() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    assert p.generation == 0
+    feed(p, start(), *map(feed_event, match([(1, 0), (1, 10)])))
+    assert p.generation == 1
+    feed(p, feed_marker(K.match_start, 2, head=2))  # a reconnect
+    assert p.generation == 1
+    feed(p, feed_marker(K.reset, 1))
+    assert p.generation == 2
