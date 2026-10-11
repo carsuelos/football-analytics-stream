@@ -33,11 +33,12 @@ DEFAULT_BACKOFF = Backoff()
 class WebSocketSource:
     """An EventSource reading the simulator's /feed endpoint.
 
-    Reconnects are hidden from the consumer. After a drop it reconnects with
-    ?from_offset=<next offset> and carries on as if the connection had never
-    broken:
-      - the match_start the server sends on every new connection is dropped
-        when it is the same match we were reading;
+    After a drop it reconnects with ?from_offset=<next offset> and carries on
+    where it left off:
+      - the match_start the server sends on every new connection is passed
+        on when it is the same match we were reading, at our next offset; its
+        head tells the consumer which of the coming events it missed while
+        away (Pipeline treats it as a resume, not a new start);
       - if a different match was loaded while we were away, it starts again
         from offset 0 so the consumer sees the new match from its start.
 
@@ -72,9 +73,9 @@ class WebSocketSource:
                             reconnecting = False
                             start = _marker(msg)
                             if start.match_id == match_id:
+                                # Passed on: its head says which events we missed.
                                 log.info("resumed match %d at offset %d", match_id, start.offset)
-                                continue
-                            if start.offset != 0:
+                            elif start.offset != 0:
                                 log.info("match %d was loaded while away", start.match_id)
                                 restart_from_zero = True
                                 break

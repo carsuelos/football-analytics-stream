@@ -65,7 +65,15 @@ def feed_event(ev: MatchEvent) -> FeedMessage:
 
 
 def feed_marker(
-    kind: FeedMessageKind, offset: int, *, match_id: int = 1, period: int = 1, clock_s: float = 0
+    kind: FeedMessageKind,
+    offset: int,
+    *,
+    match_id: int = 1,
+    period: int = 1,
+    clock_s: float = 0,
+    head: int | None = None,
 ) -> FeedMessage:
-    marker = FeedMarker(match_id=match_id, offset=offset, period=period, match_clock_s=clock_s)
+    marker = FeedMarker(
+        match_id=match_id, offset=offset, period=period, match_clock_s=clock_s, head=head
+    )
     return FeedMessage(schema_version=1, kind=kind, marker=marker)

@@ -98,7 +98,8 @@ func (f *feed) subscribe(fromOffset int) *Subscription {
 // Next blocks until the next message is available or ctx is done.
 //
 // A subscriber sees:
-//   - match_start when it first syncs and whenever a new match is loaded;
+//   - match_start when it first syncs and whenever a new match is loaded,
+//     with the head at that moment: offsets below it are a catch-up, not live;
 //   - every published event, in offset order;
 //   - reset after a seek, followed by a replay from offset 0, so consumers can
 //     rebuild their state (see the reset marker for where the replay ends);
@@ -141,6 +142,8 @@ func (s *Subscription) next() (schema.FeedMessage, bool) {
 		}
 		s.loadGen, s.seekGen, s.ended = f.loadGen, f.seekGen, false
 		start := s.marker(schema.FeedMessageKindMatchStart, s.cursor, positionBefore(events, s.cursor))
+		head := schema.Offset(f.head)
+		start.Marker.Head = &head
 		if s.cursor > f.head {
 			// The client asked to resume past what has been published, e.g.
 			// it missed a backward seek while disconnected. Its state is

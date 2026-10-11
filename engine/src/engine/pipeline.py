@@ -24,9 +24,14 @@ class Pipeline:
 
     One match at a time. match_start and reset both start from scratch:
     match_start because a match is (re)loaded, reset because the feed is about
-    to replay the match from offset 0 after a seek. Replayed events rebuild
-    the windows; `is_replay` tells later stages (alerts) not to act on them
-    a second time.
+    to replay the match from offset 0 after a seek. A match_start for the
+    current match at exactly the next expected offset is a reconnect instead,
+    and keeps the state built so far.
+
+    Replayed events rebuild the windows; `is_replay` tells later stages
+    (alerts) not to act on them. They are the events before a seek's target
+    and, after a match_start, the catch-up on everything already published
+    when we (re)connected: acting on those would raise stale alerts.
     """
 
     def __init__(
@@ -46,7 +51,8 @@ class Pipeline:
         self.ended = False
         """True once match_end has been seen, until the next start or reset."""
         self.replay_end_offset = 0
-        """Events below this offset were already seen before the latest seek."""
+        """Events below this offset happened before we were live: a replay after
+        a seek, or a catch-up after (re)connecting."""
         self.teams: dict[int, Team] = {}
         """Teams seen in this match, in order of first appearance."""
         self._next_offset = 0
@@ -65,7 +71,7 @@ class Pipeline:
 
     @property
     def rebuilding(self) -> bool:
-        """True while the feed is replaying events seen before a seek."""
+        """True while the feed is replaying or catching up (see replay_end_offset)."""
         return self._next_offset < self.replay_end_offset
 
     def is_replay(self, item: TimedEvent) -> bool:
@@ -76,8 +82,16 @@ class Pipeline:
         match msg.kind:
             case FeedMessageKind.match_start:
                 marker = _marker(msg)
-                log.info("match %d: start at offset %d", marker.match_id, marker.offset)
-                self._start(marker.match_id)
+                if marker.match_id == self.match_id and marker.offset == self._next_offset:
+                    log.info("match %d: resumed at offset %d", marker.match_id, marker.offset)
+                else:
+                    log.info("match %d: start at offset %d", marker.match_id, marker.offset)
+                    self._start(marker.match_id)
+                if marker.head is not None:
+                    # Everything published before we connected, and nothing more.
+                    self.replay_end_offset = marker.head
+                if self.rebuilding:
+                    log.info("match %d: catching up to offset %d", marker.match_id, marker.head)
                 return []
             case FeedMessageKind.reset:
                 marker = _marker(msg)

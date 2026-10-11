@@ -129,3 +129,53 @@ def test_teams_are_forgotten_on_reset() -> None:
     assert p.team_ids is not None
     feed(p, feed_marker(K.reset, 2))
     assert p.team_ids is None and p.teams == {}
+
+
+def test_events_already_published_at_match_start_are_a_catch_up() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    e = match([(1, 0), (1, 10), (1, 20)])
+    feed(p, feed_marker(K.match_start, 0, head=2))
+    assert p.rebuilding
+    released = [i for x in e for i in p.handle(feed_event(x))]
+    assert not p.rebuilding
+    assert [p.is_replay(i) for i in released] == [True, True, False]
+
+
+def test_a_reconnect_keeps_the_state_and_marks_missed_events_as_catch_up() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    e = match([(1, 0), (1, 10), (1, 20), (1, 30)])
+    feed(p, start(), *map(feed_event, e[:2]))
+    # Dropped after offset 1; the simulator published offset 2 while we were away.
+    feed(p, feed_marker(K.match_start, 2, head=3))
+    released = [i for x in e[2:] for i in p.handle(feed_event(x))]
+    assert window(p) == [x.id for x in e]
+    assert [p.is_replay(i) for i in released] == [True, False]
+
+
+def test_a_reconnect_during_a_replay_keeps_replaying_to_the_head() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    e = match([(1, 0), (1, 10), (1, 20)])
+    feed(p, start(), *map(feed_event, e), feed_marker(K.reset, 3), feed_event(e[0]))
+    feed(p, feed_marker(K.match_start, 1, head=3))
+    assert window(p) == [e[0].id]
+    released = [i for x in e[1:] for i in p.handle(feed_event(x))]
+    assert [p.is_replay(i) for i in released] == [True, True]
+
+
+def test_the_head_on_a_reconnect_wins_over_an_older_seek_target() -> None:
+    # Someone seeked back to offset 2 while we were away: offset 2 on is live play.
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    e = match([(1, 0), (1, 10), (1, 20)])
+    feed(p, start(), *map(feed_event, e), feed_marker(K.reset, 3), feed_event(e[0]))
+    feed(p, feed_marker(K.match_start, 1, head=2))
+    released = [i for x in e[1:] for i in p.handle(feed_event(x))]
+    assert [p.is_replay(i) for i in released] == [True, False]
+
+
+@pytest.mark.parametrize("offset", [1, 3])  # behind us, or ahead with a gap
+def test_a_match_start_not_at_our_next_offset_starts_over(offset: int) -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    e = match([(1, 0), (1, 10)])
+    feed(p, start(), *map(feed_event, e))
+    feed(p, feed_marker(K.match_start, offset, head=3))
+    assert p.windows is not None and p.windows.now is None

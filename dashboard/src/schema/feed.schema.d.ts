@@ -117,4 +117,8 @@ export interface FeedMarker {
    * Game clock in seconds (e.g. the second half starts at 2700). Clocks overlap across periods because of stoppage time, so always pair with period.
    */
   match_clock_s: number;
+  /**
+   * Per-match sequence number of an event in the feed, starting at 0.
+   */
+  head?: number;
 }

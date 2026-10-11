@@ -30,7 +30,7 @@ func TestPlaysInMatchTime(t *testing.T) {
 		h.do(play())
 
 		h.expect(sub,
-			"match_start m1 0 (1, 0) @0s",
+			"match_start m1 0 (1, 0) head 1 @0s",
 			"event m1-e0 @0s",
 			"event m1-e1 @5s", // 10 s of match time at speed 2
 			"event m1-e2 @15s",
@@ -50,7 +50,7 @@ func TestSkipsBreakBetweenPeriods(t *testing.T) {
 		h.do(play())
 
 		h.expect(sub,
-			"match_start m1 0 (1, 0) @0s",
+			"match_start m1 0 (1, 0) head 1 @0s",
 			"event m1-e0 @0s",
 			"event m1-e1 @2760s",
 			"event m1-e2 @2760s", // half time is skipped
@@ -66,7 +66,7 @@ func TestPauseAndResume(t *testing.T) {
 		h.do(load(1))
 		sub := h.p.Subscribe(0)
 		h.do(play())
-		h.expect(sub, "match_start m1 0 (1, 0) @0s", "event m1-e0 @0s", "event m1-e1 @10s")
+		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s", "event m1-e1 @10s")
 
 		time.Sleep(5 * time.Second)
 		h.do(pause())
@@ -85,7 +85,7 @@ func TestSetSpeedWhilePlaying(t *testing.T) {
 		h.do(load(1))
 		sub := h.p.Subscribe(0)
 		h.do(play())
-		h.expect(sub, "match_start m1 0 (1, 0) @0s", "event m1-e0 @0s")
+		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s")
 
 		time.Sleep(50 * time.Second)
 		h.do(setSpeed(10)) // 50 s of match time left, at 10x
@@ -111,7 +111,7 @@ func TestSeekBackwardResetsAndReplays(t *testing.T) {
 		h.do(load(1))
 		sub := h.p.Subscribe(0)
 		h.do(play())
-		h.expect(sub, "match_start m1 0 (1, 0) @0s", "event m1-e0 @0s", "event m1-e1 @10s", "event m1-e2 @20s")
+		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s", "event m1-e1 @10s", "event m1-e2 @20s")
 
 		h.do(seek(1, 15))
 		h.expectStatus(schema.PlaybackStatusStatePlaying, 2, 1, 15)
@@ -131,7 +131,7 @@ func TestSeekToStartOfPeriodWhilePaused(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(2, 2700), at(2, 2710)))
 		h.do(load(1))
 		sub := h.p.Subscribe(0)
-		h.expect(sub, "match_start m1 0 (1, 0) @0s")
+		h.expect(sub, "match_start m1 0 (1, 0) head 0 @0s")
 
 		// 0:00 in the second half is clamped to the half's first event.
 		h.do(seek(2, 0))
@@ -149,7 +149,7 @@ func TestSeekPastEndEndsPlayback(t *testing.T) {
 		h.do(seek(5, 0))
 		h.expectStatus(schema.PlaybackStatusStateEnded, 2, 5, 0)
 		h.expect(h.p.Subscribe(0),
-			"match_start m1 0 (1, 0) @0s", "event m1-e0 @0s", "event m1-e1 @0s", "match_end m1 2 (1, 10) @0s")
+			"match_start m1 0 (1, 0) head 2 @0s", "event m1-e0 @0s", "event m1-e1 @0s", "match_end m1 2 (1, 10) @0s")
 	})
 }
 
@@ -160,13 +160,13 @@ func TestSubscribeFromOffset(t *testing.T) {
 		h.do(seek(1, 100)) // publish everything
 
 		h.expect(h.p.Subscribe(1),
-			"match_start m1 1 (1, 0) @0s", "event m1-e1 @0s", "event m1-e2 @0s", "match_end m1 3 (1, 20) @0s")
+			"match_start m1 1 (1, 0) head 3 @0s", "event m1-e1 @0s", "event m1-e2 @0s", "match_end m1 3 (1, 20) @0s")
 
 		// A client that saw offsets 0-2 reconnects after someone seeked back:
 		// it is ahead of the feed, so it is told to rebuild.
 		h.do(seek(1, 5))
 		sub := h.p.Subscribe(3)
-		h.expect(sub, "match_start m1 3 (1, 20) @0s", "reset m1 1 (1, 0) @0s", "event m1-e0 @0s")
+		h.expect(sub, "match_start m1 3 (1, 20) head 1 @0s", "reset m1 1 (1, 0) @0s", "event m1-e0 @0s")
 		h.expectNothing(sub)
 	})
 }
@@ -177,12 +177,12 @@ func TestLoadingAnotherMatchRestartsSubscribers(t *testing.T) {
 		h.do(load(1))
 		sub := h.p.Subscribe(0)
 		h.do(play())
-		h.expect(sub, "match_start m1 0 (1, 0) @0s", "event m1-e0 @0s")
+		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s")
 
 		h.do(load(2)) // a new match starts paused
 		h.expectStatus(schema.PlaybackStatusStatePaused, 0, 1, 0)
 		h.do(play())
-		h.expect(sub, "match_start m2 0 (1, 0) @0s", "event m2-e0 @0s", "match_end m2 1 (1, 0) @0s")
+		h.expect(sub, "match_start m2 0 (1, 0) head 1 @0s", "event m2-e0 @0s", "match_end m2 1 (1, 0) @0s")
 	})
 }
 
@@ -452,7 +452,11 @@ func describe(msg schema.FeedMessage) string {
 		return "event " + msg.Event.ID
 	}
 	m := msg.Marker
-	return fmt.Sprintf("%s m%d %d (%d, %g)", msg.Kind, m.MatchID, m.Offset, m.Period, m.MatchClockS)
+	s := fmt.Sprintf("%s m%d %d (%d, %g)", msg.Kind, m.MatchID, m.Offset, m.Period, m.MatchClockS)
+	if m.Head != nil {
+		s += fmt.Sprintf(" head %d", *m.Head)
+	}
+	return s
 }
 
 // roundTrip checks that v survives JSON encoding and the generated decoder,

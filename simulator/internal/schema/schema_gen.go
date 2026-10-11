@@ -148,6 +148,11 @@ func (j *Alert) UnmarshalJSON(value []byte) error {
 // Stream position for non-event messages. On `reset`, consumers drop state and
 // rebuild up to this position.
 type FeedMarker struct {
+	// On `match_start`: how many events had been published when the subscriber
+	// synced. Events below this offset are a catch-up on what already happened, so
+	// consumers rebuild state from them without acting on them, as after a `reset`.
+	Head *Offset `json:"head,omitempty,omitzero"`
+
 	// MatchClockS corresponds to the JSON schema field "match_clock_s".
 	MatchClockS MatchClockSeconds `json:"match_clock_s"`
 

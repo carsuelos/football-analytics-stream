@@ -77,6 +77,7 @@ Makefile       gen, dev, test, lint, run-all targets
   1. When playback seeks, the simulator sends a `reset` control message.
   2. The engine discards its window state.
   3. It then rebuilds that state by fast-replaying from offset 0 up to the target time.
+- **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without alerting on them.
 - **One match at a time in v1.** All state, topics and APIs are still keyed by `match_id`, so several matches can be supported later.
 - **No database in v1.** Alerts go to the log sink. Storage is added only when there's a need.
 - **Attribution and licensing.**
@@ -211,4 +212,3 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.
-- **Catch-up is not marked as replay.** When the engine connects to a match that is already playing, it reads from offset 0 to catch up, but only a seek (`reset`) marks events as replays. Detectors must not alert on that catch-up either: the simulator's `match_start` marker should carry the published head, as `reset` does.
