@@ -84,18 +84,20 @@ Makefile       gen, dev, test, lint, run-all targets
   - The xT grid source is credited.
 
 ## Metric definitions (v1)
-- **Field tilt (per window):** each team's share of attacking-third touches (passes, carries, receptions, shots) in the window.
-- **xT added:** for each successful pass or carry, `xT(end_cell) − xT(start_cell)` on a 12×8 grid, summed per team per window. **xT velocity** is xT added per match minute.
-  - The grid starts as Karun Singh's published one; in Phase 3 we compute our own and compare.
-- **Sustained pressure index:** a weighted sum of:
-  - recoveries in the attacking half
-  - box entries
-  - shots
-  - consecutive own-possession actions in the final third
-  - length of possession sequences in the opponent's box
+Every metric is a pure function of the events in a window, recomputed on demand rather than updated event by event. That keeps them easy to test on hand-built sequences, and identical after a seek. Locations are on StatsBomb's 120×80 pitch, with each event oriented so the acting team attacks towards x=120.
 
-  The weights live in config.
-- **Windows:** rolling 5 and 10 match-minutes, plus a whole-match baseline (an exponentially weighted mean and variance) used for anomaly detection.
+- **Field tilt (per window):** each team's share of attacking-third (x ≥ 80) touches in the window. Touches are passes, carries, successful receptions and shots. With no touches, both teams get 50%.
+- **xT added:** for each completed pass or carry (outcome not failed, both locations known), `xT(end_cell) − xT(start_cell)` on a 12×8 grid, summed per team per window. **xT velocity** is xT added per minute of play actually covered by the window, with a floor of 1 minute, so a window that is still filling up early in a match is not under-reported.
+  - The grid is Karun Singh's published one. It has no licence, so `make fetch-data` downloads it to `data/xt/` and it is never committed. In Phase 3 we compute our own and compare.
+- **Sustained pressure index:** a weighted sum of five counts (default weights in brackets):
+  - recoveries (successful ball recoveries and interceptions) in the attacking half (1.0);
+  - box entries: completed passes or carries from outside the opponent's box into it (1.5);
+  - shot value: 1 + xG per shot (2.0);
+  - sustained actions: own on-ball actions in own possession, in runs of 3 or more inside the final third; a possession change or an action outside the final third ends the run (0.25 per action);
+  - box actions: own on-ball actions in the opponent's box, from the 2nd onwards in each possession (0.5).
+
+  The weights are a `PressureWeights` config. They are not tuned yet (Phase 3).
+- **Windows:** rolling 5 and 10 minutes of play. The whole-match baseline (an exponentially weighted mean and variance) belongs to the detectors, which are its only users.
 
 ## Predictive signals (v1, rule-based)
 - **Momentum shift alert:** fires when the z-score of the pressure index or field tilt, measured against that team's match baseline, crosses a threshold. A cooldown stops repeat firing.
@@ -141,7 +143,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - match-clock tracker
   - in-memory sliding-window `StateStore`
   - seek and reset handling
-- [ ] **Metrics:** field tilt, xT (published grid) and pressure index, unit-tested on hand-built event sequences.
+- [x] **Metrics:** field tilt, xT (published grid) and pressure index, unit-tested on hand-built event sequences.
 - [ ] **Detectors and alert routing:**
   - momentum z-score
   - goal-score heuristic
@@ -207,4 +209,6 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 
 ## Known gaps
 - **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
+- **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
+- **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.
 - **Catch-up is not marked as replay.** When the engine connects to a match that is already playing, it reads from offset 0 to catch up, but only a seek (`reset`) marks events as replays. Detectors must not alert on that catch-up either: the simulator's `match_start` marker should carry the published head, as `reset` does.

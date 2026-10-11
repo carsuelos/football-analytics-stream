@@ -65,8 +65,9 @@ fmt: ## Auto-format Go and Python code
 
 ci: check-gen lint test ## Run everything CI runs
 
-fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup). Pass extra flags via ARGS="..."
+fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup) and the xT grid. Extra StatsBomb flags via ARGS="..."
 	uv run scripts/fetch_statsbomb.py $(ARGS)
+	uv run scripts/fetch_xt_grid.py
 
 sim: ## Run the simulator on :8080. Pass flags via ARGS="..." (e.g. ARGS="-jitter 3s")
 	cd simulator && go run ./cmd/simulator -data ../data/statsbomb $(ARGS)

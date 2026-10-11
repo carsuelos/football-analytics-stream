@@ -25,7 +25,7 @@ Go 1.27+, [uv](https://docs.astral.sh/uv/), Node 26 + pnpm 12, GNU Make. Docker 
 
 ```sh
 make setup                                    # install dependencies
-make fetch-data ARGS="--match-id 3869685"     # 2022 World Cup final (omit ARGS for all 64 matches)
+make fetch-data ARGS="--match-id 3869685"     # 2022 World Cup final (omit ARGS for all 64 matches) + the xT grid
 make test                                     # all tests, including schema contract tests
 ```
 
@@ -65,12 +65,23 @@ curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "set_spe
 curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "play"}'
 ```
 
-Every second the engine logs where the match is, how many events it has released, held back, dropped as late or as duplicates, and how many events each team has in the last 5 and 10 minutes of play. Try:
+Every second the engine logs where the match is and how many events it has released, held back, or dropped as late or duplicate. For each of the last 5 and 10 minutes of play it also logs each team's field tilt, xT added (and per minute) and pressure index:
+
+```text
+match 3869685 P2 82:30 (play 90:04) | released 2993 buffered 9 late 0 dup 0
+  last 5': Argentina tilt 0% xT -0.00 (-0.001/min) pressure 0.0 | France tilt 100% xT +0.14 (+0.028/min) pressure 11.0
+  last 10': Argentina tilt 58% xT +0.07 (+0.007/min) pressure 8.5 | France tilt 42% xT +0.17 (+0.017/min) pressure 11.8
+```
+
+The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1). Try:
 
 - a seek (`{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4500}}`): the engine rebuilds its windows from a replay;
 - `make engine ARGS="--allowed-lateness 1"` with `-jitter 3s`: events arriving more than 1s late are dropped and counted;
-- stopping and restarting the simulator: the engine reconnects and resumes from its last offset.
+- stopping and restarting the simulator: the engine reconnects and resumes from its last offset;
+- `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid.
 
 ## Data attribution
 
 Match data comes from [StatsBomb Open Data](https://github.com/statsbomb/open-data) and is used under their non-commercial terms. Data files are downloaded locally and never committed.
+
+The expected-threat (xT) grid is Karun Singh's, from [Introducing Expected Threat (xT)](https://karun.in/blog/expected-threat.html). It is downloaded by `make fetch-data` and not redistributed here.

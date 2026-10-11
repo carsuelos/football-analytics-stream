@@ -2,10 +2,11 @@
 
 import asyncio
 import logging
-from collections import Counter
 from collections.abc import Callable
 
+from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
+from engine.schema.metric_schema import TeamMetrics
 from engine.sources import EventSource
 
 log = logging.getLogger(__name__)
@@ -15,19 +16,20 @@ async def run(
     source: EventSource,
     pipeline: Pipeline,
     *,
+    metrics: MetricsConfig | None = None,
     status_every_s: float = 1.0,
     report: Callable[[str], None] = log.info,
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
 
-    Every status_every_s seconds of wall-clock time, report the status line if
-    it has changed.
+    Every status_every_s seconds of wall-clock time, report the status (with
+    metrics, if a config is given) if it has changed.
     """
     last = ""
 
     def report_if_changed() -> None:
         nonlocal last
-        line = status_line(pipeline)
+        line = status_report(pipeline, metrics)
         if line != last:
             report(line)
             last = line
@@ -49,8 +51,9 @@ async def run(
     report_if_changed()
 
 
-def status_line(p: Pipeline) -> str:
-    """One line on where the match is and what the pipeline holds."""
+def status_report(p: Pipeline, metrics: MetricsConfig | None = None) -> str:
+    """Where the match is and what the pipeline holds, then one line per window
+    with each team's metrics if a config is given and both teams have appeared."""
     if p.windows is None or p.clock.now is None:
         return f"match {p.match_id}: waiting for events" if p.match_id else "waiting for a match"
     s = p.buffer.stats
@@ -58,15 +61,25 @@ def status_line(p: Pipeline) -> str:
         f"match {p.match_id} {p.clock.now} (play {_mmss(p.clock.play_s)})",
         f"released {s.released} buffered {len(p.buffer)} late {s.late_dropped} dup {s.duplicates}",
     ]
-    for length_s in p.windows.lengths_s:
-        teams = Counter(i.event.team.name for i in p.windows.events(length_s))
-        counts = ", ".join(f"{name} {n}" for name, n in sorted(teams.items())) or "-"
-        parts.append(f"last {length_s / 60:g}': {counts}")
     if p.rebuilding:
         parts.append(f"rebuilding to offset {p.replay_end_offset}")
     if p.ended:
         parts.append("ended")
-    return " | ".join(parts)
+    lines = [" | ".join(parts)]
+    if metrics and p.team_ids:
+        for length_s in p.windows.lengths_s:
+            snap = snapshot(p.windows, length_s, p.team_ids, metrics)
+            if snap:
+                teams = " | ".join(_team_metrics(p.teams[m.team_id].name, m) for m in snap.teams)
+                lines.append(f"  last {length_s / 60:g}': {teams}")
+    return "\n".join(lines)
+
+
+def _team_metrics(name: str, m: TeamMetrics) -> str:
+    return (
+        f"{name} tilt {m.field_tilt:.0%} xT {m.xt_added:+.2f} ({m.xt_velocity:+.3f}/min)"
+        f" pressure {m.pressure_index:.1f}"
+    )
 
 
 def _mmss(seconds: float) -> str:

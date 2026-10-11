@@ -42,16 +42,27 @@ class SlidingWindows:
         self.lengths_s = lengths_s
         self.mode = mode
         self._now: TimedEvent | None = None
+        self._start_play_s = 0.0
+        """Where the windows' history starts: the first event, or this period's in per_period."""
 
     @property
     def now(self) -> MatchTime | None:
         """Match time of the newest event in the windows."""
         return MatchTime.of(self._now.event) if self._now else None
 
+    @property
+    def latest(self) -> TimedEvent | None:
+        """The newest event in the windows."""
+        return self._now
+
     def add(self, item: TimedEvent) -> None:
         """Slide the windows forward to include an event."""
         if item.event.period == SHOOTOUT_PERIOD:
             return
+        if self._now is None or (
+            self.mode is WindowMode.PER_PERIOD and item.event.period != self._now.event.period
+        ):
+            self._start_play_s = item.play_s
         self.store.append(self.match_id, item)
         self._now = item
         self.store.evict_before(self.match_id, item.play_s - max(self.lengths_s))
@@ -72,6 +83,16 @@ class SlidingWindows:
             period = self._now.event.period
             items = [i for i in items if i.event.period == period]
         return items
+
+    def covered_s(self, length_s: float) -> float:
+        """Seconds of play the window of length_s actually spans so far.
+
+        Shorter than length_s until that much play has happened: since the
+        first event, or since kick-off of this period in per_period mode.
+        """
+        if self._now is None:
+            return 0.0
+        return min(length_s, self._now.play_s - self._start_play_s)
 
     def reset(self) -> None:
         self.store.reset(self.match_id)

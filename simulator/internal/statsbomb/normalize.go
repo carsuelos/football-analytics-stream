@@ -170,6 +170,11 @@ func outcome(r rawEvent) *schema.MatchEventOutcome {
 		if r.BallReceipt != nil && r.BallReceipt.Outcome != nil {
 			o = schema.MatchEventOutcomeFailure
 		}
+	case r.Type.Name == "Ball Recovery":
+		o = schema.MatchEventOutcomeSuccess
+		if r.BallRecovery != nil && r.BallRecovery.RecoveryFailure {
+			o = schema.MatchEventOutcomeFailure
+		}
 	case r.Duel != nil:
 		if r.Duel.Outcome == nil {
 			if r.Duel.Type != nil && r.Duel.Type.Name == "Aerial Lost" {

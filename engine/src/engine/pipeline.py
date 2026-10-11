@@ -3,6 +3,7 @@
 import logging
 
 from engine.clock import MatchClock, ReorderBuffer, TimedEvent
+from engine.schema.common_schema import Team
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
 from engine.windows import (
@@ -46,11 +47,21 @@ class Pipeline:
         """True once match_end has been seen, until the next start or reset."""
         self.replay_end_offset = 0
         """Events below this offset were already seen before the latest seek."""
+        self.teams: dict[int, Team] = {}
+        """Teams seen in this match, in order of first appearance."""
         self._next_offset = 0
 
     @property
     def match_id(self) -> int | None:
         return self.windows.match_id if self.windows else None
+
+    @property
+    def team_ids(self) -> tuple[int, int] | None:
+        """The match's two team ids, once both have appeared in the feed."""
+        if len(self.teams) < 2:
+            return None
+        a, b, *_ = self.teams
+        return a, b
 
     @property
     def rebuilding(self) -> bool:
@@ -96,6 +107,7 @@ class Pipeline:
         self.clock.reset()
         self.ended = False
         self.replay_end_offset = 0
+        self.teams = {}
         self._next_offset = 0
 
     def _check(self, event: MatchEvent) -> MatchEvent:
@@ -111,6 +123,7 @@ class Pipeline:
         placed = []
         for event in events:
             item = self.clock.advance(event)
+            self.teams.setdefault(event.team.id, event.team)
             self.windows.add(item)
             placed.append(item)
         return placed

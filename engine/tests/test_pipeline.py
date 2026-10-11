@@ -110,3 +110,22 @@ def test_event_for_another_match_is_an_error() -> None:
     p.handle(start(match_id=1))
     with pytest.raises(ValueError, match="for match 2"):
         p.handle(feed_event(event(1, 0, match_id=2, team=AWAY)))
+
+
+def test_team_ids_once_both_teams_have_appeared_in_order() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    feed(p, start(), feed_event(event(1, 0, offset=0, team=AWAY)))
+    assert p.team_ids is None
+    feed(p, feed_event(event(1, 1, offset=1)), feed_event(event(1, 2, offset=2, team=AWAY)))
+    assert p.team_ids == (AWAY.id, 1)
+    assert p.teams[AWAY.id] == AWAY
+
+
+def test_teams_are_forgotten_on_reset() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    feed(
+        p, start(), feed_event(event(1, 0, offset=0)), feed_event(event(1, 1, offset=1, team=AWAY))
+    )
+    assert p.team_ids is not None
+    feed(p, feed_marker(K.reset, 2))
+    assert p.team_ids is None and p.teams == {}

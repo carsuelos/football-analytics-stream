@@ -111,6 +111,24 @@ func TestNormalizeEvent(t *testing.T) {
 			wantOutcome: &failure,
 		},
 		{
+			name:        "ball recovery succeeds unless flagged",
+			raw:         `"period": 1, "timestamp": "00:00:00.000", "type": {"name": "Ball Recovery"}`,
+			wantType:    schema.MatchEventTypeBallRecovery,
+			wantOutcome: &success,
+		},
+		{
+			name:        "failed ball recovery",
+			raw:         `"period": 1, "timestamp": "00:00:00.000", "type": {"name": "Ball Recovery"}, "ball_recovery": {"recovery_failure": true}`,
+			wantType:    schema.MatchEventTypeBallRecovery,
+			wantOutcome: &failure,
+		},
+		{
+			name:        "offensive ball recovery without failure flag",
+			raw:         `"period": 1, "timestamp": "00:00:00.000", "type": {"name": "Ball Recovery"}, "ball_recovery": {"offensive": true}`,
+			wantType:    schema.MatchEventTypeBallRecovery,
+			wantOutcome: &success,
+		},
+		{
 			name:        "duel won",
 			raw:         `"period": 1, "timestamp": "00:00:00.000", "type": {"name": "Duel"}, "duel": {"type": {"name": "Tackle"}, "outcome": {"name": "Won"}}`,
 			wantType:    schema.MatchEventTypeDuel,

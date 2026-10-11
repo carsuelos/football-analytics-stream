@@ -44,6 +44,9 @@ type rawEvent struct {
 		Outcome *named `json:"outcome"`
 	} `json:"duel"`
 	BallReceipt  *withOutcome `json:"ball_receipt"`
+	BallRecovery *struct {
+		RecoveryFailure bool `json:"recovery_failure"` // absent means the recovery succeeded
+	} `json:"ball_recovery"`
 	Dribble      *withOutcome `json:"dribble"`
 	Interception *withOutcome `json:"interception"`
 	FiftyFifty   *withOutcome `json:"50_50"`
