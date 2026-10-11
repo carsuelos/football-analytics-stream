@@ -9,7 +9,11 @@ authors = [
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.13.5",
+    "websockets>=17.2",
 ]
+
+[project.scripts]
+engine = "engine.cli:main"
 
 [build-system]
 requires = ["uv_build>=0.12.23,<0.13.0"]
@@ -22,6 +26,7 @@ dev = [
     "jsonschema>=4.26.0",
     "mypy>=2.4.0",
     "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
     "ruff>=0.16.10",
     "types-jsonschema>=4.26.0.20260518",
 ]
@@ -42,3 +47,5 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

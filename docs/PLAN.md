@@ -67,11 +67,12 @@ Makefile       gen, dev, test, lint, run-all targets
   - Raw StatsBomb JSON never leaves the simulator, which keeps the boundary clean for a future live provider.
 - **Events behave like a broker log.**
   - Every event has a stable `id` and a per-match sequence `offset`.
-  - `EventSource` supports `subscribe(from_offset)` and `seek(offset)`.
+  - `EventSource` has one method, `subscribe(from_offset)`. Seeks need no method of their own: the feed sends a `reset` marker and replays from offset 0.
   - Processing is safe to repeat: duplicates are dropped by `id`.
   - Everything is keyed by `match_id`, which becomes the broker partition key later.
   - The WebSocket feed sends one JSON event per message, and clients resume after a disconnect with `?from_offset=N`.
-- **Out-of-order safety.** The engine holds events in a small reorder buffer with a watermark, which sets how late (in match seconds) an event may arrive and still be accepted. The simulator's `--jitter` mode shuffles events slightly to test this.
+- **Out-of-order safety.** The engine holds events in a small reorder buffer with a watermark, which sets how late (in match seconds) an event may arrive and still be accepted (`--allowed-lateness`, default 5s). Events behind the watermark are dropped and counted, not patched in. The simulator's `--jitter` mode shuffles events slightly to test this.
+- **Windows run on play time.** Periods are joined end to end (each starts where the previous one's last event was), so a 5-minute window runs smoothly across half-time. `--window-mode per_period` restarts windows at each kick-off instead. Penalty shootout events are left out of windows.
 - **Seek semantics.**
   1. When playback seeks, the simulator sends a `reset` control message.
   2. The engine discards its window state.
@@ -134,7 +135,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - WebSocket feed with offset-based resume
   - HTTP control API
   - `--jitter` mode
-- [ ] **Engine core:**
+- [x] **Engine core:**
   - `WebSocketSource`
   - reorder buffer and watermark
   - match-clock tracker
@@ -206,3 +207,4 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 
 ## Known gaps
 - **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
+- **Catch-up is not marked as replay.** When the engine connects to a match that is already playing, it reads from offset 0 to catch up, but only a seek (`reset`) marks events as replays. Detectors must not alert on that catch-up either: the simulator's `match_start` marker should carry the published head, as `reset` does.
