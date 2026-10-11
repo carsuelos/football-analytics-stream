@@ -4,6 +4,8 @@ go 1.27.1
 
 tool github.com/atombender/go-jsonschema
 
+require github.com/coder/websocket v1.8.15
+
 require (
 	dario.cat/mergo v1.0.2 // indirect
 	github.com/atombender/go-jsonschema v0.24.1 // indirect

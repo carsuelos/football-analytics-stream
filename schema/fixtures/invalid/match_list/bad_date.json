@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "matches": [
+    {
+      "match_id": 3869685,
+      "competition": "FIFA World Cup",
+      "season": "2022",
+      "stage": "Final",
+      "date": "18/12/2022",
+      "home_team": { "id": 779, "name": "Argentina" },
+      "away_team": { "id": 771, "name": "France" },
+      "home_score": 3,
+      "away_score": 3
+    }
+  ]
+}

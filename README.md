@@ -37,8 +37,22 @@ make test                                     # all tests, including schema cont
 | `make test` | go test, pytest, vitest |
 | `make fmt` | Auto-format Go and Python |
 | `make ci` | Everything CI runs |
+| `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
+
+### Driving the simulator by hand
+
+```sh
+make sim                                                            # terminal 1
+curl localhost:8080/matches                                         # terminal 2
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "load_match", "match_id": 3869685}'
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "set_speed", "speed": 60}'
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "play"}'
+curl localhost:8080/status
+```
+
+The live feed is a WebSocket at `ws://localhost:8080/feed` (add `?from_offset=N` to resume).
 
 ## Data attribution
 

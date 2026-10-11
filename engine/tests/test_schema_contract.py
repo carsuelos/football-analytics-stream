@@ -14,6 +14,7 @@ from engine.schema.alert_schema import Alert
 from engine.schema.command_schema import PlaybackCommand
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
+from engine.schema.match_list_schema import MatchList
 from engine.schema.metric_schema import MetricSnapshot
 from engine.schema.status_schema import PlaybackStatus
 
@@ -26,6 +27,7 @@ MODELS: dict[str, type[BaseModel]] = {
     "command": PlaybackCommand,
     "event": MatchEvent,
     "feed": FeedMessage,
+    "match_list": MatchList,
     "metric": MetricSnapshot,
     "status": PlaybackStatus,
 }

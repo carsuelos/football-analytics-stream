@@ -5,6 +5,7 @@ package schema
 import "encoding/json"
 import "fmt"
 import "reflect"
+import "regexp"
 import "unicode/utf8"
 
 // A tactical alert raised by a detector.
@@ -531,6 +532,117 @@ func (j *MatchID) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be >= %v", "", 0)
 	}
 	*j = MatchID(plain)
+	return nil
+}
+
+// A match without its events.
+type MatchInfo struct {
+	// AwayScore corresponds to the JSON schema field "away_score".
+	AwayScore int `json:"away_score"`
+
+	// AwayTeam corresponds to the JSON schema field "away_team".
+	AwayTeam Team `json:"away_team"`
+
+	// Competition corresponds to the JSON schema field "competition".
+	Competition string `json:"competition"`
+
+	// Kick-off date, YYYY-MM-DD.
+	Date string `json:"date"`
+
+	// HomeScore corresponds to the JSON schema field "home_score".
+	HomeScore int `json:"home_score"`
+
+	// HomeTeam corresponds to the JSON schema field "home_team".
+	HomeTeam Team `json:"home_team"`
+
+	// MatchID corresponds to the JSON schema field "match_id".
+	MatchID MatchID `json:"match_id"`
+
+	// Season corresponds to the JSON schema field "season".
+	Season string `json:"season"`
+
+	// Stage corresponds to the JSON schema field "stage".
+	Stage string `json:"stage"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchInfo) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["away_score"]; raw != nil && !ok {
+		return fmt.Errorf("field away_score in MatchInfo: required")
+	}
+	if _, ok := raw["away_team"]; raw != nil && !ok {
+		return fmt.Errorf("field away_team in MatchInfo: required")
+	}
+	if _, ok := raw["competition"]; raw != nil && !ok {
+		return fmt.Errorf("field competition in MatchInfo: required")
+	}
+	if _, ok := raw["date"]; raw != nil && !ok {
+		return fmt.Errorf("field date in MatchInfo: required")
+	}
+	if _, ok := raw["home_score"]; raw != nil && !ok {
+		return fmt.Errorf("field home_score in MatchInfo: required")
+	}
+	if _, ok := raw["home_team"]; raw != nil && !ok {
+		return fmt.Errorf("field home_team in MatchInfo: required")
+	}
+	if _, ok := raw["match_id"]; raw != nil && !ok {
+		return fmt.Errorf("field match_id in MatchInfo: required")
+	}
+	if _, ok := raw["season"]; raw != nil && !ok {
+		return fmt.Errorf("field season in MatchInfo: required")
+	}
+	if _, ok := raw["stage"]; raw != nil && !ok {
+		return fmt.Errorf("field stage in MatchInfo: required")
+	}
+	type Plain MatchInfo
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.AwayScore {
+		return fmt.Errorf("field %s: must be >= %v", "away_score", 0)
+	}
+	if matched, _ := regexp.MatchString(`^[0-9]{4}-[0-9]{2}-[0-9]{2}$`, string(plain.Date)); !matched {
+		return fmt.Errorf("field %s pattern match: must match %s", "Date", `^[0-9]{4}-[0-9]{2}-[0-9]{2}$`)
+	}
+	if 0 > plain.HomeScore {
+		return fmt.Errorf("field %s: must be >= %v", "home_score", 0)
+	}
+	*j = MatchInfo(plain)
+	return nil
+}
+
+// Matches the simulator can replay (GET /matches).
+type MatchList struct {
+	// Matches corresponds to the JSON schema field "matches".
+	Matches []MatchInfo `json:"matches"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchList) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["matches"]; raw != nil && !ok {
+		return fmt.Errorf("field matches in MatchList: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in MatchList: required")
+	}
+	type Plain MatchList
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = MatchList(plain)
 	return nil
 }
 

@@ -24,6 +24,8 @@ func newTarget(t *testing.T, kind string) any {
 		return &MatchEvent{}
 	case "feed":
 		return &FeedMessage{}
+	case "match_list":
+		return &MatchList{}
 	case "metric":
 		return &MetricSnapshot{}
 	case "status":
