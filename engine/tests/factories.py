@@ -4,7 +4,7 @@ import itertools
 
 from engine.clock import MatchClock, TimedEvent
 from engine.schema.common_schema import Team
-from engine.schema.event_schema import EventOutcome, EventType, MatchEvent
+from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
 
 HOME = Team(id=1, name="Home FC")
@@ -25,6 +25,9 @@ def event(
     location: tuple[float, float] | None = None,
     end_location: tuple[float, float] | None = None,
     outcome: EventOutcome | None = None,
+    possession_id: int = 1,
+    possession_team: Team | None = None,
+    shot: ShotDetail | None = None,
 ) -> MatchEvent:
     """An event at (period, clock_s). Ids are unique unless given."""
     n = next(_ids)
@@ -37,11 +40,12 @@ def event(
         match_clock_s=clock_s,
         type=type,
         team=team,
-        possession_id=1,
-        possession_team_id=team.id,
+        possession_id=possession_id,
+        possession_team_id=(possession_team or team).id,
         location=list(location) if location else None,
         end_location=list(end_location) if end_location else None,
         outcome=outcome,
+        shot=shot,
     )
 
 

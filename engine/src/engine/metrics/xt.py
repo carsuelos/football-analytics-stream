@@ -16,12 +16,11 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from engine.metrics.actions import is_completed_move
 from engine.metrics.pitch import GRID_COLS, GRID_ROWS, Point, grid_cell
-from engine.schema.event_schema import EventOutcome, EventType, MatchEvent
+from engine.schema.event_schema import MatchEvent
 
 DEFAULT_GRID_PATH = Path(__file__).resolve().parents[4] / "data" / "xt" / "open_xt_12x8_v1.json"
-
-MOVE_TYPES = frozenset({EventType.pass_, EventType.carry})
 
 MIN_VELOCITY_MINUTES = 1.0
 """Velocity divides by at least this many minutes, so one early pass can't spike it."""
@@ -66,15 +65,10 @@ class XTGrid:
 
 
 def xt_of_move(e: MatchEvent, grid: XTGrid) -> float | None:
-    """xT added by a successful pass or carry; None for anything else.
-
-    Passes always carry an outcome. Carries have none, and count unless a
-    failure is recorded.
-    """
-    if e.type not in MOVE_TYPES or e.outcome is EventOutcome.failure:
+    """xT added by a completed pass or carry; None for anything else."""
+    if not is_completed_move(e):
         return None
-    if e.location is None or e.end_location is None:
-        return None
+    assert e.location is not None and e.end_location is not None
     return grid.value(e.end_location) - grid.value(e.location)
 
 
