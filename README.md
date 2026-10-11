@@ -38,6 +38,7 @@ make test                                     # all tests, including schema cont
 | `make fmt` | Auto-format Go and Python |
 | `make ci` | Everything CI runs |
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
+| `make engine` | Run the engine against the simulator feed (`ARGS="--help"` lists options) |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
 
@@ -53,6 +54,22 @@ curl localhost:8080/status
 ```
 
 The live feed is a WebSocket at `ws://localhost:8080/feed` (add `?from_offset=N` to resume).
+
+### Running the engine against the simulator
+
+```sh
+make sim ARGS="-jitter 3s"                                          # terminal 1
+make engine                                                         # terminal 2
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "load_match", "match_id": 3869685}'   # terminal 3
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "set_speed", "speed": 60}'
+curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "play"}'
+```
+
+Every second the engine logs where the match is, how many events it has released, held back, dropped as late or as duplicates, and how many events each team has in the last 5 and 10 minutes of play. Try:
+
+- a seek (`{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4500}}`): the engine rebuilds its windows from a replay;
+- `make engine ARGS="--allowed-lateness 1"` with `-jitter 3s`: events arriving more than 1s late are dropped and counted;
+- stopping and restarting the simulator: the engine reconnects and resumes from its last offset.
 
 ## Data attribution
 
