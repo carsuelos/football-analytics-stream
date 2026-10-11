@@ -4,8 +4,12 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import sys
 from collections.abc import Sequence
+from pathlib import Path
 
+from engine.metrics import MetricsConfig, XTGrid, XTGridError
+from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
 from engine.runner import run
 from engine.sources import WebSocketSource
@@ -15,7 +19,7 @@ from engine.windows import InMemoryStateStore, WindowMode
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="engine",
-        description="Read the simulator feed and keep live windows of match events.",
+        description="Read the simulator feed and compute live rolling-window match metrics.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--feed", default="ws://localhost:8080/feed", help="simulator feed URL")
@@ -34,6 +38,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="continuous: windows run across half-time; per_period: they restart at kick-off",
     )
     parser.add_argument(
+        "--xt-grid",
+        type=Path,
+        default=DEFAULT_GRID_PATH,
+        metavar="PATH",
+        help="12x8 expected-threat grid JSON (downloaded by make fetch-data)",
+    )
+    parser.add_argument(
         "--status-every", type=float, default=1.0, metavar="SECONDS", help="status line interval"
     )
     parser.add_argument(
@@ -49,6 +60,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
+    try:
+        grid = XTGrid.load(args.xt_grid)
+    except XTGridError as e:
+        sys.exit(f"engine: {e}")
     logging.basicConfig(
         level=args.log_level, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S"
     )
@@ -59,4 +74,6 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     source = WebSocketSource(args.feed)
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(run(source, pipeline, status_every_s=args.status_every))
+        asyncio.run(
+            run(source, pipeline, metrics=MetricsConfig(grid), status_every_s=args.status_every)
+        )

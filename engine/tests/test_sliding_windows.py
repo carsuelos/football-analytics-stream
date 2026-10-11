@@ -94,3 +94,38 @@ def test_reset_clears_the_windows_and_the_store() -> None:
     assert w.now is None
     assert w.events(FIVE) == []
     assert store.query(1, -math.inf, math.inf) == []
+
+
+def test_latest_is_the_newest_event_added() -> None:
+    events = [event(1, 0), event(1, 100), event(5, 0)]
+    w = windows_after(events)
+    assert w.latest is not None and w.latest.event is events[1]  # the shootout is ignored
+    assert windows_after([]).latest is None
+
+
+def test_covered_grows_until_the_window_is_full() -> None:
+    assert windows_after([]).covered_s(FIVE) == 0
+    assert windows_after([event(1, 30)]).covered_s(FIVE) == 0
+    w = windows_after([event(1, 30), event(1, 150)])
+    assert w.covered_s(FIVE) == 120
+    w = windows_after([event(1, 30), event(1, 500)])
+    assert (w.covered_s(FIVE), w.covered_s(TEN)) == (FIVE, 470)
+
+
+def test_covered_runs_across_half_time_in_continuous_mode() -> None:
+    w = windows_after([event(1, 0), event(1, 400), event(2, 2700), event(2, 2760)])
+    assert (w.covered_s(FIVE), w.covered_s(TEN)) == (FIVE, 460)
+
+
+def test_covered_restarts_at_kick_off_in_per_period_mode() -> None:
+    events = [event(1, 0), event(1, 400), event(2, 2700), event(2, 2760)]
+    w = windows_after(events, WindowMode.PER_PERIOD)
+    assert (w.covered_s(FIVE), w.covered_s(TEN)) == (60, 60)
+
+
+def test_reset_starts_covered_again() -> None:
+    w = windows_after([event(1, 0), event(1, 400)])
+    w.reset()
+    for item in timed([event(1, 1000), event(1, 1010)]):
+        w.add(item)
+    assert w.covered_s(FIVE) == 10
