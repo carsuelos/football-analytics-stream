@@ -2,6 +2,7 @@
 
 import itertools
 
+from engine.clock import MatchClock, TimedEvent
 from engine.schema.common_schema import Team
 from engine.schema.event_schema import EventType, MatchEvent
 
@@ -39,3 +40,9 @@ def event(
 def times(events: list[MatchEvent]) -> list[tuple[int, float]]:
     """The (period, clock) of each event, for readable assertions."""
     return [(e.period, e.match_clock_s) for e in events]
+
+
+def timed(events: list[MatchEvent]) -> list[TimedEvent]:
+    """Place in-order events on the play-time axis with a fresh MatchClock."""
+    clock = MatchClock()
+    return [clock.advance(e) for e in events]
