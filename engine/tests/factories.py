@@ -3,9 +3,13 @@
 import itertools
 
 from engine.clock import MatchClock, TimedEvent
+from engine.detectors import Tick
+from engine.metrics import MetricsConfig
+from engine.pipeline import Pipeline
 from engine.schema.common_schema import Team
 from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
+from engine.windows import InMemoryStateStore
 
 HOME = Team(id=1, name="Home FC")
 AWAY = Team(id=2, name="Away FC")
@@ -65,7 +69,28 @@ def feed_event(ev: MatchEvent) -> FeedMessage:
 
 
 def feed_marker(
-    kind: FeedMessageKind, offset: int, *, match_id: int = 1, period: int = 1, clock_s: float = 0
+    kind: FeedMessageKind,
+    offset: int,
+    *,
+    match_id: int = 1,
+    period: int = 1,
+    clock_s: float = 0,
+    head: int | None = None,
 ) -> FeedMessage:
-    marker = FeedMarker(match_id=match_id, offset=offset, period=period, match_clock_s=clock_s)
+    marker = FeedMarker(
+        match_id=match_id, offset=offset, period=period, match_clock_s=clock_s, head=head
+    )
     return FeedMessage(schema_version=1, kind=kind, marker=marker)
+
+
+def tick_after(events: list[MatchEvent], metrics: MetricsConfig) -> Tick:
+    """The Tick a detector would see on the last of `events`, which must be in
+    order and include both teams."""
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    items = [
+        i
+        for msg in [feed_marker(FeedMessageKind.match_start, 0), *map(feed_event, events)]
+        for i in p.handle(msg)
+    ]
+    assert p.windows is not None and p.team_ids is not None
+    return Tick(items[-1], p.windows, p.team_ids, p.teams, metrics)

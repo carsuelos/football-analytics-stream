@@ -19,7 +19,11 @@
         "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
         "offset": { "$ref": "common.schema.json#/definitions/Offset" },
         "period": { "$ref": "common.schema.json#/definitions/Period" },
-        "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" }
+        "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+        "head": {
+          "description": "On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them, as after a `reset`.",
+          "$ref": "common.schema.json#/definitions/Offset"
+        }
       },
       "required": ["match_id", "offset", "period", "match_clock_s"]
     }

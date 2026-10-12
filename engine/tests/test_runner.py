@@ -5,14 +5,17 @@ from pathlib import Path
 import pytest
 
 from engine.cli import main, parse_args
+from engine.detectors import Detectors
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
 from engine.runner import run, status_report
+from engine.schema.alert_schema import Alert
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
 from engine.windows import InMemoryStateStore, WindowMode
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
+from tests.test_detectors import Fake
 
 
 class ListSource:
@@ -84,6 +87,20 @@ async def test_run_reports_status_while_running_and_at_the_end() -> None:
     assert len(lines) == len(set(lines))  # unchanged lines are not repeated
 
 
+async def test_run_sends_every_alert_to_every_sink() -> None:
+    class ListSink(list[Alert]):
+        def send(self, alert: Alert) -> None:
+            self.append(alert)
+
+    sinks = ListSink(), ListSink()
+    detectors = Detectors([Fake()], METRICS)
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    await run(ListSource(*MSGS), p, detectors=detectors, sinks=sinks, report=lambda _: None)
+    # Ticks at 01:10 (the first with both teams) and 06:40, past the cooldown.
+    assert [(a.offset, a.team_id) for a in sinks[0]] == [(1, HOME.id), (2, HOME.id)]
+    assert sinks[1] == sinks[0]
+
+
 async def test_run_stops_the_status_ticker_when_the_source_fails() -> None:
     class Broken:
         async def subscribe(self, from_offset: int = 0) -> AsyncIterator[FeedMessage]:
@@ -101,6 +118,11 @@ def test_cli_defaults_and_validation() -> None:
     assert args.allowed_lateness == 5.0
     assert args.window_mode is WindowMode.CONTINUOUS
     assert args.xt_grid == DEFAULT_GRID_PATH
+    assert args.webhook == []
+    assert parse_args(["--webhook", "http://a", "--webhook", "http://b"]).webhook == [
+        "http://a",
+        "http://b",
+    ]
     assert parse_args(["--window-mode", "per_period"]).window_mode is WindowMode.PER_PERIOD
     assert parse_args(["--xt-grid", "g.json"]).xt_grid == Path("g.json")
     with pytest.raises(SystemExit):

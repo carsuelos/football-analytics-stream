@@ -2,11 +2,13 @@
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 
+from engine.detectors import Detectors
 from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
 from engine.schema.metric_schema import TeamMetrics
+from engine.sinks import AlertSink
 from engine.sources import EventSource
 
 log = logging.getLogger(__name__)
@@ -17,10 +19,15 @@ async def run(
     pipeline: Pipeline,
     *,
     metrics: MetricsConfig | None = None,
+    detectors: Detectors | None = None,
+    sinks: Sequence[AlertSink] = (),
     status_every_s: float = 1.0,
     report: Callable[[str], None] = log.info,
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
+
+    Every event the pipeline releases goes to the detectors, if given, and
+    every alert they raise goes to each sink.
 
     Every status_every_s seconds of wall-clock time, report the status (with
     metrics, if a config is given) if it has changed.
@@ -42,7 +49,12 @@ async def run(
     ticker = asyncio.create_task(tick())
     try:
         async for msg in source.subscribe():
-            pipeline.handle(msg)
+            for item in pipeline.handle(msg):
+                if detectors is None:
+                    continue
+                for alert in detectors.observe(pipeline, item):
+                    for sink in sinks:
+                        sink.send(alert)
     finally:
         ticker.cancel()
         # Wait for it to finish. asyncio.wait never raises the ticker's own

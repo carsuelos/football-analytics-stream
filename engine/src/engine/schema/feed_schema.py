@@ -3,9 +3,9 @@
 
 from __future__ import annotations
 from enum import StrEnum
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field
 from . import event_schema
-from typing import Annotated, Literal
 
 
 class FeedMessageKind(StrEnum):
@@ -38,6 +38,13 @@ class FeedMarker(BaseModel):
             ge=0.0,
         ),
     ]
+    head: Annotated[
+        int | None,
+        Field(
+            description="On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them, as after a `reset`.",
+            ge=0,
+        ),
+    ] = None
 
 
 class FeedMessage(BaseModel):

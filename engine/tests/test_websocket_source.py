@@ -137,12 +137,13 @@ async def test_resumes_where_it_left_off(how: Literal["close", "drop"]) -> None:
     )
     sleeps = Sleeps()
     async with running(feed) as url:
-        msgs = await take(WebSocketSource(url, sleep=sleeps), 4)
-    # The second match_start is hidden: to the consumer it is one unbroken stream.
+        msgs = await take(WebSocketSource(url, sleep=sleeps), 5)
+    # The second match_start is passed on, at the offset where the stream resumes.
     assert summary(msgs) == [
         ("match_start", 1, 0),
         ("event", 1, 0),
         ("event", 1, 1),
+        ("match_start", 1, 2),
         ("event", 1, 2),
     ]
     assert feed.from_offsets == [0, 2]
@@ -158,9 +159,9 @@ async def test_resumes_inside_a_replay_after_reset() -> None:
         Connection([start(1), feed_event(E[1])]),
     )
     async with running(feed) as url:
-        msgs = await take(WebSocketSource(url, sleep=Sleeps()), 7)
-    assert [m.kind for m in msgs][-3:] == [K.reset, K.event, K.event]
-    assert summary(msgs)[-2:] == [("event", 1, 0), ("event", 1, 1)]
+        msgs = await take(WebSocketSource(url, sleep=Sleeps()), 8)
+    assert [m.kind for m in msgs][-4:] == [K.reset, K.event, K.match_start, K.event]
+    assert summary(msgs)[-3:] == [("event", 1, 0), ("match_start", 1, 1), ("event", 1, 1)]
     assert feed.from_offsets == [0, 1]
 
 
@@ -170,8 +171,8 @@ async def test_resumes_from_zero_when_dropped_right_after_reset() -> None:
         Connection([start(0), feed_event(E[0])]),
     )
     async with running(feed) as url:
-        msgs = await take(WebSocketSource(url, sleep=Sleeps()), 6)
-    assert summary(msgs)[-2:] == [("reset", 1, 3), ("event", 1, 0)]
+        msgs = await take(WebSocketSource(url, sleep=Sleeps()), 7)
+    assert summary(msgs)[-3:] == [("reset", 1, 3), ("match_start", 1, 0), ("event", 1, 0)]
     assert feed.from_offsets == [0, 0]
 
 
@@ -215,8 +216,8 @@ async def test_backs_off_until_the_simulator_is_up_then_resets_the_backoff() -> 
         source = WebSocketSource(
             f"ws://127.0.0.1:{port}/feed", backoff=Backoff(0.5, 2), sleep=sleep
         )
-        msgs = await take(source, 2)
-    assert summary(msgs) == [("match_start", 1, 0), ("event", 1, 0)]
+        msgs = await take(source, 3)
+    assert summary(msgs) == [("match_start", 1, 0), ("match_start", 1, 0), ("event", 1, 0)]
     assert delays == [0.5, 1, 2, 2, 0.5]  # back to 0.5 after a successful connection
 
 
