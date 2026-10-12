@@ -38,8 +38,9 @@ async def run(
     over, then on every tick the metric snapshots and all alerts, replayed or
     not, so it holds the whole match.
 
-    Every status_every_s seconds of wall-clock time, report the status (with
-    metrics, if a config is given) if it has changed, and give it to the hub.
+    At the start, then every status_every_s seconds of wall-clock time, report
+    the status (with metrics, if a config is given) if it has changed, and give
+    it to the hub.
     """
     last = ""
 
@@ -57,6 +58,7 @@ async def run(
             await asyncio.sleep(status_every_s)
             report_if_changed()
 
+    report_if_changed()
     reporter = asyncio.create_task(report_every())
     try:
         async for msg in source.subscribe():

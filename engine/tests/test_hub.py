@@ -5,7 +5,7 @@ from contextlib import aclosing
 
 import pytest
 
-from engine.hub import MatchHub, Update
+from engine.hub import MatchHub
 from engine.schema.engine_status_schema import EngineState, EngineStatus
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot, TeamMetrics
@@ -45,7 +45,7 @@ def reset(generation: int, match_id: int | None = 1) -> MatchReset:
     return MatchReset(schema_version=1, generation=generation, match_id=match_id)
 
 
-async def take(sub: AsyncIterator[Update], n: int) -> list[Update]:
+async def take[T](sub: AsyncIterator[T], n: int) -> list[T]:
     """The next n updates; fails rather than hangs if they don't come."""
     async with asyncio.timeout(1):
         return [await anext(sub) for _ in range(n)]

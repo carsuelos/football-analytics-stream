@@ -17,6 +17,7 @@ uv run engine --help    # or `make engine` from the repo root
 | `detectors/` | `Detectors` (runs on each tick, cooldowns) and the `Momentum`, `GoalThreat` and `ControlShift` detectors |
 | `sinks/` | `AlertSink` protocol, `LogSink`, and `WebhookSink` (background queue, retries with backoff) |
 | `pipeline.py` | Feed message → reorder → clock → windows; tracks the two teams; handles `match_start`, `reset` and `match_end` |
+| `api.py` | FastAPI app: `GET /api/stream` (server-sent events named `reset`, `status`, `snapshot`, `alert`), `/api/status`, `/api/metrics`, `/api/alerts`, and typed passthrough to the simulator (`/api/matches`, `/api/playback`, `POST /api/control`). Errors are `{"error": ...}`; the simulator's 4xx pass through, its failures are 502 |
 | `runner.py`, `cli.py` | The async run loop (events → ticks → detectors → sinks for live alerts, and everything to the hub), `engine_status`, status report (with metrics) and command line (`--xt-grid`, `--webhook`) |
 
 `src/engine/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.

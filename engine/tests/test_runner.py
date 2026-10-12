@@ -158,10 +158,11 @@ async def test_run_gives_the_hub_each_match_from_its_reset() -> None:
         status_every_s=3600,
         report=lambda _: None,
     )
-    updates = await take(sub, 13)
+    updates = await take(sub, 14)
     seen = [brief(u) for u in updates]
     ticks = [(1, 300), (1, 600), (2, 300), (2, 600)]  # 01:10 and 06:40, both windows
     assert seen == [
+        (EngineState.waiting, 0),  # at the start
         ("MatchReset", 1),
         (EngineState.live, 1),
         *ticks,
@@ -213,6 +214,19 @@ async def test_run_ticks_without_detectors() -> None:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     await run(ListSource(*MSGS), p, ticker=Ticker(METRICS), hub=hub, report=lambda _: None)
     assert (len(hub.snapshots), hub.alerts) == (4, [])
+
+
+async def test_run_gives_the_hub_a_status_before_the_first_message() -> None:
+    hub = MatchHub()
+    source = ListSource(*MSGS, pause_s=10)
+    task = asyncio.create_task(
+        run(source, Pipeline(InMemoryStateStore()), hub=hub, report=lambda _: None)
+    )
+    await asyncio.sleep(0.01)
+    assert hub.status is not None
+    assert hub.status.state == EngineState.waiting
+    task.cancel()
+    await asyncio.wait([task])
 
 
 async def test_run_stops_the_status_reporter_when_the_source_fails() -> None:

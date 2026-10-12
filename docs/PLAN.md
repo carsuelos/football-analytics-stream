@@ -159,8 +159,8 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - [ ] **Engine API (FastAPI):**
   - match hub: the current match's history (metric snapshots every tick, all alerts) and live updates for the dashboard
   - SSE stream: a `MatchReset`, the latest `EngineStatus`, the history, then live updates
-  - REST endpoints for snapshots and the match list
-  - passthrough of playback controls to the simulator
+  - REST endpoints for status, snapshots and alerts
+  - typed passthrough to the simulator (match list, playback status, controls); its errors keep their `{"error": ...}` shape
 - [ ] **Dashboard (lean):**
   - match picker
   - playback controls
