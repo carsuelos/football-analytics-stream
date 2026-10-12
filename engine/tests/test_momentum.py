@@ -7,6 +7,7 @@ from engine.pipeline import Pipeline
 from engine.schema.alert_schema import Alert, AlertType
 from engine.schema.event_schema import EventType, MatchEvent
 from engine.schema.feed_schema import FeedMessageKind as K
+from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 from tests.test_detectors import METRICS
@@ -52,9 +53,15 @@ def steady_match(
 
 def run(es: list[MatchEvent], momentum: Momentum | None = None) -> list[Alert]:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    d = Detectors([momentum or Momentum()], METRICS)
+    d, t = Detectors([momentum or Momentum()]), Ticker(METRICS)
     msgs = [feed_marker(K.match_start, 0), *map(feed_event, es)]
-    return [a for msg in msgs for item in p.handle(msg) for a in d.observe(p, item)]
+    return [
+        a
+        for msg in msgs
+        for item in p.handle(msg)
+        if (tick := t.observe(p, item))
+        for a in d.evaluate(tick)
+    ]
 
 
 @pytest.mark.parametrize("extra", [6, 5])

@@ -10,6 +10,7 @@ from engine.pipeline import Pipeline
 from engine.schema.metric_schema import TeamMetrics
 from engine.sinks import AlertSink
 from engine.sources import EventSource
+from engine.ticks import Ticker
 
 log = logging.getLogger(__name__)
 
@@ -19,6 +20,7 @@ async def run(
     pipeline: Pipeline,
     *,
     metrics: MetricsConfig | None = None,
+    ticker: Ticker | None = None,
     detectors: Detectors | None = None,
     sinks: Sequence[AlertSink] = (),
     status_every_s: float = 1.0,
@@ -26,8 +28,8 @@ async def run(
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
 
-    Every event the pipeline releases goes to the detectors, if given, and
-    every alert they raise goes to each sink.
+    On every tick the detectors, if given, run. The alerts they raise go to
+    each sink, unless the tick is replayed: sinks only hear about live alerts.
 
     Every status_every_s seconds of wall-clock time, report the status (with
     metrics, if a config is given) if it has changed.
@@ -41,25 +43,29 @@ async def run(
             report(line)
             last = line
 
-    async def tick() -> None:
+    async def report_every() -> None:
         while True:
             await asyncio.sleep(status_every_s)
             report_if_changed()
 
-    ticker = asyncio.create_task(tick())
+    reporter = asyncio.create_task(report_every())
     try:
         async for msg in source.subscribe():
             for item in pipeline.handle(msg):
-                if detectors is None:
+                tick = ticker.observe(pipeline, item) if ticker else None
+                if tick is None or detectors is None:
                     continue
-                for alert in detectors.observe(pipeline, item):
+                alerts = detectors.evaluate(tick)
+                if tick.replay:
+                    continue
+                for alert in alerts:
                     for sink in sinks:
                         sink.send(alert)
     finally:
-        ticker.cancel()
-        # Wait for it to finish. asyncio.wait never raises the ticker's own
+        reporter.cancel()
+        # Wait for it to finish. asyncio.wait never raises the reporter's own
         # CancelledError, but still lets a cancellation of run() through.
-        await asyncio.wait([ticker])
+        await asyncio.wait([reporter])
     report_if_changed()
 
 

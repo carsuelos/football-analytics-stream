@@ -1,10 +1,11 @@
-from engine.detectors import DetectorConfig, Detectors, Signal, Tick
+from engine.detectors import DetectorConfig, Detectors, Signal
 from engine.metrics import MetricsConfig, XTGrid
 from engine.pipeline import Pipeline
 from engine.schema.alert_schema import Alert, AlertType
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
+from engine.ticks import Tick, Ticker
 from engine.windows import InMemoryStateStore
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 
@@ -48,7 +49,14 @@ def start() -> FeedMessage:
 
 def run(d: Detectors, *msgs: FeedMessage, pipeline: Pipeline | None = None) -> list[Alert]:
     p = pipeline or Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    return [a for msg in msgs for item in p.handle(msg) for a in d.observe(p, item)]
+    t = Ticker(METRICS)
+    return [
+        a
+        for msg in msgs
+        for item in p.handle(msg)
+        if (tick := t.observe(p, item))
+        for a in d.evaluate(tick)
+    ]
 
 
 def events(es: list[MatchEvent]) -> list[FeedMessage]:
@@ -59,39 +67,10 @@ def clocks(alerts: list[Alert]) -> list[float]:
     return [a.match_clock_s for a in alerts]
 
 
-def test_detectors_run_on_the_first_event_past_each_tick() -> None:
-    fake = Fake()
-    e = match((1, 0), (1, 10), (1, 29), (1, 30), (1, 45), (1, 61), (1, 200), (1, 205))
-    run(Detectors([fake], METRICS), start(), *events(e))
-    assert fake.ticks == [(1, 30), (1, 61), (1, 200)]
-
-
-def test_ticks_count_play_time_across_half_time() -> None:
-    fake = Fake()
-    e = match((1, 0), (1, 20), (2, 2700), (2, 2705), (2, 2712))  # 2712 is 32s of play
-    run(Detectors([fake], METRICS), start(), *events(e))
-    assert fake.ticks == [(2, 2712)]
-
-
-def test_the_shootout_has_no_ticks() -> None:
-    fake = Fake()
-    e = match((1, 0), (1, 10), (5, 0), (5, 40), (5, 80))
-    run(Detectors([fake], METRICS), start(), *events(e))
-    assert fake.ticks == []
-
-
-def test_detectors_wait_for_both_teams() -> None:
-    fake = Fake()
-    e = [event(1, c, offset=i) for i, c in enumerate((0, 30, 60))]
-    e += [event(1, 70, offset=3, team=AWAY), event(1, 90, offset=4)]
-    run(Detectors([fake], METRICS), start(), *events(e))
-    assert fake.ticks == [(1, 90)]  # not 70: that tick went by at 60
-
-
 def test_the_cooldown_holds_back_repeats_per_detector_and_team() -> None:
     goal = Fake(GOAL, fire=(HOME.id, AWAY.id))
     momentum = Fake(MOMENTUM)
-    alerts = run(Detectors([goal, momentum], METRICS), start(), *events(every_30s(700)))
+    alerts = run(Detectors([goal, momentum]), start(), *events(every_30s(700)))
     assert [(a.match_clock_s, a.type, a.team_id) for a in alerts] == [
         (t, type, team)
         for t in (30, 330, 630)  # 330 is exactly the 300s cooldown after 30
@@ -99,43 +78,40 @@ def test_the_cooldown_holds_back_repeats_per_detector_and_team() -> None:
     ]
 
 
-def test_the_tick_and_cooldown_are_configurable() -> None:
-    fake = Fake()
-    config = DetectorConfig(tick_s=60, cooldown_s=0)
-    alerts = run(Detectors([fake], METRICS, config), start(), *events(every_30s(200)))
-    assert clocks(alerts) == [60, 120, 180]
+def test_the_cooldown_is_configurable() -> None:
+    alerts = run(
+        Detectors([Fake()], DetectorConfig(cooldown_s=60)), start(), *events(every_30s(200))
+    )
+    assert clocks(alerts) == [30, 90, 150]
 
 
-def test_no_alerts_while_catching_up_but_the_cooldowns_still_apply() -> None:
+def test_catching_up_raises_the_same_alerts_as_live() -> None:
     e = every_30s(1000)
-    live = run(Detectors([Fake()], METRICS), start(), *events(e))
+    live = run(Detectors([Fake()]), start(), *events(e))
     assert clocks(live) == [30, 330, 630, 930]
-
-    # Connect when 15 events (up to 7:00) have been published. The tick at 330
-    # is caught up on, so nothing comes out until its cooldown ends at 630.
+    # Connect when 15 events (up to 7:00) have been published.
     catch_up = feed_marker(K.match_start, 0, head=15)
-    caught_up = run(Detectors([Fake()], METRICS), catch_up, *events(e))
-    assert [a.id for a in caught_up] == [a.id for a in live[2:]]
+    assert run(Detectors([Fake()]), catch_up, *events(e)) == live
 
 
 def test_a_seek_starts_the_detectors_over_and_gives_the_same_alerts() -> None:
     e = every_30s(1000)
-    live = run(Detectors([Fake()], METRICS), start(), *events(e))
+    live = run(Detectors([Fake()]), start(), *events(e))
 
     fake, p = Fake(), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    d = Detectors([fake], METRICS)
+    d = Detectors([fake])
     run(d, start(), *events(e[:25]), pipeline=p)
     assert fake.resets == 1
     seek = feed_marker(K.reset, 20, clock_s=600)  # back to 10:00, replaying from 0
     after_seek = run(d, seek, *events(e), pipeline=p)
     assert fake.resets == 2
-    assert [a.id for a in after_seek] == [a.id for a in live if a.offset >= 20]
+    assert after_seek == live
 
 
 def test_a_reconnect_keeps_the_detectors_state() -> None:
     e = every_30s(1000)
     fake, p = Fake(), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    d = Detectors([fake], METRICS)
+    d = Detectors([fake])
     assert clocks(run(d, start(), *events(e[:12]), pipeline=p)) == [30, 330]
     resume = feed_marker(K.match_start, 12, head=12)
     assert clocks(run(d, resume, *events(e[12:]), pipeline=p)) == [630, 930]
@@ -143,9 +119,7 @@ def test_a_reconnect_keeps_the_detectors_state() -> None:
 
 
 def test_an_alert_carries_the_signal_and_the_event_that_raised_it() -> None:
-    alerts = run(
-        Detectors([Fake(fire=(AWAY.id,))], METRICS), start(), *events(match((1, 0), (1, 31.5)))
-    )
+    alerts = run(Detectors([Fake(fire=(AWAY.id,))]), start(), *events(match((1, 0), (1, 31.5))))
     assert alerts == [
         Alert(
             schema_version=1,

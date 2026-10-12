@@ -16,6 +16,7 @@ from engine.pipeline import Pipeline
 from engine.runner import run
 from engine.sinks import AlertSink, LogSink, WebhookSink
 from engine.sources import WebSocketSource
+from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore, WindowMode
 
 
@@ -87,7 +88,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         window_mode=args.window_mode,
     )
     metrics = MetricsConfig(grid)
-    detectors = Detectors([Momentum(), GoalThreat(), ControlShift()], metrics)
+    detectors = Detectors([Momentum(), GoalThreat(), ControlShift()])
 
     async def serve() -> None:
         async with AsyncExitStack() as stack:
@@ -98,6 +99,7 @@ def main(argv: Sequence[str] | None = None) -> None:
                 WebSocketSource(args.feed),
                 pipeline,
                 metrics=metrics,
+                ticker=Ticker(metrics),
                 detectors=detectors,
                 sinks=sinks,
                 status_every_s=args.status_every,

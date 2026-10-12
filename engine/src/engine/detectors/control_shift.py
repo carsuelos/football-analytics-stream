@@ -2,9 +2,10 @@
 
 from dataclasses import dataclass
 
-from engine.detectors.core import Signal, Tick
+from engine.detectors.core import Signal
 from engine.metrics import PressureComponents, pressure
 from engine.schema.alert_schema import AlertType
+from engine.ticks import Tick
 from engine.windows import FIVE_MINUTES_S
 
 

@@ -3,12 +3,12 @@
 import itertools
 
 from engine.clock import MatchClock, TimedEvent
-from engine.detectors import Tick
 from engine.metrics import MetricsConfig
 from engine.pipeline import Pipeline
 from engine.schema.common_schema import Team
 from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
+from engine.ticks import Tick
 from engine.windows import InMemoryStateStore
 
 HOME = Team(id=1, name="Home FC")

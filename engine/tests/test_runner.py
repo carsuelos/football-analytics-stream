@@ -13,6 +13,7 @@ from engine.runner import run, status_report
 from engine.schema.alert_schema import Alert
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
+from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore, WindowMode
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 from tests.test_detectors import Fake
@@ -87,21 +88,50 @@ async def test_run_reports_status_while_running_and_at_the_end() -> None:
     assert len(lines) == len(set(lines))  # unchanged lines are not repeated
 
 
-async def test_run_sends_every_alert_to_every_sink() -> None:
-    class ListSink(list[Alert]):
-        def send(self, alert: Alert) -> None:
-            self.append(alert)
+class ListSink(list[Alert]):
+    def send(self, alert: Alert) -> None:
+        self.append(alert)
 
+
+async def test_run_sends_every_alert_to_every_sink() -> None:
     sinks = ListSink(), ListSink()
-    detectors = Detectors([Fake()], METRICS)
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    await run(ListSource(*MSGS), p, detectors=detectors, sinks=sinks, report=lambda _: None)
+    await run(
+        ListSource(*MSGS),
+        p,
+        ticker=Ticker(METRICS),
+        detectors=Detectors([Fake()]),
+        sinks=sinks,
+        report=lambda _: None,
+    )
     # Ticks at 01:10 (the first with both teams) and 06:40, past the cooldown.
     assert [(a.offset, a.team_id) for a in sinks[0]] == [(1, HOME.id), (2, HOME.id)]
     assert sinks[1] == sinks[0]
 
 
-async def test_run_stops_the_status_ticker_when_the_source_fails() -> None:
+async def test_run_sends_only_live_alerts_to_the_sinks() -> None:
+    sink = ListSink()
+    catch_up = (feed_marker(K.match_start, 0, head=2), *MSGS[1:])
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    await run(
+        ListSource(*catch_up),
+        p,
+        ticker=Ticker(METRICS),
+        detectors=Detectors([Fake()]),
+        sinks=[sink],
+        report=lambda _: None,
+    )
+    # The alert at 01:10 was caught up on; only the one at 06:40 is live.
+    assert [a.offset for a in sink] == [2]
+
+
+async def test_run_ticks_without_detectors() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    await run(ListSource(*MSGS), p, ticker=Ticker(METRICS), report=lambda _: None)
+    assert p.clock.now is not None
+
+
+async def test_run_stops_the_status_reporter_when_the_source_fails() -> None:
     class Broken:
         async def subscribe(self, from_offset: int = 0) -> AsyncIterator[FeedMessage]:
             yield MSGS[0]
