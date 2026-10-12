@@ -39,6 +39,7 @@ make test                                     # all tests, including schema cont
 | `make ci` | Everything CI runs |
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
 | `make engine` | Run the engine against the simulator feed (`ARGS="--help"` lists options) |
+| `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
 
@@ -73,12 +74,19 @@ match 3869685 P2 82:30 (play 90:04) | released 2993 buffered 9 late 0 dup 0
   last 10': Argentina tilt 58% xT +0.07 (+0.007/min) pressure 8.5 | France tilt 42% xT +0.17 (+0.017/min) pressure 11.8
 ```
 
-The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1). Try:
+When a detector fires, the engine logs an alert:
+
+```text
+ALERT P2 82:27 control_shift: France taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before
+```
+
+The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1), and the alert definitions in [Predictive signals](docs/PLAN.md#predictive-signals-v1-rule-based). Try:
 
 - a seek (`{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4500}}`): the engine rebuilds its windows from a replay;
 - `make engine ARGS="--allowed-lateness 1"` with `-jitter 3s`: events arriving more than 1s late are dropped and counted;
 - stopping and restarting the simulator: the engine reconnects and resumes from its last offset;
-- `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid.
+- `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid;
+- `make webhook` in another terminal and `make engine ARGS="--webhook http://localhost:9000"`: each alert is also POSTed as JSON. `make webhook ARGS="--fail 2"` answers the first 2 requests with 503, so you can watch the engine retry.
 
 ## Data attribution
 

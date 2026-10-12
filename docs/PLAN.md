@@ -79,7 +79,8 @@ Makefile       gen, dev, test, lint, run-all targets
   3. It then rebuilds that state by fast-replaying from offset 0 up to the target time.
 - **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without alerting on them.
 - **One match at a time in v1.** All state, topics and APIs are still keyed by `match_id`, so several matches can be supported later.
-- **No database in v1.** Alerts go to the log sink. Storage is added only when there's a need.
+- **No database in v1.** Alerts go to the log and, with `--webhook URL`, are POSTed as JSON. Storage is added only when there's a need.
+- **Sinks never hold up the match.** An `AlertSink` takes each alert without blocking. The webhook sink queues alerts for a background worker, which retries network failures, server errors and 429s with exponential backoff; other 4xx errors are not retried. A full queue drops the alert with a warning.
 - **Attribution and licensing.**
   - StatsBomb data is never committed, and their open data terms (including attribution) are followed.
   - The xT grid source is credited.
@@ -101,10 +102,14 @@ Every metric is a pure function of the events in a window, recomputed on demand 
 - **Windows:** rolling 5 and 10 minutes of play. The whole-match baseline (an exponentially weighted mean and variance) belongs to the detectors, which are its only users.
 
 ## Predictive signals (v1, rule-based)
-- **Momentum shift alert:** fires when the z-score of the pressure index or field tilt, measured against that team's match baseline, crosses a threshold. A cooldown stops repeat firing.
-- **Goal-in-next-X-minutes score:** a logistic-shaped formula over pressure density, xT velocity and recent shots. It is labelled a *heuristic score*, not a probability, until it is calibrated in Phase 3.
-- **Next-to-control/score indicator:** compares the two teams' momentum trends, using the slope of the 5-minute versus 10-minute windows.
-- **Alert payload:** each alert carries `type`, `team`, `match_clock`, `value`, the contributing features, and the window.
+Detectors run on a fixed tick of play time: once every 30 seconds, on the first released event past each multiple of 30s. Penalty shootouts have no ticks. All windows below are 5 minutes of play, and the thresholds are untuned (Phase 3).
+
+- **Momentum shift (`momentum_shift`):** a team's 5' pressure index against its own match baseline, an exponentially weighted mean and variance over play time (half-life 10 minutes). It fires when `z = (pressure − mean) / max(std, 3)` reaches 2.0. The z-score uses the baseline before the current value is added. There are no alerts in the first 15 minutes of play, while the baseline warms up.
+- **Goal threat (`goal_threat`):** `sigmoid(−3 + 1.5 · pressure / 18 + 1.5 · xT velocity / 0.05)`, firing at 0.5. The scales are about the top few percent of 5' values in the 2022 final, so a team at both scores exactly 0.5. Only play since the last goal in the window counts, because a goal resets the danger. Shots count through the pressure index. It is a *heuristic score*, not a probability, until it is calibrated in Phase 3.
+- **Control shift (`control_shift`):** a team's pressure balance `(own − opponent) / (own + opponent + 5)`, from −1 to 1. The `+5` keeps a quiet spell from looking like total control. It fires when the balance goes from ≤ −0.2 over the previous 5 minutes to ≥ 0.5 over the last 5, so the team that was pinned back is now on top. It needs 10 minutes of play.
+- **Cooldown:** after an alert, the same detector stays quiet for the same team for 5 minutes of play.
+- **Replays are silent.** After a seek or a mid-match connect, detectors still run on the replayed events and cooldowns still apply, but no alerts come out. The alerts after a seek are exactly those that would have come out live, with the same ids (`{match_id}-{type}-{team_id}-{offset}`).
+- **Alert payload:** each alert carries `type`, `team_id`, the match time and offset, `value` and `threshold`, the window, the contributing `features`, and a readable `message`.
 
 ## Roadmap
 
@@ -145,13 +150,14 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - in-memory sliding-window `StateStore`
   - seek and reset handling
 - [x] **Metrics:** field tilt, xT (published grid) and pressure index, unit-tested on hand-built event sequences.
-- [ ] **Detectors and alert routing:**
+- [x] **Detectors and alert routing:**
   - momentum z-score
   - goal-score heuristic
   - next-to-control indicator
   - cooldowns
-  - log, webhook and dashboard sinks
+  - log and webhook sinks
 - [ ] **Engine API (FastAPI):**
+  - dashboard alert sink
   - WS/SSE streams for metrics and alerts
   - REST endpoints for snapshots and the match list
   - passthrough of playback controls to the simulator
@@ -161,7 +167,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - live charts: field tilt, xT, pressure
   - alert feed
   - *The pitch view comes after the MVP.*
-- [ ] **End-to-end smoke test:** replay the 2022 World Cup final (Argentina vs France) at high speed and check the key metrics and alerts. For example, France's comeback around minutes 80–81 should trigger a momentum alert.
+- [ ] **End-to-end smoke test:** replay the 2022 World Cup final (Argentina vs France) at high speed and check the key metrics and alerts. For example, France's comeback should trigger a control-shift alert for France at about 82'.
 
 ### Phase 2: Containers and broker
 - [ ] Dockerfiles for all three services, plus Docker Compose.
@@ -204,11 +210,12 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 ## Open questions
 - Azure region.
 - Shared password or Microsoft sign-in for the dashboard (Phase 4).
-- The goal window X (e.g. 5 or 10 minutes) and the alert thresholds; tune in Phase 3.
+- The detector windows (5 minutes in v1) and the alert thresholds; tune in Phase 3.
 - Whether generated code is committed or generated in CI.
 - Whether a more compact wire format is worth it on the broker (unlikely at this scale).
 
 ## Known gaps
 - **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
+- **Alerts can be lost.** The webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. That is fine for notifications; the broker (Phase 2) gives durable delivery.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.
