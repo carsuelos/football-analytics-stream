@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "state": "live",
+  "generation": 1,
+  "match_id": 3869685,
+  "teams": [
+    { "id": 779, "name": "Argentina" },
+    { "id": 771, "name": "France" },
+    { "id": 1, "name": "Referees" }
+  ],
+  "released": 10,
+  "buffered": 0,
+  "late_dropped": 0,
+  "duplicates": 0
+}

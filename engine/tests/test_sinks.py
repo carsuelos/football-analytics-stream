@@ -6,29 +6,11 @@ from collections.abc import Callable, Coroutine
 import httpx
 import pytest
 
-from engine.schema.alert_schema import Alert, AlertType
 from engine.sinks import LogSink, WebhookSink
+from tests.factories import alert
 
 URL = "http://hooks.test/alerts"
 Handler = Callable[[httpx.Request], Coroutine[None, None, httpx.Response]]
-
-
-def alert(n: int = 0) -> Alert:
-    return Alert(
-        schema_version=1,
-        id=f"1-control_shift-2-{n}",
-        match_id=1,
-        offset=n,
-        period=2,
-        match_clock_s=4947.0,
-        type=AlertType.control_shift,
-        team_id=2,
-        value=0.6,
-        threshold=0.5,
-        window_s=300,
-        features={"balance": 0.6},
-        message="France taking control",
-    )
 
 
 class Hook:

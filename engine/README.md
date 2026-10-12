@@ -13,9 +13,10 @@ uv run engine --help    # or `make engine` from the repo root
 | `windows/` | `StateStore` protocol, `InMemoryStateStore`, and 5/10-minute `SlidingWindows` |
 | `metrics/` | Pure per-window metrics: `field_tilt`, `xt_added`/`xt_velocity` (`XTGrid`), `pressure` (`PressureWeights`), and `snapshot`, which builds a schema `MetricSnapshot` |
 | `ticks.py` | `Ticker`: picks a `Tick` (the match as of one event) every 30s of play, marked live or replayed |
+| `hub.py` | `MatchHub`: the current match's history (snapshots and alerts since the last `MatchReset`) and live updates to subscribers, dropping any that fall too far behind |
 | `detectors/` | `Detectors` (runs on each tick, cooldowns) and the `Momentum`, `GoalThreat` and `ControlShift` detectors |
 | `sinks/` | `AlertSink` protocol, `LogSink`, and `WebhookSink` (background queue, retries with backoff) |
 | `pipeline.py` | Feed message → reorder → clock → windows; tracks the two teams; handles `match_start`, `reset` and `match_end` |
-| `runner.py`, `cli.py` | The async run loop (events → ticks → detectors → sinks, live alerts only), status report (with metrics) and command line (`--xt-grid`, `--webhook`) |
+| `runner.py`, `cli.py` | The async run loop (events → ticks → detectors → sinks for live alerts, and everything to the hub), `engine_status`, status report (with metrics) and command line (`--xt-grid`, `--webhook`) |
 
 `src/engine/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.

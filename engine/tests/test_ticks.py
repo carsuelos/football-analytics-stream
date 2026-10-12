@@ -75,6 +75,8 @@ def test_a_tick_shows_the_match_as_of_its_event() -> None:
                 assert tick.replay is False
                 seen.append([x.offset for x in tick.events(300)])
                 seen.append([x.offset for x in tick.events(25)])
+                snaps = [(s.window_s, s.offset) for s in tick.snapshots()]
+                assert snaps == [(300, 2), (600, 2)]
     assert seen == [[0, 1, 2], [1, 2]]  # not 40: it had not happened yet
 
 

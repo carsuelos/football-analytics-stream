@@ -43,7 +43,7 @@ flowchart LR
 ### Repository layout
 
 ```
-schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts) + fixtures/{valid,invalid}/
+schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts, engine status) + fixtures/{valid,invalid}/
 simulator/     Go module: cmd/simulator, internal/{loader,playback,clock,server}
 engine/        Python package (uv): sources/, clock/, windows/, metrics/, detectors/, sinks/, api/
 dashboard/     React + Vite + TypeScript
@@ -157,8 +157,8 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - cooldowns
   - log and webhook sinks
 - [ ] **Engine API (FastAPI):**
-  - dashboard alert sink
-  - WS/SSE streams for metrics and alerts
+  - match hub: the current match's history (metric snapshots every tick, all alerts) and live updates for the dashboard
+  - SSE stream: a `MatchReset`, the latest `EngineStatus`, the history, then live updates
   - REST endpoints for snapshots and the match list
   - passthrough of playback controls to the simulator
 - [ ] **Dashboard (lean):**

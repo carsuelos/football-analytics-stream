@@ -20,12 +20,16 @@ func newTarget(t *testing.T, kind string) any {
 		return &Alert{}
 	case "command":
 		return &PlaybackCommand{}
+	case "engine_status":
+		return &EngineStatus{}
 	case "event":
 		return &MatchEvent{}
 	case "feed":
 		return &FeedMessage{}
 	case "match_list":
 		return &MatchList{}
+	case "match_reset":
+		return &MatchReset{}
 	case "metric":
 		return &MetricSnapshot{}
 	case "status":

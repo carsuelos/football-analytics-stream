@@ -6,17 +6,22 @@ import pytest
 
 from engine.cli import main, parse_args
 from engine.detectors import Detectors
+from engine.hub import MatchHub, Update
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
-from engine.runner import run, status_report
+from engine.runner import engine_status, run, status_report
 from engine.schema.alert_schema import Alert
+from engine.schema.engine_status_schema import EngineState, EngineStatus
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
+from engine.schema.match_reset_schema import MatchReset
+from engine.schema.metric_schema import MetricSnapshot
 from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore, WindowMode
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 from tests.test_detectors import Fake
+from tests.test_hub import take
 
 
 class ListSource:
@@ -109,8 +114,8 @@ async def test_run_sends_every_alert_to_every_sink() -> None:
     assert sinks[1] == sinks[0]
 
 
-async def test_run_sends_only_live_alerts_to_the_sinks() -> None:
-    sink = ListSink()
+async def test_replayed_alerts_go_to_the_hub_but_not_the_sinks() -> None:
+    sink, hub = ListSink(), MatchHub()
     catch_up = (feed_marker(K.match_start, 0, head=2), *MSGS[1:])
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     await run(
@@ -119,16 +124,95 @@ async def test_run_sends_only_live_alerts_to_the_sinks() -> None:
         ticker=Ticker(METRICS),
         detectors=Detectors([Fake()]),
         sinks=[sink],
+        hub=hub,
         report=lambda _: None,
     )
     # The alert at 01:10 was caught up on; only the one at 06:40 is live.
     assert [a.offset for a in sink] == [2]
+    assert [a.offset for a in hub.alerts] == [1, 2]
+
+
+def brief(u: Update) -> tuple[object, int]:
+    match u:
+        case MatchReset():
+            return "MatchReset", u.generation
+        case EngineStatus():
+            return u.state, u.generation
+        case MetricSnapshot():
+            return u.offset, u.window_s
+        case Alert():
+            return "Alert", u.offset
+
+
+async def test_run_gives_the_hub_each_match_from_its_reset() -> None:
+    hub = MatchHub()
+    sub = hub.subscribe()
+    await anext(sub)
+    seek = feed_marker(K.reset, 2, clock_s=70)
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    await run(
+        ListSource(*MSGS[:4], seek, *MSGS[1:]),
+        p,
+        ticker=Ticker(METRICS),
+        hub=hub,
+        status_every_s=3600,
+        report=lambda _: None,
+    )
+    updates = await take(sub, 13)
+    seen = [brief(u) for u in updates]
+    ticks = [(1, 300), (1, 600), (2, 300), (2, 600)]  # 01:10 and 06:40, both windows
+    assert seen == [
+        ("MatchReset", 1),
+        (EngineState.live, 1),
+        *ticks,
+        ("MatchReset", 2),  # the seek
+        (EngineState.rebuilding, 2),
+        *ticks,
+        (EngineState.ended, 2),
+    ]
+    assert (hub.generation, hub.reset.match_id, len(hub.snapshots)) == (2, 1, 4)
+
+
+def test_engine_status_follows_the_match() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    s = engine_status(p)
+    assert (s.state, s.generation, s.match_id, s.teams, s.play_s) == (
+        EngineState.waiting,
+        0,
+        None,
+        None,
+        None,
+    )
+    p.handle(feed_marker(K.match_start, 0, head=2))
+    p.handle(MSGS[1])
+    s = engine_status(p)
+    assert (s.state, s.generation, s.match_id, s.rebuilding_to) == (
+        EngineState.rebuilding,
+        1,
+        1,
+        2,
+    )
+    assert (s.teams, s.period, s.match_clock_s, s.play_s, s.released) == ([HOME], 1, 0, 0, 1)
+    for msg in MSGS[2:4]:
+        p.handle(msg)
+    p.handle(MSGS[2])  # again
+    s = engine_status(p)
+    assert (s.state, s.rebuilding_to, s.teams, s.match_clock_s) == (
+        EngineState.live,
+        None,
+        [HOME, AWAY],
+        400,
+    )
+    assert (s.released, s.duplicates, s.late_dropped, s.buffered) == (3, 1, 0, 0)
+    p.handle(MSGS[4])
+    assert engine_status(p).state == EngineState.ended
 
 
 async def test_run_ticks_without_detectors() -> None:
+    hub = MatchHub()
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    await run(ListSource(*MSGS), p, ticker=Ticker(METRICS), report=lambda _: None)
-    assert p.clock.now is not None
+    await run(ListSource(*MSGS), p, ticker=Ticker(METRICS), hub=hub, report=lambda _: None)
+    assert (len(hub.snapshots), hub.alerts) == (4, [])
 
 
 async def test_run_stops_the_status_reporter_when_the_source_fails() -> None:
@@ -164,3 +248,13 @@ def test_cli_defaults_and_validation() -> None:
 def test_cli_exits_with_a_hint_when_the_xt_grid_is_missing(tmp_path: Path) -> None:
     with pytest.raises(SystemExit, match="make fetch-data"):
         main(["--xt-grid", str(tmp_path / "missing.json")])
+
+
+def test_engine_status_counts_events_held_back_and_dropped() -> None:
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=10)
+    p.handle(MSGS[0])
+    for msg in MSGS[1:3]:  # 00:00 is released once 01:10 arrives; 01:10 is held back
+        p.handle(msg)
+    p.handle(feed_event(event(1, 30, offset=3, team=HOME)))  # behind the watermark at 01:00
+    s = engine_status(p)
+    assert (s.released, s.buffered, s.late_dropped, s.duplicates) == (1, 1, 1, 0)

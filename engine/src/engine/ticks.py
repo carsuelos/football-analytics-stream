@@ -7,10 +7,11 @@ function of match time alone: identical at any playback speed and after a seek.
 from dataclasses import dataclass
 
 from engine.clock import TimedEvent
-from engine.metrics import MetricsConfig
+from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
 from engine.schema.common_schema import Team
 from engine.schema.event_schema import MatchEvent
+from engine.schema.metric_schema import MetricSnapshot
 from engine.windows import SlidingWindows
 
 SHOOTOUT_PERIOD = 5
@@ -43,6 +44,14 @@ class Tick:
     def events(self, length_s: float) -> list[MatchEvent]:
         """Events in the window of length_s ending now, in match-time order."""
         return [i.event for i in self.windows.events(length_s)]
+
+    def snapshots(self) -> list[MetricSnapshot]:
+        """Every metric for both teams, over each window."""
+        return [
+            s
+            for length_s in self.windows.lengths_s
+            if (s := snapshot(self.windows, length_s, self.team_ids, self.metrics))
+        ]
 
 
 class Ticker:

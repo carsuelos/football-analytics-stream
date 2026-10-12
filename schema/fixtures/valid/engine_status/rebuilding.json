@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "state": "rebuilding",
+  "generation": 2,
+  "match_id": 3869685,
+  "teams": [
+    { "id": 779, "name": "Argentina" },
+    { "id": 771, "name": "France" }
+  ],
+  "period": 1,
+  "match_clock_s": 1312.4,
+  "play_s": 1312.4,
+  "rebuilding_to": 2000,
+  "released": 812,
+  "buffered": 3,
+  "late_dropped": 0,
+  "duplicates": 0
+}
