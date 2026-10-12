@@ -12,8 +12,8 @@ Every error has the simulator's shape: {"error": "..."}.
 """
 
 import logging
-from collections.abc import AsyncIterable
-from contextlib import aclosing
+from collections.abc import AsyncIterable, Callable
+from contextlib import AbstractAsyncContextManager, aclosing
 from typing import Any, assert_never
 
 import httpx
@@ -65,11 +65,20 @@ def event_name(update: Update) -> str:
             assert_never(update)
 
 
-def create_app(hub: MatchHub, simulator: httpx.AsyncClient) -> FastAPI:
-    """The API over hub. simulator is a client whose base_url is the simulator's."""
+def create_app(
+    hub: MatchHub,
+    simulator: httpx.AsyncClient,
+    *,
+    lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
+) -> FastAPI:
+    """The API over hub. simulator is a client whose base_url is the simulator's.
+
+    lifespan, if given, runs around the app's life (e.g. the engine's run loop).
+    """
     app = FastAPI(
         title="Football analytics engine",
         description="Live match metrics and alerts, and playback passthrough to the simulator.",
+        lifespan=lifespan,
     )
 
     @app.exception_handler(StarletteHTTPException)

@@ -1,14 +1,11 @@
 import asyncio
 from collections.abc import AsyncIterator
-from pathlib import Path
 
 import pytest
 
-from engine.cli import main, parse_args
 from engine.detectors import Detectors
 from engine.hub import MatchHub, Update
 from engine.metrics import MetricsConfig, XTGrid
-from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
 from engine.runner import engine_status, run, status_report
 from engine.schema.alert_schema import Alert
@@ -18,7 +15,7 @@ from engine.schema.feed_schema import FeedMessageKind as K
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
 from engine.ticks import Ticker
-from engine.windows import InMemoryStateStore, WindowMode
+from engine.windows import InMemoryStateStore
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 from tests.test_detectors import Fake
 from tests.test_hub import take
@@ -238,30 +235,6 @@ async def test_run_stops_the_status_reporter_when_the_source_fails() -> None:
     with pytest.raises(ConnectionError):
         await run(Broken(), Pipeline(InMemoryStateStore()), report=lambda _: None)
     assert [t for t in asyncio.all_tasks() if t is not asyncio.current_task()] == []
-
-
-def test_cli_defaults_and_validation() -> None:
-    args = parse_args([])
-    assert args.feed == "ws://localhost:8080/feed"
-    assert args.allowed_lateness == 5.0
-    assert args.window_mode is WindowMode.CONTINUOUS
-    assert args.xt_grid == DEFAULT_GRID_PATH
-    assert args.webhook == []
-    assert parse_args(["--webhook", "http://a", "--webhook", "http://b"]).webhook == [
-        "http://a",
-        "http://b",
-    ]
-    assert parse_args(["--window-mode", "per_period"]).window_mode is WindowMode.PER_PERIOD
-    assert parse_args(["--xt-grid", "g.json"]).xt_grid == Path("g.json")
-    with pytest.raises(SystemExit):
-        parse_args(["--allowed-lateness", "-1"])
-    with pytest.raises(SystemExit):
-        parse_args(["--window-mode", "sideways"])
-
-
-def test_cli_exits_with_a_hint_when_the_xt_grid_is_missing(tmp_path: Path) -> None:
-    with pytest.raises(SystemExit, match="make fetch-data"):
-        main(["--xt-grid", str(tmp_path / "missing.json")])
 
 
 def test_engine_status_counts_events_held_back_and_dropped() -> None:

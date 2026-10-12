@@ -33,11 +33,13 @@ flowchart LR
     RB --> WIN[Sliding windows<br/>StateStore: InMemory]
     WIN --> MET[Metrics: field tilt, xT, pressure]
     MET --> DET[Detectors + goal-score heuristic]
-    DET --> SINK[AlertSinks: log, webhook, dashboard]
-    API[FastAPI: WS/SSE + REST snapshots]
+    DET --> SINK[AlertSinks: log, webhook]
+    DET --> HUB[Match hub: history + live updates]
+    HUB --> API[FastAPI: SSE stream + REST]
   end
-  API --> UI[React/Vite dashboard]
-  UI -- playback controls --> C
+  API -- SSE + REST --> UI[React/Vite dashboard]
+  UI -- playback controls --> API
+  API -- passthrough --> C
 ```
 
 ### Repository layout
@@ -156,11 +158,12 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - next-to-control indicator
   - cooldowns
   - log and webhook sinks
-- [ ] **Engine API (FastAPI):**
+- [x] **Engine API (FastAPI):**
   - match hub: the current match's history (metric snapshots every tick, all alerts) and live updates for the dashboard
   - SSE stream: a `MatchReset`, the latest `EngineStatus`, the history, then live updates
   - REST endpoints for status, snapshots and alerts
   - typed passthrough to the simulator (match list, playback status, controls); its errors keep their `{"error": ...}` shape
+  - one process: uvicorn serves the API and runs the run loop alongside it; Ctrl+C ends open streams cleanly
 - [ ] **Dashboard (lean):**
   - match picker
   - playback controls

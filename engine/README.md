@@ -13,11 +13,11 @@ uv run engine --help    # or `make engine` from the repo root
 | `windows/` | `StateStore` protocol, `InMemoryStateStore`, and 5/10-minute `SlidingWindows` |
 | `metrics/` | Pure per-window metrics: `field_tilt`, `xt_added`/`xt_velocity` (`XTGrid`), `pressure` (`PressureWeights`), and `snapshot`, which builds a schema `MetricSnapshot` |
 | `ticks.py` | `Ticker`: picks a `Tick` (the match as of one event) every 30s of play, marked live or replayed |
-| `hub.py` | `MatchHub`: the current match's history (snapshots and alerts since the last `MatchReset`) and live updates to subscribers, dropping any that fall too far behind |
+| `hub.py` | `MatchHub`: the current match's history (snapshots and alerts since the last `MatchReset`) and live updates to subscribers, dropping any that fall too far behind; `close` ends every stream on shutdown |
 | `detectors/` | `Detectors` (runs on each tick, cooldowns) and the `Momentum`, `GoalThreat` and `ControlShift` detectors |
 | `sinks/` | `AlertSink` protocol, `LogSink`, and `WebhookSink` (background queue, retries with backoff) |
 | `pipeline.py` | Feed message → reorder → clock → windows; tracks the two teams; handles `match_start`, `reset` and `match_end` |
 | `api.py` | FastAPI app: `GET /api/stream` (server-sent events named `reset`, `status`, `snapshot`, `alert`), `/api/status`, `/api/metrics`, `/api/alerts`, and typed passthrough to the simulator (`/api/matches`, `/api/playback`, `POST /api/control`). Errors are `{"error": ...}`; the simulator's 4xx pass through, its failures are 502 |
-| `runner.py`, `cli.py` | The async run loop (events → ticks → detectors → sinks for live alerts, and everything to the hub), `engine_status`, status report (with metrics) and command line (`--xt-grid`, `--webhook`) |
+| `runner.py`, `cli.py` | The async run loop (events → ticks → detectors → sinks for live alerts, and everything to the hub), `engine_status`, status report (with metrics) and command line: uvicorn serves the API with the run loop alongside it (`--simulator`, `--host`, `--port`, `--xt-grid`, `--webhook`; the status report logs at DEBUG) |
 
 `src/engine/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.

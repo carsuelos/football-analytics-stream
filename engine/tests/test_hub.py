@@ -126,3 +126,23 @@ async def test_closing_a_subscription_unsubscribes() -> None:
         assert hub.subscribers == 1
     assert hub.subscribers == 0
     hub.add(snap(1))
+
+
+async def test_closing_the_hub_ends_every_subscription_now_and_later() -> None:
+    hub = MatchHub()
+    hub.start(1, 1)
+    waiting, behind = hub.subscribe(), hub.subscribe()
+    assert await anext(waiting) == await anext(behind) == reset(1)
+    pending = asyncio.ensure_future(anext(waiting))
+    await asyncio.sleep(0)  # let it wait for the next update
+    hub.add(snap(1))
+    assert await pending == snap(1)
+    hub.add(snap(2))
+    hub.close()
+    assert hub.subscribers == 0
+    for sub in (waiting, behind):
+        with pytest.raises(StopAsyncIteration):
+            async with asyncio.timeout(1):
+                await anext(sub)
+    with pytest.raises(StopAsyncIteration):
+        await anext(hub.subscribe())

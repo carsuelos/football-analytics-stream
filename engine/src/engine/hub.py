@@ -37,6 +37,7 @@ class MatchHub:
         self.alerts: list[Alert] = []
         self._history: list[MetricSnapshot | Alert] = []
         self._subscribers: set[asyncio.Queue[Update]] = set()
+        self._closed = False
 
     @property
     def generation(self) -> int:
@@ -69,12 +70,22 @@ class MatchHub:
             self._history.append(update)
             self._publish(update)
 
+    def close(self) -> None:
+        """End every subscriber's stream, and any later one's at once (e.g. on shutdown)."""
+        self._closed = True
+        for queue in self._subscribers:
+            queue.shutdown(immediate=True)
+        self._subscribers.clear()
+
     async def subscribe(self) -> AsyncGenerator[Update]:
         """The reset, the latest status and the history, then updates as they happen.
 
-        Ends if the subscriber falls max_pending updates behind. Close it when
-        done (e.g. with contextlib.aclosing) so the hub stops queueing for it.
+        Ends if the subscriber falls max_pending updates behind, or the hub is
+        closed. Close it when done (e.g. with contextlib.aclosing) so the hub
+        stops queueing for it.
         """
+        if self._closed:
+            return
         queue: asyncio.Queue[Update] = asyncio.Queue(self.max_pending)
         # No await between taking the backlog and registering the queue, so no
         # update can fall between the two.

@@ -27,7 +27,7 @@ async def run(
     sinks: Sequence[AlertSink] = (),
     hub: MatchHub | None = None,
     status_every_s: float = 1.0,
-    report: Callable[[str], None] = log.info,
+    report: Callable[[str], None] = log.debug,
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
 
@@ -39,8 +39,8 @@ async def run(
     not, so it holds the whole match.
 
     At the start, then every status_every_s seconds of wall-clock time, report
-    the status (with metrics, if a config is given) if it has changed, and give
-    it to the hub.
+    the status (with metrics, if a config is given; logged at DEBUG by default)
+    if it has changed, and give it to the hub.
     """
     last = ""
 

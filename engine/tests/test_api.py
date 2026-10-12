@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel
 
 from engine.api import create_app
+from engine.cli import server
 from engine.hub import MatchHub
 from tests.factories import alert
 from tests.test_hub import reset, snap, status, take
@@ -187,27 +188,30 @@ async def test_unknown_paths_and_methods_get_the_same_error_shape(
 
 
 @asynccontextmanager
-async def serving(app: FastAPI) -> AsyncIterator[str]:
-    """Serve app over real HTTP on a free local port, and yield its URL.
+async def serving(srv: uvicorn.Server) -> AsyncIterator[str]:
+    """Run srv over real HTTP (give it port 0 for a free one), and yield its URL.
 
     The stream never ends, so it needs a real server: one that sends each event
     as it happens, and notices when the client goes away.
     """
-    config = uvicorn.Config(
-        app, host="127.0.0.1", port=0, lifespan="off", log_level="warning",
-        timeout_graceful_shutdown=1,
-    )  # fmt: skip
-    server = uvicorn.Server(config)
-    task = asyncio.create_task(server.serve())
+    task = asyncio.create_task(srv.serve())
     try:
         async with asyncio.timeout(5):
-            while not server.started:
+            while not srv.started:
+                if task.done():
+                    await task  # it failed to start: raise why
+                    raise RuntimeError("server exited before starting")
                 await asyncio.sleep(0.01)
-        host, port = server.servers[0].sockets[0].getsockname()[:2]
+        host, port = srv.servers[0].sockets[0].getsockname()[:2]
         yield f"http://{host}:{port}"
     finally:
-        server.should_exit = True
-        await task
+        srv.should_exit = True
+        async with asyncio.timeout(5):  # fail, rather than hang, if it won't stop
+            await task
+
+
+def local(app: FastAPI, hub: MatchHub) -> uvicorn.Server:
+    return server(app, hub, "127.0.0.1", 0)
 
 
 async def sse(r: httpx.Response) -> AsyncGenerator[tuple[str, Any]]:
@@ -236,7 +240,7 @@ async def test_stream_sends_the_match_so_far_then_each_update(app: FastAPI, hub:
     hub.set_status(status(3))
     hub.add(snap(1), alert(1))
     async with (
-        serving(app) as url,
+        serving(local(app, hub)) as url,
         httpx.AsyncClient(base_url=url) as client,
         client.stream("GET", "/api/stream") as r,
         aclosing(sse(r)) as events,
@@ -259,7 +263,7 @@ async def test_stream_sends_the_match_so_far_then_each_update(app: FastAPI, hub:
 
 
 async def test_a_client_that_leaves_is_unsubscribed(app: FastAPI, hub: MatchHub) -> None:
-    async with serving(app) as url, httpx.AsyncClient(base_url=url) as client:
+    async with serving(local(app, hub)) as url, httpx.AsyncClient(base_url=url) as client:
         async with client.stream("GET", "/api/stream") as r:
             await take(aiter(sse(r)), 1)
             assert hub.subscribers == 1
@@ -273,7 +277,7 @@ async def test_the_stream_ends_when_the_client_falls_too_far_behind(
 ) -> None:
     hub.max_pending = 2
     async with (
-        serving(app) as url,
+        serving(local(app, hub)) as url,
         httpx.AsyncClient(base_url=url) as client,
         client.stream("GET", "/api/stream") as r,
         aclosing(sse(r)) as events,
