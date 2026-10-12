@@ -9,7 +9,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine webhook
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard webhook
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -72,8 +72,11 @@ fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup) and t
 sim: ## Run the simulator on :8080. Pass flags via ARGS="..." (e.g. ARGS="-jitter 3s")
 	cd simulator && go run ./cmd/simulator -data ../data/statsbomb $(ARGS)
 
-engine: ## Run the engine against the simulator feed. Pass flags via ARGS="..." (see ARGS="--help")
+engine: ## Run the engine against the simulator and serve its API on :8000. Pass flags via ARGS="..." (see ARGS="--help")
 	cd engine && uv run engine $(ARGS)
+
+dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
+	cd dashboard && pnpm dev $(ARGS)
 
 webhook: ## Run a webhook receiver on :9000 that prints the alerts it gets (for ARGS="--webhook http://localhost:9000")
 	uv run scripts/webhook_echo.py $(ARGS)
