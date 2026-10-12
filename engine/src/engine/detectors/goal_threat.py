@@ -3,10 +3,11 @@
 import math
 from dataclasses import dataclass
 
-from engine.detectors.core import Signal, Tick
+from engine.detectors.core import Signal
 from engine.metrics import pressure, xt_added, xt_velocity
 from engine.schema.alert_schema import AlertType
 from engine.schema.event_schema import EventType, MatchEvent, ShotOutcome
+from engine.ticks import Tick
 from engine.windows import FIVE_MINUTES_S
 
 

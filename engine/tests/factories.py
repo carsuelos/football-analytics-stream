@@ -3,12 +3,13 @@
 import itertools
 
 from engine.clock import MatchClock, TimedEvent
-from engine.detectors import Tick
 from engine.metrics import MetricsConfig
 from engine.pipeline import Pipeline
+from engine.schema.alert_schema import Alert, AlertType
 from engine.schema.common_schema import Team
 from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
+from engine.ticks import Tick
 from engine.windows import InMemoryStateStore
 
 HOME = Team(id=1, name="Home FC")
@@ -94,3 +95,21 @@ def tick_after(events: list[MatchEvent], metrics: MetricsConfig) -> Tick:
     ]
     assert p.windows is not None and p.team_ids is not None
     return Tick(items[-1], p.windows, p.team_ids, p.teams, metrics)
+
+
+def alert(n: int = 0) -> Alert:
+    return Alert(
+        schema_version=1,
+        id=f"1-control_shift-2-{n}",
+        match_id=1,
+        offset=n,
+        period=2,
+        match_clock_s=4947.0,
+        type=AlertType.control_shift,
+        team_id=2,
+        value=0.6,
+        threshold=0.5,
+        window_s=300,
+        features={"balance": 0.6},
+        message="France taking control",
+    )

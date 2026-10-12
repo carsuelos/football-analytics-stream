@@ -33,17 +33,19 @@ flowchart LR
     RB --> WIN[Sliding windows<br/>StateStore: InMemory]
     WIN --> MET[Metrics: field tilt, xT, pressure]
     MET --> DET[Detectors + goal-score heuristic]
-    DET --> SINK[AlertSinks: log, webhook, dashboard]
-    API[FastAPI: WS/SSE + REST snapshots]
+    DET --> SINK[AlertSinks: log, webhook]
+    DET --> HUB[Match hub: history + live updates]
+    HUB --> API[FastAPI: SSE stream + REST]
   end
-  API --> UI[React/Vite dashboard]
-  UI -- playback controls --> C
+  API -- SSE + REST --> UI[React/Vite dashboard]
+  UI -- playback controls --> API
+  API -- passthrough --> C
 ```
 
 ### Repository layout
 
 ```
-schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts) + fixtures/{valid,invalid}/
+schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts, engine status) + fixtures/{valid,invalid}/
 simulator/     Go module: cmd/simulator, internal/{loader,playback,clock,server}
 engine/        Python package (uv): sources/, clock/, windows/, metrics/, detectors/, sinks/, api/
 dashboard/     React + Vite + TypeScript
@@ -77,7 +79,7 @@ Makefile       gen, dev, test, lint, run-all targets
   1. When playback seeks, the simulator sends a `reset` control message.
   2. The engine discards its window state.
   3. It then rebuilds that state by fast-replaying from offset 0 up to the target time.
-- **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without alerting on them.
+- **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without sending alerts for them.
 - **One match at a time in v1.** All state, topics and APIs are still keyed by `match_id`, so several matches can be supported later.
 - **No database in v1.** Alerts go to the log and, with `--webhook URL`, are POSTed as JSON. Storage is added only when there's a need.
 - **Sinks never hold up the match.** An `AlertSink` takes each alert without blocking. The webhook sink queues alerts for a background worker, which retries network failures, server errors and 429s with exponential backoff; other 4xx errors are not retried. A full queue drops the alert with a warning.
@@ -108,7 +110,7 @@ Detectors run on a fixed tick of play time: once every 30 seconds, on the first 
 - **Goal threat (`goal_threat`):** `sigmoid(−3 + 1.5 · pressure / 18 + 1.5 · xT velocity / 0.05)`, firing at 0.5. The scales are about the top few percent of 5' values in the 2022 final, so a team at both scores exactly 0.5. Only play since the last goal in the window counts, because a goal resets the danger. Shots count through the pressure index. It is a *heuristic score*, not a probability, until it is calibrated in Phase 3.
 - **Control shift (`control_shift`):** a team's pressure balance `(own − opponent) / (own + opponent + 5)`, from −1 to 1. The `+5` keeps a quiet spell from looking like total control. It fires when the balance goes from ≤ −0.2 over the previous 5 minutes to ≥ 0.5 over the last 5, so the team that was pinned back is now on top. It needs 10 minutes of play.
 - **Cooldown:** after an alert, the same detector stays quiet for the same team for 5 minutes of play.
-- **Replays are silent.** After a seek or a mid-match connect, detectors still run on the replayed events and cooldowns still apply, but no alerts come out. The alerts after a seek are exactly those that would have come out live, with the same ids (`{match_id}-{type}-{team_id}-{offset}`).
+- **Replays rebuild alerts but don't send them.** Ticks are a function of play time alone (`engine.ticks.Ticker`), and each is marked live or replayed. After a seek or a mid-match connect, the detectors run on replayed ticks exactly as they did live, so the match's alerts are rebuilt with the same ids (`{match_id}-{type}-{team_id}-{offset}`) for the dashboard history. Only alerts on live ticks go to the notification sinks.
 - **Alert payload:** each alert carries `type`, `team_id`, the match time and offset, `value` and `threshold`, the window, the contributing `features`, and a readable `message`.
 
 ## Roadmap
@@ -156,11 +158,12 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - next-to-control indicator
   - cooldowns
   - log and webhook sinks
-- [ ] **Engine API (FastAPI):**
-  - dashboard alert sink
-  - WS/SSE streams for metrics and alerts
-  - REST endpoints for snapshots and the match list
-  - passthrough of playback controls to the simulator
+- [x] **Engine API (FastAPI):**
+  - match hub: the current match's history (metric snapshots every tick, all alerts) and live updates for the dashboard
+  - SSE stream: a `MatchReset`, the latest `EngineStatus`, the history, then live updates
+  - REST endpoints for status, snapshots and alerts
+  - typed passthrough to the simulator (match list, playback status, controls); its errors keep their `{"error": ...}` shape
+  - one process: uvicorn serves the API and runs the run loop alongside it; Ctrl+C ends open streams cleanly
 - [ ] **Dashboard (lean):**
   - match picker
   - playback controls

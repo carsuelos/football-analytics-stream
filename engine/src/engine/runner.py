@@ -5,11 +5,14 @@ import logging
 from collections.abc import Callable, Sequence
 
 from engine.detectors import Detectors
+from engine.hub import MatchHub
 from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
+from engine.schema.engine_status_schema import EngineState, EngineStatus
 from engine.schema.metric_schema import TeamMetrics
 from engine.sinks import AlertSink
 from engine.sources import EventSource
+from engine.ticks import Ticker
 
 log = logging.getLogger(__name__)
 
@@ -19,18 +22,25 @@ async def run(
     pipeline: Pipeline,
     *,
     metrics: MetricsConfig | None = None,
+    ticker: Ticker | None = None,
     detectors: Detectors | None = None,
     sinks: Sequence[AlertSink] = (),
+    hub: MatchHub | None = None,
     status_every_s: float = 1.0,
-    report: Callable[[str], None] = log.info,
+    report: Callable[[str], None] = log.debug,
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
 
-    Every event the pipeline releases goes to the detectors, if given, and
-    every alert they raise goes to each sink.
+    On every tick the detectors, if given, run. The alerts they raise go to
+    each sink, unless the tick is replayed: sinks only hear about live alerts.
 
-    Every status_every_s seconds of wall-clock time, report the status (with
-    metrics, if a config is given) if it has changed.
+    The hub, if given, gets everything: a reset whenever the pipeline starts
+    over, then on every tick the metric snapshots and all alerts, replayed or
+    not, so it holds the whole match.
+
+    At the start, then every status_every_s seconds of wall-clock time, report
+    the status (with metrics, if a config is given; logged at DEBUG by default)
+    if it has changed, and give it to the hub.
     """
     last = ""
 
@@ -40,26 +50,39 @@ async def run(
         if line != last:
             report(line)
             last = line
+        if hub:
+            hub.set_status(engine_status(pipeline))
 
-    async def tick() -> None:
+    async def report_every() -> None:
         while True:
             await asyncio.sleep(status_every_s)
             report_if_changed()
 
-    ticker = asyncio.create_task(tick())
+    report_if_changed()
+    reporter = asyncio.create_task(report_every())
     try:
         async for msg in source.subscribe():
-            for item in pipeline.handle(msg):
-                if detectors is None:
+            items = pipeline.handle(msg)
+            if hub and pipeline.generation != hub.generation:
+                hub.start(pipeline.generation, pipeline.match_id)
+                hub.set_status(engine_status(pipeline))
+            for item in items:
+                tick = ticker.observe(pipeline, item) if ticker else None
+                if tick is None:
                     continue
-                for alert in detectors.observe(pipeline, item):
+                alerts = detectors.evaluate(tick) if detectors else []
+                if hub:
+                    hub.add(*tick.snapshots(), *alerts)
+                if tick.replay:
+                    continue
+                for alert in alerts:
                     for sink in sinks:
                         sink.send(alert)
     finally:
-        ticker.cancel()
-        # Wait for it to finish. asyncio.wait never raises the ticker's own
+        reporter.cancel()
+        # Wait for it to finish. asyncio.wait never raises the reporter's own
         # CancelledError, but still lets a cancellation of run() through.
-        await asyncio.wait([ticker])
+        await asyncio.wait([reporter])
     report_if_changed()
 
 
@@ -85,6 +108,34 @@ def status_report(p: Pipeline, metrics: MetricsConfig | None = None) -> str:
                 teams = " | ".join(_team_metrics(p.teams[m.team_id].name, m) for m in snap.teams)
                 lines.append(f"  last {length_s / 60:g}': {teams}")
     return "\n".join(lines)
+
+
+def engine_status(p: Pipeline) -> EngineStatus:
+    """Where the pipeline is in the match, for the dashboard."""
+    if p.match_id is None:
+        state = EngineState.waiting
+    elif p.ended:
+        state = EngineState.ended
+    elif p.rebuilding:
+        state = EngineState.rebuilding
+    else:
+        state = EngineState.live
+    now, stats = p.clock.now, p.buffer.stats
+    return EngineStatus(
+        schema_version=1,
+        state=state,
+        generation=p.generation,
+        match_id=p.match_id,
+        teams=list(p.teams.values()) or None,
+        period=now.period if now else None,
+        match_clock_s=now.clock_s if now else None,
+        play_s=p.clock.play_s if now else None,
+        rebuilding_to=p.replay_end_offset if p.rebuilding else None,
+        released=stats.released,
+        buffered=len(p.buffer),
+        late_dropped=stats.late_dropped,
+        duplicates=stats.duplicates,
+    )
 
 
 def _team_metrics(name: str, m: TeamMetrics) -> str:

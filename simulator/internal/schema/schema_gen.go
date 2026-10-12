@@ -145,6 +145,140 @@ func (j *Alert) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// Where the engine is in the match it is following.
+type EngineStatus struct {
+	// Events held back for reordering.
+	Buffered int `json:"buffered"`
+
+	// Duplicate events ignored.
+	Duplicates int `json:"duplicates"`
+
+	// The generation of the last MatchReset.
+	Generation int `json:"generation"`
+
+	// Events dropped for arriving too late to reorder.
+	LateDropped int `json:"late_dropped"`
+
+	// Game clock of the latest event processed.
+	MatchClockS *MatchClockSeconds `json:"match_clock_s,omitempty,omitzero"`
+
+	// MatchID corresponds to the JSON schema field "match_id".
+	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
+
+	// Period of the latest event processed.
+	Period *Period `json:"period,omitempty,omitzero"`
+
+	// Seconds of play so far, continuous across periods.
+	PlayS *float64 `json:"play_s,omitempty,omitzero"`
+
+	// While `rebuilding`: the offset where live play resumes.
+	RebuildingTo *Offset `json:"rebuilding_to,omitempty,omitzero"`
+
+	// Events processed, in match-time order.
+	Released int `json:"released"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// `waiting` for a match; `rebuilding` state from events that already happened
+	// (after a seek or a mid-match connect); `live`; or the match has `ended`.
+	State EngineStatusState `json:"state"`
+
+	// The teams seen so far, in order of first appearance.
+	Teams []Team `json:"teams,omitempty,omitzero"`
+}
+
+type EngineStatusState string
+
+const EngineStatusStateEnded EngineStatusState = "ended"
+const EngineStatusStateLive EngineStatusState = "live"
+const EngineStatusStateRebuilding EngineStatusState = "rebuilding"
+const EngineStatusStateWaiting EngineStatusState = "waiting"
+
+var enumValues_EngineStatusState = []interface{}{
+	"waiting",
+	"rebuilding",
+	"live",
+	"ended",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *EngineStatusState) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_EngineStatusState {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_EngineStatusState, v)
+	}
+	*j = EngineStatusState(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *EngineStatus) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["buffered"]; raw != nil && !ok {
+		return fmt.Errorf("field buffered in EngineStatus: required")
+	}
+	if _, ok := raw["duplicates"]; raw != nil && !ok {
+		return fmt.Errorf("field duplicates in EngineStatus: required")
+	}
+	if _, ok := raw["generation"]; raw != nil && !ok {
+		return fmt.Errorf("field generation in EngineStatus: required")
+	}
+	if _, ok := raw["late_dropped"]; raw != nil && !ok {
+		return fmt.Errorf("field late_dropped in EngineStatus: required")
+	}
+	if _, ok := raw["released"]; raw != nil && !ok {
+		return fmt.Errorf("field released in EngineStatus: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in EngineStatus: required")
+	}
+	if _, ok := raw["state"]; raw != nil && !ok {
+		return fmt.Errorf("field state in EngineStatus: required")
+	}
+	type Plain EngineStatus
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Buffered {
+		return fmt.Errorf("field %s: must be >= %v", "buffered", 0)
+	}
+	if 0 > plain.Duplicates {
+		return fmt.Errorf("field %s: must be >= %v", "duplicates", 0)
+	}
+	if 0 > plain.Generation {
+		return fmt.Errorf("field %s: must be >= %v", "generation", 0)
+	}
+	if 0 > plain.LateDropped {
+		return fmt.Errorf("field %s: must be >= %v", "late_dropped", 0)
+	}
+	if plain.PlayS != nil && 0 > *plain.PlayS {
+		return fmt.Errorf("field %s: must be >= %v", "play_s", 0)
+	}
+	if 0 > plain.Released {
+		return fmt.Errorf("field %s: must be >= %v", "released", 0)
+	}
+	if len(plain.Teams) > 2 {
+		return fmt.Errorf("field %s length: must be <= %d", "teams", 2)
+	}
+	*j = EngineStatus(plain)
+	return nil
+}
+
 // Stream position for non-event messages. On `reset`, consumers drop state and
 // rebuild up to this position.
 type FeedMarker struct {
@@ -648,6 +782,43 @@ func (j *MatchList) UnmarshalJSON(value []byte) error {
 		return err
 	}
 	*j = MatchList(plain)
+	return nil
+}
+
+// On the engine's stream: drop everything received so far. What follows starts
+// from scratch, after a new match, a seek, or a (re)connect.
+type MatchReset struct {
+	// Goes up each time the engine starts a match over. 0 before the first match.
+	Generation int `json:"generation"`
+
+	// MatchID corresponds to the JSON schema field "match_id".
+	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchReset) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["generation"]; raw != nil && !ok {
+		return fmt.Errorf("field generation in MatchReset: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in MatchReset: required")
+	}
+	type Plain MatchReset
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Generation {
+		return fmt.Errorf("field %s: must be >= %v", "generation", 0)
+	}
+	*j = MatchReset(plain)
 	return nil
 }
 

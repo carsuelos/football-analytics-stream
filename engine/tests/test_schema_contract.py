@@ -12,9 +12,11 @@ from referencing.jsonschema import DRAFT7
 
 from engine.schema.alert_schema import Alert
 from engine.schema.command_schema import PlaybackCommand
+from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.match_list_schema import MatchList
+from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
 from engine.schema.status_schema import PlaybackStatus
 
@@ -25,9 +27,11 @@ FIXTURES_DIR = SCHEMA_ROOT / "fixtures"
 MODELS: dict[str, type[BaseModel]] = {
     "alert": Alert,
     "command": PlaybackCommand,
+    "engine_status": EngineStatus,
     "event": MatchEvent,
     "feed": FeedMessage,
     "match_list": MatchList,
+    "match_reset": MatchReset,
     "metric": MetricSnapshot,
     "status": PlaybackStatus,
 }

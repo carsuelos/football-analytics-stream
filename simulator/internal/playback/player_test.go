@@ -384,12 +384,16 @@ func start(t *testing.T, matches ...*match.Match) *harness {
 	return &harness{t: t, p: p, start: time.Now()}
 }
 
+// do executes cmd, then waits until the player has acted on it: Run replies
+// before it publishes the events that are due, so without the wait a
+// subscriber could read the feed before they are published.
 func (h *harness) do(cmd schema.PlaybackCommand) schema.PlaybackStatus {
 	h.t.Helper()
 	st, err := h.p.Execute(h.t.Context(), cmd)
 	if err != nil {
 		h.t.Fatalf("%s: %v", cmd.Command, err)
 	}
+	synctest.Wait()
 	roundTrip(h.t, &st)
 	return st
 }

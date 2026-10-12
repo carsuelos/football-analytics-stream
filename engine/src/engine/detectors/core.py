@@ -1,51 +1,23 @@
-"""Run detectors on a fixed play-time tick and turn their signals into alerts."""
+"""Run detectors on each tick and turn their signals into alerts."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from engine.clock import TimedEvent
-from engine.metrics import MetricsConfig
-from engine.pipeline import Pipeline
 from engine.schema.alert_schema import Alert, AlertType
-from engine.schema.common_schema import Team
 from engine.schema.event_schema import MatchEvent
-from engine.windows import SlidingWindows
-
-SHOOTOUT_PERIOD = 5
+from engine.ticks import Tick
 
 
 @dataclass(frozen=True)
 class DetectorConfig:
-    tick_s: float = 30.0
-    """Detectors run once per tick_s seconds of play."""
     cooldown_s: float = 300.0
     """After an alert, the same detector stays quiet for the same team this long."""
 
 
 @dataclass(frozen=True)
-class Tick:
-    """What a detector sees when it runs: the match as of one event."""
-
-    item: TimedEvent
-    """The first event past the tick boundary, and the latest in the windows."""
-    windows: SlidingWindows
-    team_ids: tuple[int, int]
-    teams: dict[int, Team]
-    metrics: MetricsConfig
-
-    @property
-    def play_s(self) -> float:
-        return self.item.play_s
-
-    def events(self, length_s: float) -> list[MatchEvent]:
-        """Events in the window of length_s ending now, in match-time order."""
-        return [i.event for i in self.windows.events(length_s)]
-
-
-@dataclass(frozen=True)
 class Signal:
-    """A detector's finding for one team, before cooldown and replay checks."""
+    """A detector's finding for one team, before the cooldown."""
 
     team_id: int
     value: float
@@ -71,59 +43,37 @@ class Detector(Protocol):
 
 
 class Detectors:
-    """Runs detectors once per tick of play and turns their signals into alerts.
+    """Runs detectors on each tick and turns their signals into alerts.
 
-    A tick is the first released event at or past each multiple of tick_s of
-    play time. The penalty shootout is not play, so it has no ticks.
-
-    Signals are rate-limited per (detector, team) by the cooldown. During a
-    replay or catch-up the detectors still run and the cooldowns still apply,
-    but no alerts come out: the alerts after a seek are then exactly those
-    that would have come out live.
+    Signals are rate-limited per (detector, team) by the cooldown. Replayed
+    ticks raise alerts too, exactly as they did live, so a seek rebuilds the
+    match's alerts along with its metrics. Deciding who hears about a replayed
+    alert is the caller's job (see `Tick.replay`).
     """
 
-    def __init__(
-        self,
-        detectors: Sequence[Detector],
-        metrics: MetricsConfig,
-        config: DetectorConfig | None = None,
-    ) -> None:
+    def __init__(self, detectors: Sequence[Detector], config: DetectorConfig | None = None) -> None:
         self.detectors = list(detectors)
-        self.metrics = metrics
         self.config = config or DetectorConfig()
         self._generation = -1
-        self._last_tick = 0
         self._last_alert_s: dict[tuple[AlertType, int], float] = {}
 
-    def observe(self, pipeline: Pipeline, item: TimedEvent) -> list[Alert]:
-        """Take one event released by pipeline; return the alerts it raises."""
-        if pipeline.generation != self._generation:
-            self._reset(pipeline.generation)
-        if item.event.period == SHOOTOUT_PERIOD:
-            return []
-        tick = int(item.play_s // self.config.tick_s)
-        if tick <= self._last_tick:
-            return []
-        self._last_tick = tick
-        if pipeline.windows is None or pipeline.team_ids is None:
-            return []
-        now = Tick(item, pipeline.windows, pipeline.team_ids, pipeline.teams, self.metrics)
-        replay = pipeline.is_replay(item)
+    def evaluate(self, tick: Tick) -> list[Alert]:
+        """Run every detector on tick; return the alerts past their cooldown."""
+        if tick.generation != self._generation:
+            self._reset(tick.generation)
         alerts = []
         for detector in self.detectors:
-            for signal in detector.evaluate(now):
+            for signal in detector.evaluate(tick):
                 key = (detector.type, signal.team_id)
                 last_s = self._last_alert_s.get(key)
-                if last_s is not None and item.play_s - last_s < self.config.cooldown_s:
+                if last_s is not None and tick.play_s - last_s < self.config.cooldown_s:
                     continue
-                self._last_alert_s[key] = item.play_s
-                if not replay:
-                    alerts.append(_alert(detector.type, signal, item.event))
+                self._last_alert_s[key] = tick.play_s
+                alerts.append(_alert(detector.type, signal, tick.item.event))
         return alerts
 
     def _reset(self, generation: int) -> None:
         self._generation = generation
-        self._last_tick = 0
         self._last_alert_s = {}
         for detector in self.detectors:
             detector.reset()

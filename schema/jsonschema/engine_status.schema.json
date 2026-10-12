@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EngineStatus",
+  "description": "Where the engine is in the match it is following.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "state": {
+      "title": "EngineState",
+      "description": "`waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`; or the match has `ended`.",
+      "type": "string",
+      "enum": ["waiting", "rebuilding", "live", "ended"]
+    },
+    "generation": {
+      "description": "The generation of the last MatchReset.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "teams": {
+      "description": "The teams seen so far, in order of first appearance.",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/definitions/Team" },
+      "maxItems": 2
+    },
+    "period": {
+      "description": "Period of the latest event processed.",
+      "$ref": "common.schema.json#/definitions/Period"
+    },
+    "match_clock_s": {
+      "description": "Game clock of the latest event processed.",
+      "$ref": "common.schema.json#/definitions/MatchClockSeconds"
+    },
+    "play_s": {
+      "description": "Seconds of play so far, continuous across periods.",
+      "type": "number",
+      "minimum": 0
+    },
+    "rebuilding_to": {
+      "description": "While `rebuilding`: the offset where live play resumes.",
+      "$ref": "common.schema.json#/definitions/Offset"
+    },
+    "released": {
+      "description": "Events processed, in match-time order.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "buffered": {
+      "description": "Events held back for reordering.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "late_dropped": {
+      "description": "Events dropped for arriving too late to reorder.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "duplicates": {
+      "description": "Duplicate events ignored.",
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": ["schema_version", "state", "generation", "released", "buffered", "late_dropped", "duplicates"]
+}

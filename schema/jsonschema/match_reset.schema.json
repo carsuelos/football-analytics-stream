@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MatchReset",
+  "description": "On the engine's stream: drop everything received so far. What follows starts from scratch, after a new match, a seek, or a (re)connect.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "generation": {
+      "description": "Goes up each time the engine starts a match over. 0 before the first match.",
+      "type": "integer",
+      "minimum": 0
+    },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" }
+  },
+  "required": ["schema_version", "generation"]
+}

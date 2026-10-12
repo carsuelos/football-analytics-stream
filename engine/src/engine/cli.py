@@ -4,28 +4,51 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import socket
 import sys
-from collections.abc import Sequence
-from contextlib import AsyncExitStack
+from collections.abc import AsyncIterator, Callable, Sequence
+from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
+from urllib.parse import urlsplit, urlunsplit
 
+import httpx
+import uvicorn
+from fastapi import FastAPI
+
+from engine.api import create_app
 from engine.detectors import ControlShift, Detectors, GoalThreat, Momentum
+from engine.hub import MatchHub
 from engine.metrics import MetricsConfig, XTGrid, XTGridError
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
 from engine.runner import run
 from engine.sinks import AlertSink, LogSink, WebhookSink
-from engine.sources import WebSocketSource
+from engine.sources import EventSource, WebSocketSource
+from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore, WindowMode
+
+log = logging.getLogger(__name__)
+
+# Seconds to let open requests finish on shutdown before cancelling them. The
+# server ends the streams itself (see Server), so this is only a backstop.
+SHUTDOWN_GRACE_S = 1
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="engine",
-        description="Read the simulator feed, compute live match metrics and raise alerts.",
+        description="Read the simulator feed, compute live match metrics and raise alerts, "
+        "and serve them to the dashboard.",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    parser.add_argument("--feed", default="ws://localhost:8080/feed", help="simulator feed URL")
+    parser.add_argument(
+        "--simulator",
+        default="http://localhost:8080",
+        metavar="URL",
+        help="simulator base URL: the feed is its /feed, and playback controls pass through to it",
+    )
+    parser.add_argument("--host", default="127.0.0.1", help="address to serve the API on")
+    parser.add_argument("--port", type=int, default=8000, help="port to serve the API on")
     parser.add_argument(
         "--allowed-lateness",
         type=float,
@@ -55,17 +78,122 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="also POST each alert as JSON to URL (repeatable); alerts are always logged",
     )
     parser.add_argument(
-        "--status-every", type=float, default=1.0, metavar="SECONDS", help="status line interval"
+        "--status-every",
+        type=float,
+        default=1.0,
+        metavar="SECONDS",
+        help="how often to refresh the engine status (logged at DEBUG)",
     )
     parser.add_argument(
         "--log-level", default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"]
     )
     args = parser.parse_args(argv)
+    try:
+        args.feed = feed_url(args.simulator)
+    except ValueError as e:
+        parser.error(f"--simulator: {e}")
+    if not 0 <= args.port <= 65535:
+        parser.error("--port must be between 0 and 65535")
     if args.allowed_lateness < 0:
         parser.error("--allowed-lateness must not be negative")
     if args.status_every <= 0:
         parser.error("--status-every must be positive")
     return args
+
+
+def feed_url(simulator: str) -> str:
+    """The simulator's WebSocket feed: http://host:port -> ws://host:port/feed."""
+    url = urlsplit(simulator)
+    schemes = {"http": "ws", "https": "wss"}
+    if url.scheme not in schemes or not url.netloc:
+        raise ValueError(f"want an http:// or https:// URL, got {simulator!r}")
+    return urlunsplit((schemes[url.scheme], url.netloc, url.path.rstrip("/") + "/feed", "", ""))
+
+
+def engine_app(
+    args: argparse.Namespace,
+    grid: XTGrid,
+    source: EventSource,
+    hub: MatchHub,
+    on_stop: Callable[[BaseException | None], None],
+) -> FastAPI:
+    """The API over hub, with the run loop filling hub while the app is up.
+
+    The source never ends on its own (it reconnects), so if the run loop stops
+    while the app is up, something is wrong: it is logged and on_stop is called
+    with the error (None if the source just ended) so the server can exit.
+    """
+    pipeline = Pipeline(
+        InMemoryStateStore(),
+        allowed_lateness_s=args.allowed_lateness,
+        window_mode=args.window_mode,
+    )
+    metrics = MetricsConfig(grid)
+    simulator = httpx.AsyncClient(base_url=args.simulator, timeout=5)
+
+    def stopped(task: asyncio.Task[None]) -> None:
+        if task.cancelled():
+            return
+        error = task.exception()
+        log.error("run loop stopped", exc_info=error)
+        on_stop(error)
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(simulator)
+            sinks: list[AlertSink] = [LogSink()]
+            for url in args.webhook:
+                sinks.append(await stack.enter_async_context(WebhookSink(url)))
+            loop = asyncio.create_task(
+                run(
+                    source,
+                    pipeline,
+                    metrics=metrics,
+                    ticker=Ticker(metrics),
+                    detectors=Detectors([Momentum(), GoalThreat(), ControlShift()]),
+                    sinks=sinks,
+                    hub=hub,
+                    status_every_s=args.status_every,
+                )
+            )
+            loop.add_done_callback(stopped)
+            try:
+                yield
+            finally:
+                loop.cancel()
+                await asyncio.wait([loop])
+
+    return create_app(hub, simulator, lifespan=lifespan)
+
+
+class Server(uvicorn.Server):
+    """uvicorn's server, but it closes the hub as it starts shutting down.
+
+    uvicorn waits for open requests to finish before it stops, and a stream
+    never finishes by itself. Closing the hub ends every stream, so they finish
+    cleanly instead of being cancelled when the grace period runs out.
+    """
+
+    def __init__(self, config: uvicorn.Config, hub: MatchHub) -> None:
+        super().__init__(config)
+        self.hub = hub
+
+    async def shutdown(self, sockets: list[socket.socket] | None = None) -> None:
+        self.hub.close()
+        await super().shutdown(sockets)
+
+
+def server(app: FastAPI, hub: MatchHub, host: str, port: int) -> Server:
+    """A server for app (whose streams come from hub) that logs through the root logger."""
+    config = uvicorn.Config(
+        app,
+        host=host,
+        port=port,
+        log_config=None,  # keep our logging setup and format
+        timeout_graceful_shutdown=SHUTDOWN_GRACE_S,
+    )
+    return Server(config, hub)
 
 
 def main(argv: Sequence[str] | None = None) -> None:
@@ -81,27 +209,17 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.getLogger("httpx").setLevel(
         max(logging.WARNING, logging.getLevelNamesMapping()[args.log_level])
     )
-    pipeline = Pipeline(
-        InMemoryStateStore(),
-        allowed_lateness_s=args.allowed_lateness,
-        window_mode=args.window_mode,
-    )
-    metrics = MetricsConfig(grid)
-    detectors = Detectors([Momentum(), GoalThreat(), ControlShift()], metrics)
+    failed = False
 
-    async def serve() -> None:
-        async with AsyncExitStack() as stack:
-            sinks: list[AlertSink] = [LogSink()]
-            for url in args.webhook:
-                sinks.append(await stack.enter_async_context(WebhookSink(url)))
-            await run(
-                WebSocketSource(args.feed),
-                pipeline,
-                metrics=metrics,
-                detectors=detectors,
-                sinks=sinks,
-                status_every_s=args.status_every,
-            )
+    def stop(_: BaseException | None) -> None:
+        nonlocal failed
+        failed = True
+        srv.should_exit = True
 
+    hub = MatchHub()
+    app = engine_app(args, grid, WebSocketSource(args.feed), hub, on_stop=stop)
+    srv = server(app, hub, args.host, args.port)
     with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(serve())
+        asyncio.run(srv.serve())
+    if failed:
+        sys.exit("engine: the run loop stopped; see the log above")

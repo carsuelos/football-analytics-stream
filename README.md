@@ -38,7 +38,7 @@ make test                                     # all tests, including schema cont
 | `make fmt` | Auto-format Go and Python |
 | `make ci` | Everything CI runs |
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
-| `make engine` | Run the engine against the simulator feed (`ARGS="--help"` lists options) |
+| `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
@@ -61,12 +61,19 @@ The live feed is a WebSocket at `ws://localhost:8080/feed` (add `?from_offset=N`
 ```sh
 make sim ARGS="-jitter 3s"                                          # terminal 1
 make engine                                                         # terminal 2
-curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "load_match", "match_id": 3869685}'   # terminal 3
-curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "set_speed", "speed": 60}'
-curl -XPOST localhost:8080/control -d '{"schema_version": 1, "command": "play"}'
+curl -N localhost:8000/api/stream                                   # terminal 3
+curl --json '{"schema_version": 1, "command": "load_match", "match_id": 3869685}' localhost:8000/api/control   # terminal 4
+curl --json '{"schema_version": 1, "command": "set_speed", "speed": 60}' localhost:8000/api/control
+curl --json '{"schema_version": 1, "command": "play"}' localhost:8000/api/control
 ```
 
-Every second the engine logs where the match is and how many events it has released, held back, or dropped as late or duplicate. For each of the last 5 and 10 minutes of play it also logs each team's field tilt, xT added (and per minute) and pressure index:
+The engine serves its API on `http://localhost:8000` (`--simulator` sets where the simulator is, `--host` and `--port` where to listen):
+
+- `GET /api/stream`: server-sent events. A `reset`, the latest `status`, the match so far (a `snapshot` every 30s of play, and each `alert`), then updates as they happen.
+- `GET /api/status`, `/api/metrics`, `/api/alerts`: the same, once.
+- `GET /api/matches`, `GET /api/playback`, `POST /api/control`: passed through to the simulator, so the dashboard only talks to the engine. `POST` bodies must be sent as JSON (`curl --json`, not `-d`).
+
+With `ARGS="--log-level DEBUG"`, every second the engine also logs where the match is and how many events it has released, held back, or dropped as late or duplicate. For each of the last 5 and 10 minutes of play it also logs each team's field tilt, xT added (and per minute) and pressure index:
 
 ```text
 match 3869685 P2 82:30 (play 90:04) | released 2993 buffered 9 late 0 dup 0
