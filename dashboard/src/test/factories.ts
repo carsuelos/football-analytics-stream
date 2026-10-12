@@ -2,6 +2,8 @@ import type { Alert } from '../schema/alert.schema'
 import type { EngineStatus } from '../schema/engine_status.schema'
 import type { MatchReset } from '../schema/match_reset.schema'
 import type { MetricSnapshot, TeamMetrics } from '../schema/metric.schema'
+import type { MatchInfo } from '../schema/match_list.schema'
+import type { PlaybackStatus } from '../schema/status.schema'
 
 export const ARGENTINA = { id: 779, name: 'Argentina' }
 export const FRANCE = { id: 771, name: 'France' }
@@ -57,3 +59,37 @@ export const alert = (overrides: Partial<Alert> = {}): Alert => ({
   message: "France taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before",
   ...overrides,
 })
+
+export const playback = (overrides: Partial<PlaybackStatus> = {}): PlaybackStatus => ({
+  schema_version: 1,
+  state: 'paused',
+  speed: 1,
+  match_id: 3869685,
+  offset: 0,
+  period: 1,
+  match_clock_s: 0,
+  ...overrides,
+})
+
+export const matchInfo = (match_id = 3869685, home = ARGENTINA, away = FRANCE): MatchInfo => ({
+  match_id,
+  competition: 'FIFA World Cup',
+  season: '2022',
+  stage: 'Final',
+  date: '2022-12-18',
+  home_team: home,
+  away_team: away,
+  home_score: 3,
+  away_score: 3,
+})
+
+/** A promise and the functions that settle it, for replies that arrive when a test says so. */
+export function deferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason: unknown) => void
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+  return { promise, resolve, reject }
+}

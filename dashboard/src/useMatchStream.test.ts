@@ -2,44 +2,7 @@ import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { RETRY_MS, useMatchStream } from './useMatchStream'
 import { alert, reset, snapshot, status } from './test/factories'
-
-/** Stands in for the browser's EventSource, which jsdom does not have. */
-class FakeEventSource extends EventTarget {
-  static readonly CONNECTING = 0
-  static readonly OPEN = 1
-  static readonly CLOSED = 2
-  static instances: FakeEventSource[] = []
-
-  readyState = FakeEventSource.CONNECTING
-  onopen: (() => void) | null = null
-  onerror: (() => void) | null = null
-  readonly url: string
-
-  constructor(url: string) {
-    super()
-    this.url = url
-    FakeEventSource.instances.push(this)
-  }
-
-  open() {
-    this.readyState = FakeEventSource.OPEN
-    this.onopen?.()
-  }
-
-  send(type: string, data: unknown) {
-    this.dispatchEvent(new MessageEvent(type, { data: JSON.stringify(data) }))
-  }
-
-  /** Fails like a dropped connection (the browser retries) or an error reply (it gives up). */
-  fail(givesUp: boolean) {
-    this.readyState = givesUp ? FakeEventSource.CLOSED : FakeEventSource.CONNECTING
-    this.onerror?.()
-  }
-
-  close() {
-    this.readyState = FakeEventSource.CLOSED
-  }
-}
+import { FakeEventSource } from './test/fakeEventSource'
 
 const latest = () => FakeEventSource.instances.at(-1)!
 

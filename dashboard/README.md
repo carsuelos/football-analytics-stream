@@ -12,12 +12,15 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 
 | Path | Does |
 | --- | --- |
-| `src/App.tsx` | Page layout |
+| `src/App.tsx` | Page layout; wires the stream and playback hooks to the components |
 | `src/api.ts` | Typed client for `/api/matches`, `/api/playback` and `POST /api/control`; failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
 | `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts) from stream events; a `reset` starts it over |
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, and reconnects when the browser gives up |
+| `src/usePlayback.ts` | `usePlayback`: the match list and playback status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken |
+| `src/MatchPicker.tsx` | Chooses the match to load (named without its score) |
+| `src/PlaybackControls.tsx` | Play/pause, speed presets (1×, 10×, 30×, 60×) and seek to a minute within a period |
 | `src/index.css` | Tailwind CSS entry point and theme (team colours) |
-| `src/test/` | UI test setup (Testing Library matchers and cleanup) and factories for stream messages |
+| `src/test/` | UI test setup (Testing Library matchers and cleanup) factories for API and stream messages, and a fake `EventSource` |
 | `test/` | Contract tests: the shared schema fixtures against the JSON Schemas |
 
 `src/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.
