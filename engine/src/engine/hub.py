@@ -89,7 +89,11 @@ class MatchHub:
         queue: asyncio.Queue[Update] = asyncio.Queue(self.max_pending)
         # No await between taking the backlog and registering the queue, so no
         # update can fall between the two.
-        backlog = [self.reset, *([self.status] if self.status else []), *self._history]
+        backlog: list[Update] = [
+            self.reset,
+            *([self.status] if self.status else []),
+            *self._history,
+        ]
         self._subscribers.add(queue)
         try:
             for update in backlog:
