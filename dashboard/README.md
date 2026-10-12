@@ -13,8 +13,11 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 | Path | Does |
 | --- | --- |
 | `src/App.tsx` | Page layout |
+| `src/api.ts` | Typed client for `/api/matches`, `/api/playback` and `POST /api/control`; failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
+| `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts) from stream events; a `reset` starts it over |
+| `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, and reconnects when the browser gives up |
 | `src/index.css` | Tailwind CSS entry point and theme (team colours) |
-| `src/test/setup.ts` | Testing Library matchers and cleanup for the UI tests |
+| `src/test/` | UI test setup (Testing Library matchers and cleanup) and factories for stream messages |
 | `test/` | Contract tests: the shared schema fixtures against the JSON Schemas |
 
 `src/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.
