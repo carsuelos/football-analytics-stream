@@ -1,6 +1,8 @@
 import type { BroadcastCommand } from './schema/broadcast_command.schema'
-import type { MatchList } from './schema/match_list.schema'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
+import type { EngineStatus } from './schema/engine_status.schema'
+import type { MatchList } from './schema/match_list.schema'
+import type { ViewerCommand } from './schema/viewer_command.schema'
 
 /** An error from the engine API: its message, and the HTTP status (0 if the engine was unreachable). */
 export class ApiError extends Error {
@@ -14,15 +16,23 @@ export class ApiError extends Error {
 }
 
 /** A broadcast command; schema_version is added when it is sent. */
-export type Command = Omit<BroadcastCommand, 'schema_version'>
+export type BroadcastAction = Omit<BroadcastCommand, 'schema_version'>
 
 export const getMatches = () => request<MatchList>('/matches')
 
 export const getBroadcast = () => request<BroadcastStatus>('/broadcast')
 
 /** Sends a broadcast command to the simulator (through the engine) and returns the new broadcast status. */
-export const sendCommand = (command: Command) =>
-  request<BroadcastStatus>('/broadcast', {
+export const sendBroadcast = (command: BroadcastAction) => post<BroadcastStatus>('/broadcast', command)
+
+/** A viewer command; schema_version is added when it is sent. */
+export type ViewerAction = Omit<ViewerCommand, 'schema_version'>
+
+/** Sends a viewer command to the engine's DVR and returns the engine's new status. */
+export const sendViewer = (command: ViewerAction) => post<EngineStatus>('/control', command)
+
+const post = <T>(path: string, command: object) =>
+  request<T>(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ schema_version: 1, ...command }),

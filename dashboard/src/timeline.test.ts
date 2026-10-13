@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matchMinute, periodName, timeline } from './timeline'
+import { duration, matchMinute, periodName, timeline } from './timeline'
 
 const at = (period: number, minute: number) => ({ period, match_clock_s: minute * 60 })
 
@@ -69,5 +69,16 @@ describe('timeline', () => {
     expect(matchMinute(at(4, 121))).toBe("120+1'")
     expect(matchMinute(at(5, 125))).toBe('Pens')
     expect(periodName(3)).toBe('Extra time')
+  })
+})
+
+describe('duration', () => {
+  it.each([
+    [0, '0:00'],
+    [5.9, '0:05'],
+    [754, '12:34'],
+    [7200, '120:00'],
+  ])('shows %d seconds as %s', (seconds, text) => {
+    expect(duration(seconds)).toBe(text)
   })
 })

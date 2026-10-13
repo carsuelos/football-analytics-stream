@@ -12,13 +12,15 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 
 | Path | Does |
 | --- | --- |
-| `src/App.tsx` | Page layout; wires the stream and broadcast hooks to the components |
-| `src/api.ts` | Typed client for `/api/matches` and `GET`/`POST /api/broadcast`; failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
+| `src/App.tsx` | Page layout; wires the stream, broadcast and viewer hooks to the components |
+| `src/api.ts` | Typed client for `/api/matches`, `GET`/`POST /api/broadcast` (the simulator) and `POST /api/control` (the engine's DVR); failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
 | `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts) from stream events; a `reset` starts it over |
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, and reconnects when the browser gives up |
 | `src/useBroadcast.ts` | `useBroadcast`: the match list and the simulator's broadcast status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken |
+| `src/useViewer.ts` | `useViewer`: sends the viewer's DVR commands, with an error and pending flag; the engine's new status arrives on the stream |
 | `src/MatchPicker.tsx` | Chooses the match to load (named without its score) |
 | `src/BroadcastControls.tsx` | The broadcast's play/pause and speed presets (1×, 10×, 30×, 60×) |
+| `src/ViewerControls.tsx` | The viewer's DVR: "LIVE" or how far behind it, play/pause, "Go live", speed presets, and a seek to a period and minute up to the live edge |
 | `src/timeline.ts` | The charts' time axis: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'"); `matchMinute` labels a single moment the same way |
 | `src/chartData.ts` | Snapshots for one window as chart points, home first; `matchTeams` takes home and away from the match list |
 | `src/MetricCharts.tsx` | Field tilt (stacked to 100%), xT added and pressure per team, with a 5'/10' window toggle, period starts and alerts marked |
