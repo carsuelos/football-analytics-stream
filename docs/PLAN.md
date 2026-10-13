@@ -103,6 +103,7 @@ flowchart LR
   - Processing is safe to repeat: duplicates are dropped by `id`.
   - Everything is keyed by `match_id`, which becomes the broker partition key later.
   - The WebSocket feed sends one JSON event per message, and clients resume after a disconnect with `?from_offset=N`.
+  - On Kafka (from Phase 2), the `events` topic carries the same JSON messages, keyed by `match_id`: each broadcast match is a `match_start` (without `head`), its events, and a `match_end`, so a match is a contiguous run on one partition. The engine commits no offsets: it finds the latest `match_start`, catches up from it, and follows the next one. Topics are created by deployment (a Compose job, IaC in the cloud), not by the apps. Client settings are `KAFKA_*` environment variables mapped to librdkafka properties, the same in Go and Python.
 - **Out-of-order safety.** The engine holds events in a small reorder buffer with a watermark, which sets how late (in match seconds) an event may arrive and still be accepted (`--allowed-lateness`, default 5s). Events behind the watermark are dropped and counted, not patched in. The simulator's `--jitter` mode shuffles events slightly to test this.
 - **Windows run on play time.** Periods are joined end to end (each starts where the previous one's last event was), so a 5-minute window runs smoothly across half-time. `--window-mode per_period` restarts windows at each kick-off instead. Penalty shootout events are left out of windows.
 - **Seek semantics.**
@@ -233,11 +234,12 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - engine: a DVR over the source with pause, speed, seek up to the live edge, and "go live"; a seek replays from the DVR's in-memory copy and rebuilds without alerts; the status reports the live edge and how far behind it the viewer is
   - the smoke test rewatches the first match from P2 60:00 and checks the DVR rebuilds exactly what was built live
 - [x] **Dashboard DVR controls:** separate broadcast (simulator: play/pause, speed) and viewer (engine DVR) controls; the viewer's shows "LIVE" or how far behind it, play/pause, speed, a "Go live" button, and a seek to a period and minute bounded by the live edge.
-- [ ] **Kafka transport:**
+- [x] **Kafka transport:**
   - Redpanda in Compose; confluent-kafka (librdkafka) clients in Go and Python, with no Redpanda-only features, so it moves to Azure Event Hubs with config changes
   - simulator producer: events and markers in an `events` topic keyed by `match_id`
   - engine `KafkaSource`, chosen with `--source kafka`; the WebSocket feed stays for quick runs without Docker
-  - the smoke test runs on both transports
+  - the smoke test runs on both transports: `make smoke` over WebSocket, `make smoke-compose` over Kafka
+  - the engine finds its place itself (the latest `match_start`, then catch-up without alerts) and commits no offsets; a restart mid-match catches up
 - [ ] **Metrics and alerts on the broker:**
   - the engine publishes `metrics` and `alerts` topics, keyed by `match_id`
   - a Go **notifier** service consumes `alerts` and POSTs each one to a webhook. It commits its offset only after delivery (at least once) and drops repeats by alert id, since a DVR viewer re-watching a stretch publishes its alerts again

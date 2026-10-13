@@ -11,7 +11,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | --- | --- |
 | `schema/jsonschema/` | JSON Schemas: the contract between all components (single source of truth) |
 | `schema/fixtures/` | Example messages (`valid/`, `invalid/`) tested in every language |
-| `simulator/` | Go: replays StatsBomb events over WebSocket |
+| `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka |
 | `engine/` | Python (uv): metrics, windows, alerts |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
@@ -125,13 +125,27 @@ make down
 
 Compose (`compose.yaml`) runs each service from its own image: the simulator on a distroless base, the engine in a slim Python image, and the dashboard's build served by nginx, which proxies `/api` (including the event stream, unbuffered) to the engine. The simulator and engine are also published on `:8080` and `:8000`. `SIM_JITTER=3s make up` delivers events up to 3 s late; `SIM_PORT`, `ENGINE_PORT` and `DASHBOARD_PORT` move the published ports.
 
+In Docker the broadcast goes through Kafka, as it would from a real data provider: the simulator publishes every match it broadcasts to an `events` topic on [Redpanda](https://redpanda.com) (keyed by match, so each match stays in order on one partition), and the engine reads it from there (`--source kafka`). A one-shot `topics` service creates the topic; the apps never do. The engine commits nothing: when it starts, it finds the latest `match_start` on the topic, catches up to the end without raising alerts, then follows live, so `docker compose restart engine` mid-match picks up where the broadcast is. Redpanda is published on `localhost:19092` (`KAFKA_PORT`), e.g. `docker compose exec redpanda rpk topic consume events -n 3`.
+
+Both apps take their Kafka client settings from `KAFKA_*` environment variables, each mapping to a [librdkafka property](https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md) (`KAFKA_BOOTSTRAP_SERVERS` → `bootstrap.servers`). Outside Docker, the simulator publishes when `KAFKA_BOOTSTRAP_SERVERS` is set (`-kafka-topic` names the topic), and `make engine ARGS="--source kafka"` reads it. Only standard Kafka is used, so another cluster is config only; for Azure Event Hubs:
+
+```sh
+KAFKA_BOOTSTRAP_SERVERS=<namespace>.servicebus.windows.net:9093
+KAFKA_SECURITY_PROTOCOL=SASL_SSL
+KAFKA_SASL_MECHANISM=PLAIN
+KAFKA_SASL_USERNAME='$ConnectionString'
+KAFKA_SASL_PASSWORD='<connection string>'
+```
+
+The engine follows one match at a time: the one most recently started.
+
 ### Smoke test
 
 `make smoke` builds the simulator, starts it and the engine on ports 18080 and 18000 (so your dev setup can keep running), and replays the 2022 final at 1000× (about 10 s). The simulator delivers events up to 3 s late, so the engine has to reorder them. Every match is checked for consistency: the right teams, nothing dropped or duplicated, field tilts adding up to 1, snapshots in match-time order, alerts at or above their thresholds, and no errors in the logs. The final is also checked against what happened: Argentina's first-half dominance, penalties, and a goal-threat alert *before* each comeback goal (France's at 79', Messi's at 108').
 
 - `make smoke ARGS="--sample"`: the final and 10 random other matches, on the same processes, so switching matches is tested too. A failing sample is reproduced with the `--seed` it printed.
 - `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
-- `make smoke-compose`: the same checks against the Docker stack, started with events up to 3 s late, through the dashboard's proxy. Its logs are not checked (see `make logs`).
+- `make smoke-compose`: the same checks against the Docker stack (so over Kafka), started with events up to 3 s late, through the dashboard's proxy. Its logs are not checked (see `make logs`).
 
 A failure prints what went wrong and where the processes' logs are.
 

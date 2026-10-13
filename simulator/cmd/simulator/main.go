@@ -1,8 +1,9 @@
 // Command simulator broadcasts StatsBomb matches as a live feed.
 //
-//	simulator [-addr :8080] [-data data/statsbomb] [-jitter 3s] [-seed 1]
+//	simulator [-addr :8080] [-data data/statsbomb] [-jitter 3s] [-seed 1] [-kafka-topic events]
 //
-// See package server for the HTTP and WebSocket API.
+// See package server for the HTTP and WebSocket API. If KAFKA_BOOTSTRAP_SERVERS
+// is set, the broadcast also goes to a Kafka topic; see package kafka.
 package main
 
 import (
@@ -20,6 +21,7 @@ import (
 
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/jitter"
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/kafka"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/server"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/statsbomb"
@@ -41,6 +43,7 @@ func run(args []string) error {
 	dataDir := flags.String("data", "data/statsbomb", "StatsBomb open-data directory (see make fetch-data)")
 	maxDelay := flags.Duration("jitter", 0, "deliver events up to this much match time late, e.g. 3s (0 = off)")
 	seed := flags.Uint64("seed", 1, "random seed for -jitter")
+	topic := flags.String("kafka-topic", "events", "Kafka topic to publish the broadcast to, if KAFKA_BOOTSTRAP_SERVERS is set")
 	flags.Parse(args) // ExitOnError: -h exits 0, a bad flag exits 2
 	if *maxDelay < 0 {
 		return errors.New("-jitter must not be negative")
@@ -68,6 +71,33 @@ func run(args []string) error {
 	broadcaster := broadcast.New(catalog)
 	go broadcaster.Run(ctx)
 
+	// Nil unless publishing to Kafka; receiving from it then blocks forever.
+	var publishErr chan error
+	if config, ok := kafka.ConfigFromEnv(os.Environ()); ok {
+		producer, err := kafka.NewProducer(config, *topic, log)
+		if err != nil {
+			return err
+		}
+		publishErr = make(chan error, 1)
+		published := make(chan struct{})
+		defer func() {
+			// Stop Publish and let it finish writing before delivering
+			// what is queued and closing.
+			stop()
+			<-published
+			producer.Close()
+		}()
+		// Subscribed before serving, so no match can be loaded before it.
+		feed := broadcaster.Subscribe(0)
+		go func() {
+			defer close(published)
+			if err := kafka.Publish(ctx, feed, producer); err != nil {
+				publishErr <- err
+			}
+		}()
+		log.Info("publishing to kafka", "bootstrap_servers", config["bootstrap.servers"], "topic", *topic)
+	}
+
 	// Listen before serving so a busy port fails here, before we log success.
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -88,6 +118,8 @@ func run(args []string) error {
 	select {
 	case err := <-serveErr:
 		return err
+	case err := <-publishErr:
+		return fmt.Errorf("publishing to kafka: %w", err)
 	case <-ctx.Done():
 	}
 	stop() // a second Ctrl-C now exits immediately

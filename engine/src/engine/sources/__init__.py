@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from typing import Protocol
 
 from engine.schema.feed_schema import FeedMessage
+from engine.sources.kafka import KafkaSource
 from engine.sources.websocket import Backoff, WebSocketSource
 
 
@@ -13,4 +14,4 @@ class EventSource(Protocol):
         ...
 
 
-__all__ = ["Backoff", "EventSource", "WebSocketSource"]
+__all__ = ["Backoff", "EventSource", "KafkaSource", "WebSocketSource"]
