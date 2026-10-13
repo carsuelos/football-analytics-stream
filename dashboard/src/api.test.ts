@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getMatches, getPlayback, sendCommand } from './api'
+import { ApiError, getMatches, getBroadcast, sendCommand } from './api'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -14,24 +14,24 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
-const PLAYBACK = { schema_version: 1, state: 'paused', speed: 1, match_id: 3869685 }
+const BROADCAST = { schema_version: 1, state: 'paused', speed: 1, match_id: 3869685 }
 
 describe('api', () => {
-  it('gets the match list and the playback status', async () => {
+  it('gets the match list and the broadcast status', async () => {
     const matches = { schema_version: 1, matches: [] }
     const fetch = stubFetch(json(matches))
     expect(await getMatches()).toEqual(matches)
     expect(fetch).toHaveBeenCalledWith('/api/matches', undefined)
 
-    stubFetch(json(PLAYBACK))
-    expect(await getPlayback()).toEqual(PLAYBACK)
+    stubFetch(json(BROADCAST))
+    expect(await getBroadcast()).toEqual(BROADCAST)
   })
 
   it('posts a command as JSON, with the schema version', async () => {
-    const fetch = stubFetch(json(PLAYBACK))
-    expect(await sendCommand({ command: 'load_match', match_id: 3869685 })).toEqual(PLAYBACK)
+    const fetch = stubFetch(json(BROADCAST))
+    expect(await sendCommand({ command: 'load_match', match_id: 3869685 })).toEqual(BROADCAST)
     const [url, init] = fetch.mock.calls[0]
-    expect(url).toBe('/api/control')
+    expect(url).toBe('/api/broadcast')
     expect(init?.method).toBe('POST')
     expect(init?.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'load_match', match_id: 3869685 })
@@ -46,7 +46,7 @@ describe('api', () => {
     ['a 200 that is not JSON', new Response('<html>', { status: 200 }), 'unexpected reply (HTTP 200)', 200],
   ])('throws an ApiError on %s', async (_, reply, message, status) => {
     stubFetch(reply)
-    const err = await getPlayback().catch((e: unknown) => e)
+    const err = await getBroadcast().catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect(err).toMatchObject({ message, status })
   })
