@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "state": "paused",
+  "generation": 3,
+  "match_id": 3869685,
+  "teams": [
+    { "id": 779, "name": "Argentina" },
+    { "id": 771, "name": "France" }
+  ],
+  "period": 2,
+  "match_clock_s": 4500.2,
+  "play_s": 4235.7,
+  "speed": 4,
+  "live_edge": { "offset": 2987, "period": 2, "match_clock_s": 4859.025, "play_s": 4614.5 },
+  "behind_live_s": 378.8,
+  "released": 2701,
+  "buffered": 3,
+  "late_dropped": 0,
+  "duplicates": 0
+}

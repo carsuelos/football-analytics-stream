@@ -18,8 +18,10 @@ func newTarget(t *testing.T, kind string) any {
 	switch kind {
 	case "alert":
 		return &Alert{}
-	case "command":
-		return &PlaybackCommand{}
+	case "broadcast_command":
+		return &BroadcastCommand{}
+	case "broadcast_status":
+		return &BroadcastStatus{}
 	case "engine_status":
 		return &EngineStatus{}
 	case "event":
@@ -32,8 +34,8 @@ func newTarget(t *testing.T, kind string) any {
 		return &MatchReset{}
 	case "metric":
 		return &MetricSnapshot{}
-	case "status":
-		return &PlaybackStatus{}
+	case "viewer_command":
+		return &ViewerCommand{}
 	}
 	t.Fatalf("no Go type registered for fixture kind %q", kind)
 	return nil

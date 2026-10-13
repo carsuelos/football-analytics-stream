@@ -145,8 +145,176 @@ func (j *Alert) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// Request body for the simulator's HTTP control API. The simulator is a
+// broadcaster: it publishes the loaded match once, in order, and never seeks.
+// Viewers rewind and seek on their side (see ViewerCommand).
+type BroadcastCommand struct {
+	// `load_match` replaces the broadcast with a match, ready to kick off; `play` and
+	// `pause` start and hold the broadcast; `set_speed` sets how fast match time
+	// passes.
+	Command BroadcastCommandCommand `json:"command"`
+
+	// Required for load_match.
+	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Broadcast speed multiplier. Required for set_speed.
+	Speed *float64 `json:"speed,omitempty,omitzero"`
+}
+
+type BroadcastCommandCommand string
+
+const BroadcastCommandCommandLoadMatch BroadcastCommandCommand = "load_match"
+const BroadcastCommandCommandPause BroadcastCommandCommand = "pause"
+const BroadcastCommandCommandPlay BroadcastCommandCommand = "play"
+const BroadcastCommandCommandSetSpeed BroadcastCommandCommand = "set_speed"
+
+var enumValues_BroadcastCommandCommand = []interface{}{
+	"load_match",
+	"play",
+	"pause",
+	"set_speed",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *BroadcastCommandCommand) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_BroadcastCommandCommand {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_BroadcastCommandCommand, v)
+	}
+	*j = BroadcastCommandCommand(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *BroadcastCommand) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["command"]; raw != nil && !ok {
+		return fmt.Errorf("field command in BroadcastCommand: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in BroadcastCommand: required")
+	}
+	type Plain BroadcastCommand
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Speed != nil && 1000 < *plain.Speed {
+		return fmt.Errorf("field %s: must be <= %v", "speed", 1000)
+	}
+	if plain.Speed != nil && 0 >= *plain.Speed {
+		return fmt.Errorf("field %s: must be > %v", "speed", 0)
+	}
+	*j = BroadcastCommand(plain)
+	return nil
+}
+
+// Where the simulator's broadcast is.
+type BroadcastStatus struct {
+	// MatchClockS corresponds to the JSON schema field "match_clock_s".
+	MatchClockS *MatchClockSeconds `json:"match_clock_s,omitempty,omitzero"`
+
+	// MatchID corresponds to the JSON schema field "match_id".
+	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
+
+	// Next offset to be published: the live edge.
+	Offset *Offset `json:"offset,omitempty,omitzero"`
+
+	// Period corresponds to the JSON schema field "period".
+	Period *Period `json:"period,omitempty,omitzero"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Speed corresponds to the JSON schema field "speed".
+	Speed float64 `json:"speed"`
+
+	// State corresponds to the JSON schema field "state".
+	State BroadcastStatusState `json:"state"`
+}
+
+type BroadcastStatusState string
+
+const BroadcastStatusStateEnded BroadcastStatusState = "ended"
+const BroadcastStatusStateIdle BroadcastStatusState = "idle"
+const BroadcastStatusStatePaused BroadcastStatusState = "paused"
+const BroadcastStatusStatePlaying BroadcastStatusState = "playing"
+
+var enumValues_BroadcastStatusState = []interface{}{
+	"idle",
+	"playing",
+	"paused",
+	"ended",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *BroadcastStatusState) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_BroadcastStatusState {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_BroadcastStatusState, v)
+	}
+	*j = BroadcastStatusState(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *BroadcastStatus) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in BroadcastStatus: required")
+	}
+	if _, ok := raw["speed"]; raw != nil && !ok {
+		return fmt.Errorf("field speed in BroadcastStatus: required")
+	}
+	if _, ok := raw["state"]; raw != nil && !ok {
+		return fmt.Errorf("field state in BroadcastStatus: required")
+	}
+	type Plain BroadcastStatus
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 >= plain.Speed {
+		return fmt.Errorf("field %s: must be > %v", "speed", 0)
+	}
+	*j = BroadcastStatus(plain)
+	return nil
+}
+
 // Where the engine is in the match it is following.
 type EngineStatus struct {
+	// Seconds of play between the viewer and the live edge.
+	BehindLiveS *float64 `json:"behind_live_s,omitempty,omitzero"`
+
 	// Events held back for reordering.
 	Buffered int `json:"buffered"`
 
@@ -159,13 +327,17 @@ type EngineStatus struct {
 	// Events dropped for arriving too late to reorder.
 	LateDropped int `json:"late_dropped"`
 
+	// The latest point of the broadcast received so far: the viewer can seek up to
+	// here.
+	LiveEdge *LiveEdge `json:"live_edge,omitempty,omitzero"`
+
 	// Game clock of the latest event processed.
 	MatchClockS *MatchClockSeconds `json:"match_clock_s,omitempty,omitzero"`
 
 	// MatchID corresponds to the JSON schema field "match_id".
 	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
 
-	// Period of the latest event processed.
+	// Period of the latest event processed: where the viewer is.
 	Period *Period `json:"period,omitempty,omitzero"`
 
 	// Seconds of play so far, continuous across periods.
@@ -180,8 +352,13 @@ type EngineStatus struct {
 	// SchemaVersion corresponds to the JSON schema field "schema_version".
 	SchemaVersion SchemaVersion `json:"schema_version"`
 
+	// The viewer's playback speed while behind live.
+	Speed *float64 `json:"speed,omitempty,omitzero"`
+
 	// `waiting` for a match; `rebuilding` state from events that already happened
-	// (after a seek or a mid-match connect); `live`; or the match has `ended`.
+	// (after a seek or a mid-match connect); `live`, following the broadcast as it
+	// happens; `playing` behind live, at the viewer's speed; `paused`; or the viewer
+	// has reached the end of the match (`ended`).
 	State EngineStatusState `json:"state"`
 
 	// The teams seen so far, in order of first appearance.
@@ -192,6 +369,8 @@ type EngineStatusState string
 
 const EngineStatusStateEnded EngineStatusState = "ended"
 const EngineStatusStateLive EngineStatusState = "live"
+const EngineStatusStatePaused EngineStatusState = "paused"
+const EngineStatusStatePlaying EngineStatusState = "playing"
 const EngineStatusStateRebuilding EngineStatusState = "rebuilding"
 const EngineStatusStateWaiting EngineStatusState = "waiting"
 
@@ -199,6 +378,8 @@ var enumValues_EngineStatusState = []interface{}{
 	"waiting",
 	"rebuilding",
 	"live",
+	"playing",
+	"paused",
 	"ended",
 }
 
@@ -254,6 +435,9 @@ func (j *EngineStatus) UnmarshalJSON(value []byte) error {
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
 	}
+	if plain.BehindLiveS != nil && 0 > *plain.BehindLiveS {
+		return fmt.Errorf("field %s: must be >= %v", "behind_live_s", 0)
+	}
 	if 0 > plain.Buffered {
 		return fmt.Errorf("field %s: must be >= %v", "buffered", 0)
 	}
@@ -272,6 +456,9 @@ func (j *EngineStatus) UnmarshalJSON(value []byte) error {
 	if 0 > plain.Released {
 		return fmt.Errorf("field %s: must be >= %v", "released", 0)
 	}
+	if plain.Speed != nil && 0 >= *plain.Speed {
+		return fmt.Errorf("field %s: must be > %v", "speed", 0)
+	}
 	if len(plain.Teams) > 2 {
 		return fmt.Errorf("field %s length: must be <= %d", "teams", 2)
 	}
@@ -279,12 +466,11 @@ func (j *EngineStatus) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
-// Stream position for non-event messages. On `reset`, consumers drop state and
-// rebuild up to this position.
+// Stream position for non-event messages.
 type FeedMarker struct {
 	// On `match_start`: how many events had been published when the subscriber
 	// synced. Events below this offset are a catch-up on what already happened, so
-	// consumers rebuild state from them without acting on them, as after a `reset`.
+	// consumers rebuild state from them without acting on them.
 	Head *Offset `json:"head,omitempty,omitzero"`
 
 	// MatchClockS corresponds to the JSON schema field "match_clock_s".
@@ -327,8 +513,10 @@ func (j *FeedMarker) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
-// One WebSocket message on the simulator feed. `kind` says which payload field is
-// set.
+// One message on the event feed. `kind` says which payload field is set.
+// `match_start` comes first when a subscriber syncs and whenever a new match is
+// loaded; then the match's events in offset order; then `match_end` after the last
+// one.
 type FeedMessage struct {
 	// Event corresponds to the JSON schema field "event".
 	Event *MatchEvent `json:"event,omitempty,omitzero"`
@@ -336,8 +524,7 @@ type FeedMessage struct {
 	// Kind corresponds to the JSON schema field "kind".
 	Kind FeedMessageKind `json:"kind"`
 
-	// Stream position for non-event messages. On `reset`, consumers drop state and
-	// rebuild up to this position.
+	// Stream position for non-event messages.
 	Marker *FeedMarker `json:"marker,omitempty,omitzero"`
 
 	// SchemaVersion corresponds to the JSON schema field "schema_version".
@@ -349,12 +536,10 @@ type FeedMessageKind string
 const FeedMessageKindEvent FeedMessageKind = "event"
 const FeedMessageKindMatchEnd FeedMessageKind = "match_end"
 const FeedMessageKindMatchStart FeedMessageKind = "match_start"
-const FeedMessageKindReset FeedMessageKind = "reset"
 
 var enumValues_FeedMessageKind = []interface{}{
 	"event",
 	"match_start",
-	"reset",
 	"match_end",
 }
 
@@ -396,6 +581,52 @@ func (j *FeedMessage) UnmarshalJSON(value []byte) error {
 		return err
 	}
 	*j = FeedMessage(plain)
+	return nil
+}
+
+// The latest point of the broadcast received so far: the viewer can seek up to
+// here.
+type LiveEdge struct {
+	// MatchClockS corresponds to the JSON schema field "match_clock_s".
+	MatchClockS MatchClockSeconds `json:"match_clock_s"`
+
+	// Events received so far.
+	Offset Offset `json:"offset"`
+
+	// Period corresponds to the JSON schema field "period".
+	Period Period `json:"period"`
+
+	// Seconds of play up to the live edge, continuous across periods.
+	PlayS float64 `json:"play_s"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LiveEdge) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["match_clock_s"]; raw != nil && !ok {
+		return fmt.Errorf("field match_clock_s in LiveEdge: required")
+	}
+	if _, ok := raw["offset"]; raw != nil && !ok {
+		return fmt.Errorf("field offset in LiveEdge: required")
+	}
+	if _, ok := raw["period"]; raw != nil && !ok {
+		return fmt.Errorf("field period in LiveEdge: required")
+	}
+	if _, ok := raw["play_s"]; raw != nil && !ok {
+		return fmt.Errorf("field play_s in LiveEdge: required")
+	}
+	type Plain LiveEdge
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.PlayS {
+		return fmt.Errorf("field %s: must be >= %v", "play_s", 0)
+	}
+	*j = LiveEdge(plain)
 	return nil
 }
 
@@ -931,172 +1162,6 @@ func (j *Period) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
-// Request body for the simulator's HTTP control API.
-type PlaybackCommand struct {
-	// Command corresponds to the JSON schema field "command".
-	Command PlaybackCommandCommand `json:"command"`
-
-	// Required for load_match.
-	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
-
-	// SchemaVersion corresponds to the JSON schema field "schema_version".
-	SchemaVersion SchemaVersion `json:"schema_version"`
-
-	// Required for seek.
-	SeekTo *SeekTarget `json:"seek_to,omitempty,omitzero"`
-
-	// Playback speed multiplier. Required for set_speed.
-	Speed *float64 `json:"speed,omitempty,omitzero"`
-}
-
-type PlaybackCommandCommand string
-
-const PlaybackCommandCommandLoadMatch PlaybackCommandCommand = "load_match"
-const PlaybackCommandCommandPause PlaybackCommandCommand = "pause"
-const PlaybackCommandCommandPlay PlaybackCommandCommand = "play"
-const PlaybackCommandCommandSeek PlaybackCommandCommand = "seek"
-const PlaybackCommandCommandSetSpeed PlaybackCommandCommand = "set_speed"
-
-var enumValues_PlaybackCommandCommand = []interface{}{
-	"load_match",
-	"play",
-	"pause",
-	"set_speed",
-	"seek",
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *PlaybackCommandCommand) UnmarshalJSON(value []byte) error {
-	var v string
-	if err := json.Unmarshal(value, &v); err != nil {
-		return err
-	}
-	var ok bool
-	for _, expected := range enumValues_PlaybackCommandCommand {
-		if reflect.DeepEqual(v, expected) {
-			ok = true
-			break
-		}
-	}
-	if !ok {
-		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_PlaybackCommandCommand, v)
-	}
-	*j = PlaybackCommandCommand(v)
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *PlaybackCommand) UnmarshalJSON(value []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(value, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["command"]; raw != nil && !ok {
-		return fmt.Errorf("field command in PlaybackCommand: required")
-	}
-	if _, ok := raw["schema_version"]; raw != nil && !ok {
-		return fmt.Errorf("field schema_version in PlaybackCommand: required")
-	}
-	type Plain PlaybackCommand
-	var plain Plain
-	if err := json.Unmarshal(value, &plain); err != nil {
-		return err
-	}
-	if plain.Speed != nil && 1000 < *plain.Speed {
-		return fmt.Errorf("field %s: must be <= %v", "speed", 1000)
-	}
-	if plain.Speed != nil && 0 >= *plain.Speed {
-		return fmt.Errorf("field %s: must be > %v", "speed", 0)
-	}
-	*j = PlaybackCommand(plain)
-	return nil
-}
-
-// Current simulator playback state.
-type PlaybackStatus struct {
-	// MatchClockS corresponds to the JSON schema field "match_clock_s".
-	MatchClockS *MatchClockSeconds `json:"match_clock_s,omitempty,omitzero"`
-
-	// MatchID corresponds to the JSON schema field "match_id".
-	MatchID *MatchID `json:"match_id,omitempty,omitzero"`
-
-	// Next offset to be emitted.
-	Offset *Offset `json:"offset,omitempty,omitzero"`
-
-	// Period corresponds to the JSON schema field "period".
-	Period *Period `json:"period,omitempty,omitzero"`
-
-	// SchemaVersion corresponds to the JSON schema field "schema_version".
-	SchemaVersion SchemaVersion `json:"schema_version"`
-
-	// Speed corresponds to the JSON schema field "speed".
-	Speed float64 `json:"speed"`
-
-	// State corresponds to the JSON schema field "state".
-	State PlaybackStatusState `json:"state"`
-}
-
-type PlaybackStatusState string
-
-const PlaybackStatusStateEnded PlaybackStatusState = "ended"
-const PlaybackStatusStateIdle PlaybackStatusState = "idle"
-const PlaybackStatusStatePaused PlaybackStatusState = "paused"
-const PlaybackStatusStatePlaying PlaybackStatusState = "playing"
-
-var enumValues_PlaybackStatusState = []interface{}{
-	"idle",
-	"playing",
-	"paused",
-	"ended",
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *PlaybackStatusState) UnmarshalJSON(value []byte) error {
-	var v string
-	if err := json.Unmarshal(value, &v); err != nil {
-		return err
-	}
-	var ok bool
-	for _, expected := range enumValues_PlaybackStatusState {
-		if reflect.DeepEqual(v, expected) {
-			ok = true
-			break
-		}
-	}
-	if !ok {
-		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_PlaybackStatusState, v)
-	}
-	*j = PlaybackStatusState(v)
-	return nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler.
-func (j *PlaybackStatus) UnmarshalJSON(value []byte) error {
-	var raw map[string]interface{}
-	if err := json.Unmarshal(value, &raw); err != nil {
-		return err
-	}
-	if _, ok := raw["schema_version"]; raw != nil && !ok {
-		return fmt.Errorf("field schema_version in PlaybackStatus: required")
-	}
-	if _, ok := raw["speed"]; raw != nil && !ok {
-		return fmt.Errorf("field speed in PlaybackStatus: required")
-	}
-	if _, ok := raw["state"]; raw != nil && !ok {
-		return fmt.Errorf("field state in PlaybackStatus: required")
-	}
-	type Plain PlaybackStatus
-	var plain Plain
-	if err := json.Unmarshal(value, &plain); err != nil {
-		return err
-	}
-	if 0 >= plain.Speed {
-		return fmt.Errorf("field %s: must be > %v", "speed", 0)
-	}
-	*j = PlaybackStatus(plain)
-	return nil
-}
-
 type Player struct {
 	// ID corresponds to the JSON schema field "id".
 	ID int `json:"id"`
@@ -1294,5 +1359,86 @@ func (j *Team) UnmarshalJSON(value []byte) error {
 		return err
 	}
 	*j = Team(plain)
+	return nil
+}
+
+// Request body for the engine's playback control: the engine is a DVR over the
+// broadcast.
+type ViewerCommand struct {
+	// `play`, `pause` and `set_speed` act on the viewer's own playback; `seek` moves
+	// it to a point in the match up to the live edge (a later point goes live);
+	// `go_live` catches up with the broadcast and follows it.
+	Command ViewerCommandCommand `json:"command"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Required for seek.
+	SeekTo *SeekTarget `json:"seek_to,omitempty,omitzero"`
+
+	// Playback speed multiplier while behind live. Required for set_speed.
+	Speed *float64 `json:"speed,omitempty,omitzero"`
+}
+
+type ViewerCommandCommand string
+
+const ViewerCommandCommandGoLive ViewerCommandCommand = "go_live"
+const ViewerCommandCommandPause ViewerCommandCommand = "pause"
+const ViewerCommandCommandPlay ViewerCommandCommand = "play"
+const ViewerCommandCommandSeek ViewerCommandCommand = "seek"
+const ViewerCommandCommandSetSpeed ViewerCommandCommand = "set_speed"
+
+var enumValues_ViewerCommandCommand = []interface{}{
+	"play",
+	"pause",
+	"set_speed",
+	"seek",
+	"go_live",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *ViewerCommandCommand) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_ViewerCommandCommand {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_ViewerCommandCommand, v)
+	}
+	*j = ViewerCommandCommand(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *ViewerCommand) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["command"]; raw != nil && !ok {
+		return fmt.Errorf("field command in ViewerCommand: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in ViewerCommand: required")
+	}
+	type Plain ViewerCommand
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Speed != nil && 1000 < *plain.Speed {
+		return fmt.Errorf("field %s: must be <= %v", "speed", 1000)
+	}
+	if plain.Speed != nil && 0 >= *plain.Speed {
+		return fmt.Errorf("field %s: must be > %v", "speed", 0)
+	}
+	*j = ViewerCommand(plain)
 	return nil
 }

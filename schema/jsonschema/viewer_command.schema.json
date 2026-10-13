@@ -1,21 +1,18 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "title": "PlaybackCommand",
-  "description": "Request body for the simulator's HTTP control API.",
+  "title": "ViewerCommand",
+  "description": "Request body for the engine's playback control: the engine is a DVR over the broadcast.",
   "type": "object",
   "properties": {
     "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
     "command": {
-      "title": "PlaybackCommandType",
+      "title": "ViewerCommandType",
+      "description": "`play`, `pause` and `set_speed` act on the viewer's own playback; `seek` moves it to a point in the match up to the live edge (a later point goes live); `go_live` catches up with the broadcast and follows it.",
       "type": "string",
-      "enum": ["load_match", "play", "pause", "set_speed", "seek"]
-    },
-    "match_id": {
-      "description": "Required for load_match.",
-      "$ref": "common.schema.json#/definitions/MatchId"
+      "enum": ["play", "pause", "set_speed", "seek", "go_live"]
     },
     "speed": {
-      "description": "Playback speed multiplier. Required for set_speed.",
+      "description": "Playback speed multiplier while behind live. Required for set_speed.",
       "type": "number",
       "exclusiveMinimum": 0,
       "maximum": 1000

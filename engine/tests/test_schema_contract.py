@@ -11,14 +11,15 @@ from referencing import Registry, Resource
 from referencing.jsonschema import DRAFT7
 
 from engine.schema.alert_schema import Alert
-from engine.schema.command_schema import PlaybackCommand
+from engine.schema.broadcast_command_schema import BroadcastCommand
+from engine.schema.broadcast_status_schema import BroadcastStatus
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
-from engine.schema.status_schema import PlaybackStatus
+from engine.schema.viewer_command_schema import ViewerCommand
 
 SCHEMA_ROOT = Path(__file__).resolve().parents[2] / "schema"
 JSONSCHEMA_DIR = SCHEMA_ROOT / "jsonschema"
@@ -26,14 +27,15 @@ FIXTURES_DIR = SCHEMA_ROOT / "fixtures"
 
 MODELS: dict[str, type[BaseModel]] = {
     "alert": Alert,
-    "command": PlaybackCommand,
+    "broadcast_command": BroadcastCommand,
+    "broadcast_status": BroadcastStatus,
     "engine_status": EngineStatus,
     "event": MatchEvent,
     "feed": FeedMessage,
     "match_list": MatchList,
     "match_reset": MatchReset,
     "metric": MetricSnapshot,
-    "status": PlaybackStatus,
+    "viewer_command": ViewerCommand,
 }
 
 

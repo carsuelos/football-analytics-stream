@@ -1,19 +1,19 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "FeedMessage",
-  "description": "One WebSocket message on the simulator feed. `kind` says which payload field is set.",
+  "description": "One message on the event feed. `kind` says which payload field is set. `match_start` comes first when a subscriber syncs and whenever a new match is loaded; then the match's events in offset order; then `match_end` after the last one.",
   "type": "object",
   "properties": {
     "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
     "kind": {
       "title": "FeedMessageKind",
       "type": "string",
-      "enum": ["event", "match_start", "reset", "match_end"]
+      "enum": ["event", "match_start", "match_end"]
     },
     "event": { "$ref": "event.schema.json" },
     "marker": {
       "title": "FeedMarker",
-      "description": "Stream position for non-event messages. On `reset`, consumers drop state and rebuild up to this position.",
+      "description": "Stream position for non-event messages.",
       "type": "object",
       "properties": {
         "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
@@ -21,7 +21,7 @@
         "period": { "$ref": "common.schema.json#/definitions/Period" },
         "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
         "head": {
-          "description": "On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them, as after a `reset`.",
+          "description": "On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them.",
           "$ref": "common.schema.json#/definitions/Offset"
         }
       },

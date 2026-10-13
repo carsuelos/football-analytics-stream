@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "BroadcastCommand",
+  "description": "Request body for the simulator's HTTP control API. The simulator is a broadcaster: it publishes the loaded match once, in order, and never seeks. Viewers rewind and seek on their side (see ViewerCommand).",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "command": {
+      "title": "BroadcastCommandType",
+      "description": "`load_match` replaces the broadcast with a match, ready to kick off; `play` and `pause` start and hold the broadcast; `set_speed` sets how fast match time passes.",
+      "type": "string",
+      "enum": ["load_match", "play", "pause", "set_speed"]
+    },
+    "match_id": {
+      "description": "Required for load_match.",
+      "$ref": "common.schema.json#/definitions/MatchId"
+    },
+    "speed": {
+      "description": "Broadcast speed multiplier. Required for set_speed.",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "maximum": 1000
+    }
+  },
+  "required": ["schema_version", "command"]
+}
