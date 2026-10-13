@@ -3,8 +3,11 @@
 # ./data (they can't be redistributed, so they are never baked into images).
 #
 # The simulator publishes the broadcast to Kafka (Redpanda here) and the engine
-# consumes it from there. Both take librdkafka settings as KAFKA_* variables, so
-# pointing them at another cluster (Event Hubs, Confluent Cloud) is config only.
+# consumes it from there, publishing its metrics and alerts back; the notifier
+# delivers the alerts to a webhook (ALERT_WEBHOOK, by default the `webhook`
+# service, which prints them). Every app takes librdkafka settings as KAFKA_*
+# variables, so pointing them at another cluster (Event Hubs, Confluent Cloud)
+# is config only.
 name: football-analytics
 
 x-kafka: &kafka
@@ -32,7 +35,15 @@ services:
   # The apps don't create topics: here a one-shot job does, in the cloud IaC will.
   topics:
     image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
-    entrypoint: ["rpk", "topic", "create", "events", "--if-not-exists", "--partitions", "3"]
+    entrypoint:
+      - rpk
+      - topic
+      - create
+      - events
+      - metrics
+      - alerts
+      - --if-not-exists
+      - --partitions=3
     environment:
       RPK_BROKERS: redpanda:9092
     depends_on:
@@ -73,3 +84,28 @@ services:
     depends_on:
       engine:
         condition: service_healthy
+
+  notifier:
+    build: notifier
+    command: ["-webhook", "${ALERT_WEBHOOK:-http://webhook:9000}"]
+    environment: *kafka
+    depends_on:
+      topics:
+        condition: service_completed_successfully
+      webhook:
+        condition: service_healthy
+
+  # A stand-in for a real webhook (Slack, Teams, ...): prints each alert, and
+  # lists them at GET /alerts.
+  webhook:
+    image: python:3.13-slim
+    command: ["python", "/webhook_echo.py", "--host", "0.0.0.0"]
+    volumes:
+      - ./scripts/webhook_echo.py:/webhook_echo.py:ro
+    ports:
+      - "${WEBHOOK_PORT:-9000}:9000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/alerts', timeout=2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 15

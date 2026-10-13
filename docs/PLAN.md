@@ -240,10 +240,11 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - engine `KafkaSource`, chosen with `--source kafka`; the WebSocket feed stays for quick runs without Docker
   - the smoke test runs on both transports: `make smoke` over WebSocket, `make smoke-compose` over Kafka
   - the engine finds its place itself (the latest `match_start`, then catch-up without alerts) and commits no offsets; a restart mid-match catches up
-- [ ] **Metrics and alerts on the broker:**
-  - the engine publishes `metrics` and `alerts` topics, keyed by `match_id`
-  - a Go **notifier** service consumes `alerts` and POSTs each one to a webhook. It commits its offset only after delivery (at least once) and drops repeats by alert id, since a DVR viewer re-watching a stretch publishes its alerts again
+- [x] **Metrics and alerts on the broker:**
+  - the engine publishes `metrics` and `alerts` topics, keyed by `match_id`, whenever `KAFKA_BOOTSTRAP_SERVERS` is set, from live ticks only (not catch-up)
+  - a Go **notifier** service consumes `alerts` and POSTs each one to a webhook. It commits its offset only after delivery (at least once) and drops repeats by alert id, since a DVR viewer re-watching a stretch publishes its alerts again; an `Idempotency-Key` header carries the id for repeats across notifier restarts. Failed deliveries are retried until the alert is older than `-max-age` (5 minutes), which also stops a new consumer group from paging old alerts
   - the engine's in-process webhook sink stays for runs without the broker
+  - `make smoke-compose` checks every alert reached the webhook once, rewatch included
 - [ ] **Smoke test in CI** against Docker Compose.
 - Not planned: a Redis `StateStore`. The broker log is the recovery story (rewind and rebuild), and there is one engine. Revisit if several engine instances are needed.
 
@@ -285,6 +286,6 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 
 ## Known gaps
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
-- **Alerts can be lost.** The webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. That is fine for notifications; the broker (Phase 2) gives durable delivery.
+- **Alerts can be lost without the broker.** The engine's webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. Through the broker, the notifier delivers at least once, but still gives up on alerts older than `-max-age`, and the engine's producer can lose what it hadn't sent when it stops (it waits up to 5 seconds).
 - **A few provider events arrive far out of place.** StatsBomb sometimes records an event long after its match time, such as a kick-off's ball receipt at the end of the half (2 in the 2022 final). The feed keeps the provider's order, as a live feed would, so the engine drops them as late and counts them. `-jitter` happens to re-sort them, which is why the smoke test sees none.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.

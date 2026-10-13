@@ -30,6 +30,23 @@ jobs:
       - run: go vet ./...
       - run: go test ./...
 
+  notifier:
+    name: Notifier (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: notifier
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: notifier/go.mod
+          cache-dependency-path: notifier/go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test -race ./...
+
   engine:
     name: Engine (Python)
     runs-on: ubuntu-latest
@@ -79,7 +96,9 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: simulator/go.mod
-          cache-dependency-path: simulator/go.sum
+          cache-dependency-path: |
+            simulator/go.sum
+            notifier/go.sum
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: engine
@@ -110,6 +129,8 @@ jobs:
           set: |
             simulator.cache-from=type=gha,scope=simulator
             simulator.cache-to=type=gha,scope=simulator,mode=max
+            notifier.cache-from=type=gha,scope=notifier
+            notifier.cache-to=type=gha,scope=notifier,mode=max
             engine.cache-from=type=gha,scope=engine
             engine.cache-to=type=gha,scope=engine,mode=max
             dashboard.cache-from=type=gha,scope=dashboard

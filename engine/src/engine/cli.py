@@ -26,7 +26,15 @@ from engine.pipeline import Pipeline
 from engine.runner import engine_status, run
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.viewer_command_schema import ViewerCommand
-from engine.sinks import AlertSink, LogSink, WebhookSink
+from engine.sinks import (
+    AlertSink,
+    KafkaAlertSink,
+    KafkaMetricSink,
+    KafkaPublisher,
+    LogSink,
+    MetricSink,
+    WebhookSink,
+)
 from engine.sources import EventSource, KafkaSource, WebSocketSource
 from engine.sources.kafka import config_from_env
 from engine.ticks import Ticker
@@ -64,6 +72,18 @@ def parse_args(
     )
     parser.add_argument(
         "--kafka-topic", default="events", metavar="TOPIC", help="the topic for --source kafka"
+    )
+    parser.add_argument(
+        "--alerts-topic",
+        default="alerts",
+        metavar="TOPIC",
+        help="with KAFKA_BOOTSTRAP_SERVERS set, publish live alerts to this topic",
+    )
+    parser.add_argument(
+        "--metrics-topic",
+        default="metrics",
+        metavar="TOPIC",
+        help="with KAFKA_BOOTSTRAP_SERVERS set, publish live metric snapshots to this topic",
     )
     parser.add_argument("--host", default="127.0.0.1", help="address to serve the API on")
     parser.add_argument("--port", type=int, default=8000, help="port to serve the API on")
@@ -179,8 +199,13 @@ def engine_app(
         async with AsyncExitStack() as stack:
             await stack.enter_async_context(simulator)
             sinks: list[AlertSink] = [LogSink()]
+            metric_sinks: list[MetricSink] = []
             for url in args.webhook:
                 sinks.append(await stack.enter_async_context(WebhookSink(url)))
+            if "bootstrap.servers" in args.kafka:
+                publisher = await stack.enter_async_context(KafkaPublisher(args.kafka))
+                sinks.append(KafkaAlertSink(publisher, args.alerts_topic))
+                metric_sinks.append(KafkaMetricSink(publisher, args.metrics_topic))
             loop = asyncio.create_task(
                 run(
                     dvr,
@@ -189,6 +214,7 @@ def engine_app(
                     ticker=Ticker(metrics),
                     detectors=Detectors([Momentum(), GoalThreat(), ControlShift()]),
                     sinks=sinks,
+                    metric_sinks=metric_sinks,
                     hub=hub,
                     status_every_s=args.status_every,
                 )

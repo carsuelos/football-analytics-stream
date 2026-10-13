@@ -13,6 +13,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `schema/fixtures/` | Example messages (`valid/`, `invalid/`) tested in every language |
 | `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka |
 | `engine/` | Python (uv): metrics, windows, alerts |
+| `notifier/` | Go: delivers the alerts from Kafka to webhooks |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
 | `data/` | Local StatsBomb cache (gitignored) |
@@ -139,13 +140,17 @@ KAFKA_SASL_PASSWORD='<connection string>'
 
 The engine follows one match at a time: the one most recently started.
 
+The engine publishes back to the broker too: each metrics snapshot to `metrics` and each alert to `alerts`, keyed by match (`docker compose exec redpanda rpk topic consume alerts -n 1`). Only live play is published, not the catch-up after a restart, but a viewer rewatching through the DVR publishes that stretch again, so consumers drop repeats (alerts by `id`, snapshots by match, offset and window).
+
+The **notifier** (`notifier/`, Go) consumes `alerts` as the `notifier` consumer group and POSTs each alert as JSON to every `-webhook` (by default the `webhook` service, which prints them: `docker compose logs -f webhook`; set `ALERT_WEBHOOK` for a real one). It delivers at least once: an alert's offset is committed only once delivered, so a restart resumes where it left off. Repeats are dropped by alert id, and each request carries an `Idempotency-Key: <alert id>` header for the receiver to drop the rare repeat after a restart. A failing webhook (network error, 5xx or 429) is retried with backoff until the alert is older than `-max-age` (5 minutes), since a late alert is no use; other 4xx errors are not retried. A new consumer group starts from the earliest alert but skips the stale ones the same way.
+
 ### Smoke test
 
 `make smoke` builds the simulator, starts it and the engine on ports 18080 and 18000 (so your dev setup can keep running), and replays the 2022 final at 1000× (about 10 s). The simulator delivers events up to 3 s late, so the engine has to reorder them. Every match is checked for consistency: the right teams, nothing dropped or duplicated, field tilts adding up to 1, snapshots in match-time order, alerts at or above their thresholds, and no errors in the logs. The final is also checked against what happened: Argentina's first-half dominance, penalties, and a goal-threat alert *before* each comeback goal (France's at 79', Messi's at 108').
 
 - `make smoke ARGS="--sample"`: the final and 10 random other matches, on the same processes, so switching matches is tested too. A failing sample is reproduced with the `--seed` it printed.
 - `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
-- `make smoke-compose`: the same checks against the Docker stack (so over Kafka), started with events up to 3 s late, through the dashboard's proxy. Its logs are not checked (see `make logs`).
+- `make smoke-compose`: the same checks against the Docker stack (so over Kafka), started with events up to 3 s late, through the dashboard's proxy, plus a check that the notifier delivered every alert to the `webhook` service exactly once, as the engine raised it (rewatch included). Its logs are not checked (see `make logs`).
 
 A failure prints what went wrong and where the processes' logs are.
 

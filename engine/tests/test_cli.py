@@ -30,6 +30,7 @@ from tests.test_runner import METRICS, MSGS, ListSource
 def test_cli_defaults_and_validation() -> None:
     args = parse_args([], env={})
     assert args.source == "ws"
+    assert (args.kafka, args.alerts_topic, args.metrics_topic) == ({}, "alerts", "metrics")
     assert args.simulator == "http://localhost:8080"
     assert args.feed == "ws://localhost:8080/feed"
     assert (args.host, args.port) == ("127.0.0.1", 8000)
@@ -98,7 +99,7 @@ def engine_server(source: EventSource, stops: list[BaseException | None]) -> Ser
     """The engine on a free local port, reading source; run loop stops go to stops."""
     hub = MatchHub()
     app = engine_app(
-        parse_args(["--status-every", "0.01"]), METRICS.grid, source, hub, stops.append
+        parse_args(["--status-every", "0.01"], env={}), METRICS.grid, source, hub, stops.append
     )
     return server(app, hub, "127.0.0.1", 0)
 

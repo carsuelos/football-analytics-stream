@@ -11,7 +11,7 @@ from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
 from engine.schema.engine_status_schema import EngineState, EngineStatus
 from engine.schema.metric_schema import TeamMetrics
-from engine.sinks import AlertSink
+from engine.sinks import AlertSink, MetricSink
 from engine.sources import EventSource
 from engine.ticks import Ticker
 
@@ -26,6 +26,7 @@ async def run(
     ticker: Ticker | None = None,
     detectors: Detectors | None = None,
     sinks: Sequence[AlertSink] = (),
+    metric_sinks: Sequence[MetricSink] = (),
     hub: MatchHub | None = None,
     status_every_s: float = 1.0,
     report: Callable[[str], None] = log.debug,
@@ -33,7 +34,11 @@ async def run(
     """Feed every message from source through pipeline until the source ends.
 
     On every tick the detectors, if given, run. The alerts they raise go to
-    each sink, unless the tick is replayed: sinks only hear about live alerts.
+    each sink, and the tick's metric snapshots to each metric sink, unless the
+    tick is replayed: sinks only hear about live ticks. A viewer re-watching
+    part of the match makes those ticks live again, so sinks may get the same
+    alert or snapshot twice; alert ids and snapshot (offset, window) tell them
+    apart.
 
     The hub, if given, gets everything: a reset whenever the pipeline starts
     over, then on every tick the metric snapshots and all alerts, replayed or
@@ -74,10 +79,14 @@ async def run(
                 if tick is None:
                     continue
                 alerts = detectors.evaluate(tick) if detectors else []
+                snapshots = tick.snapshots() if hub or metric_sinks else []
                 if hub:
-                    hub.add(*tick.snapshots(), *alerts)
+                    hub.add(*snapshots, *alerts)
                 if tick.replay:
                     continue
+                for snap in snapshots:
+                    for metric_sink in metric_sinks:
+                        metric_sink.send(snap)
                 for alert in alerts:
                     for sink in sinks:
                         sink.send(alert)
