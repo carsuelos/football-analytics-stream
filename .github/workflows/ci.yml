@@ -95,3 +95,22 @@ jobs:
           cache-dependency-path: dashboard/pnpm-lock.yaml
       - run: make setup
       - run: make check-gen
+
+  images:
+    name: Container images
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the Compose images
+        uses: docker/bake-action@v7
+        with:
+          source: .
+          files: compose.yaml
+          set: |
+            simulator.cache-from=type=gha,scope=simulator
+            simulator.cache-to=type=gha,scope=simulator,mode=max
+            engine.cache-from=type=gha,scope=engine
+            engine.cache-to=type=gha,scope=engine,mode=max
+            dashboard.cache-from=type=gha,scope=dashboard
+            dashboard.cache-to=type=gha,scope=dashboard,mode=max

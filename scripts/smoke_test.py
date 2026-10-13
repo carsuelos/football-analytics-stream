@@ -7,6 +7,7 @@
     uv run scripts/smoke_test.py --sample           # and 10 random other matches
     uv run scripts/smoke_test.py --sample 5 --seed 42
     uv run scripts/smoke_test.py --match 3857256    # another downloaded match
+    uv run scripts/smoke_test.py --external http://localhost:3000   # a running stack
 
 Builds and starts the simulator (delivering events up to 3s late, so the
 engine has to reorder them) and the engine, on their own ports so a dev setup
@@ -16,6 +17,10 @@ are checked: for any match, that they are consistent, and for the final, that
 they tell the story of the match. Needs `make fetch-data`, Go and uv. Exits 1
 if a check fails, and then keeps the processes' logs. A failing --sample is
 reproduced with the --seed it printed.
+
+With --external, nothing is built or started: the checks run against an
+engine API that is already up (such as `make up`, through the dashboard's
+proxy), and its logs are not checked.
 """
 
 import argparse
@@ -32,7 +37,7 @@ import time
 import urllib.error
 import urllib.request
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
@@ -56,8 +61,8 @@ class SmokeError(Exception):
 class Api:
     """The engine's API."""
 
-    def __init__(self, port: int) -> None:
-        self.base = f"http://127.0.0.1:{port}"
+    def __init__(self, base: str) -> None:
+        self.base = base.rstrip("/")
 
     def get(self, path: str) -> Any:
         return self._send(urllib.request.Request(self.base + path))
@@ -380,13 +385,21 @@ def main() -> None:
     parser.add_argument("--seed", type=int, help="seed for --sample (default: random, printed)")
     parser.add_argument("--sim-port", type=int, default=18080)
     parser.add_argument("--engine-port", type=int, default=18000)
+    parser.add_argument(
+        "--external",
+        metavar="URL",
+        help="check a running stack at this base URL instead of starting one",
+    )
     args = parser.parse_args()
 
     logs = Path(tempfile.mkdtemp(prefix="smoke-"))
     failed = True
     try:
-        with stack(args.sim_port, args.engine_port, logs) as processes:
-            api = Api(args.engine_port)
+        running: AbstractContextManager[list[Process]] = (
+            nullcontext([]) if args.external else stack(args.sim_port, args.engine_port, logs)
+        )
+        with running as processes:
+            api = Api(args.external or f"http://127.0.0.1:{args.engine_port}")
             downloaded = {m["match_id"]: m for m in wait_ready(api, processes)}
             # One pair of processes for every match, so switching matches is tested too.
             passed = [check(api, processes, m) for m in choose(args, downloaded)]

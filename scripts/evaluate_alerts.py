@@ -221,7 +221,7 @@ def main() -> None:
     failed = True
     try:
         with stack(args.sim_port, args.engine_port, logs) as processes:
-            api = Api(args.engine_port)
+            api = Api(f"http://127.0.0.1:{args.engine_port}")
             downloaded = sorted(wait_ready(api, processes), key=lambda m: m["match_id"])
             n = min(args.sample, len(downloaded))
             chosen = random.Random(args.seed).sample(downloaded, n)

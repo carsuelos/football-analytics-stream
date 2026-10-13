@@ -218,7 +218,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*), the broker joins as a second transport, and alerts get a service of their own.
 
 - [x] **Own goals in the schema:** an `own_goal` event type in all three languages; goal threat resets on it.
-- [ ] **Containers:**
+- [x] **Containers:**
   - Dockerfiles for the simulator, engine and dashboard (nginx serves the build and proxies `/api`, with buffering off for SSE)
   - Docker Compose, with `make up` and `make down`
   - the smoke test can run against a running stack
@@ -278,4 +278,5 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 ## Known gaps
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
 - **Alerts can be lost.** The webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. That is fine for notifications; the broker (Phase 2) gives durable delivery.
+- **A few provider events arrive far out of place.** StatsBomb sometimes records an event long after its match time, such as a kick-off's ball receipt at the end of the half (2 in the 2022 final). The feed keeps the provider's order, as a live feed would, so the engine drops them as late and counts them. `-jitter` happens to re-sort them, which is why the smoke test sees none.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.

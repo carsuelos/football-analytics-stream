@@ -16,10 +16,11 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
 | `data/` | Local StatsBomb cache (gitignored) |
+| `compose.yaml` | Docker Compose: the whole stack (each service has its own `Dockerfile`) |
 
 ## Prerequisites
 
-Go 1.27+, [uv](https://docs.astral.sh/uv/), Node 26 + pnpm 12, GNU Make. Docker is needed from Phase 2.
+Go 1.27+, [uv](https://docs.astral.sh/uv/), Node 26 + pnpm 12, GNU Make. Docker (with Compose) to run the whole stack in containers.
 
 ## Getting started
 
@@ -43,6 +44,9 @@ make test                                     # all tests, including schema cont
 | `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--sample"` adds 10 random matches; `ARGS="--match ID"` for another match) |
 | `make evaluate` | Replay 20 matches and measure whether the alerts predict goals (about 3 minutes; `ARGS="--sample N --seed S"` for others) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
+| `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
+| `make logs` | Follow the Docker stack's logs |
+| `make smoke-compose` | The smoke test against the Docker stack |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
 
@@ -108,12 +112,23 @@ make dashboard                                                      # terminal 3
 
 Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Seek to a minute to watch the engine catch up, or stop the engine and restart it: the dashboard reconnects by itself.
 
+### Running it all in Docker
+
+```sh
+make fetch-data ARGS="--match-id 3869685"   # once: the data is mounted, never baked into images
+make up                                     # then open http://localhost:3000
+make down
+```
+
+Compose (`compose.yaml`) runs each service from its own image: the simulator on a distroless base, the engine in a slim Python image, and the dashboard's build served by nginx, which proxies `/api` (including the event stream, unbuffered) to the engine. The simulator and engine are also published on `:8080` and `:8000`. `SIM_JITTER=3s make up` delivers events up to 3 s late; `SIM_PORT`, `ENGINE_PORT` and `DASHBOARD_PORT` move the published ports.
+
 ### Smoke test
 
 `make smoke` builds the simulator, starts it and the engine on ports 18080 and 18000 (so your dev setup can keep running), and replays the 2022 final at 1000× (about 10 s). The simulator delivers events up to 3 s late, so the engine has to reorder them. Every match is checked for consistency: the right teams, nothing dropped or duplicated, field tilts adding up to 1, snapshots in match-time order, alerts at or above their thresholds, and no errors in the logs. The final is also checked against what happened: Argentina's first-half dominance, penalties, and a goal-threat alert *before* each comeback goal (France's at 79', Messi's at 108').
 
 - `make smoke ARGS="--sample"`: the final and 10 random other matches, on the same processes, so switching matches is tested too. A failing sample is reproduced with the `--seed` it printed.
 - `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
+- `make smoke-compose`: the same checks against the Docker stack, started with events up to 3 s late, through the dashboard's proxy. Its logs are not checked (see `make logs`).
 
 A failure prints what went wrong and where the processes' logs are.
 
