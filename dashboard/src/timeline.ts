@@ -17,6 +17,20 @@ const PERIODS: Record<number, { start: number; length: number; name: string }> =
 
 const TICK_EVERY = 15
 
+/** The period's name, e.g. "2nd half". */
+export const periodName = (period: number) => PERIODS[period].name
+
+/** The match minute of a moment in the match, e.g. "60'", "45+3'" or "Pens". */
+export const matchMinute = ({ period, match_clock_s }: Position) => minuteLabel(period, match_clock_s / 60)
+
+function minuteLabel(period: number, clockMinutes: number) {
+  if (period === 5) return 'Pens'
+  // Without the epsilon, floating-point error can put a tick at 59.999… and label it 59'.
+  const minute = Math.floor(clockMinutes + 1e-9)
+  const end = PERIODS[period].start + PERIODS[period].length
+  return minute > end ? `${end}+${minute - end}'` : `${minute}'`
+}
+
 export interface Position {
   /** 1-5, as the schema guarantees. */
   period: number
@@ -58,12 +72,7 @@ export function timeline(positions: Iterable<Position>): Timeline {
   const label = (at: number) => {
     let p = 1
     while (p < last && at >= offsets[p + 1]) p++
-    if (p === 5) return 'Pens'
-    const { start, length } = PERIODS[p]
-    // Without the epsilon, floating-point error can put a tick at 59.999… and label it 59'.
-    const minute = Math.floor(start + at - offsets[p] + 1e-9)
-    const end = start + length
-    return minute > end ? `${end}+${minute - end}'` : `${minute}'`
+    return minuteLabel(p, PERIODS[p].start + at - offsets[p])
   }
 
   const ticks: number[] = []

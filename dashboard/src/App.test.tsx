@@ -1,9 +1,9 @@
-import { render, screen, within } from '@testing-library/react'
+import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 import { FakeEventSource } from './test/fakeEventSource'
-import { matchInfo, playback } from './test/factories'
+import { alert, matchInfo, playback, reset, snapshot, status } from './test/factories'
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -11,6 +11,7 @@ const json = (body: unknown, status = 200) =>
 let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>
 
 beforeEach(() => {
+  FakeEventSource.instances = []
   vi.stubGlobal('EventSource', FakeEventSource)
   fetch = vi.fn<typeof globalThis.fetch>((url) => {
     switch (url) {
@@ -54,4 +55,24 @@ it('shows the error when the engine is down', async () => {
   fetch.mockImplementation(() => Promise.resolve(new Response('Bad Gateway', { status: 502 })))
   render(<App />)
   expect(await screen.findByRole('alert')).toHaveTextContent('engine unavailable')
+})
+
+it('shows the stream in the status bar, charts and alert feed', async () => {
+  render(<App />)
+  await screen.findByRole('combobox', { name: 'Match' })
+  const stream = FakeEventSource.instances[0]
+  expect(screen.getByRole('status')).toHaveTextContent('Connecting…')
+  act(() => {
+    stream.open()
+    stream.send('reset', reset())
+    stream.send('status', status({ state: 'live', period: 2, match_clock_s: 82 * 60 }))
+    stream.send('snapshot', snapshot(2, 82 * 60))
+    stream.send('alert', alert())
+  })
+  expect(screen.getByRole('status')).toHaveTextContent('Connected Live')
+  expect(screen.getByRole('banner')).toHaveTextContent("82' · 2nd half")
+  expect(screen.getAllByRole('figure')).toHaveLength(3)
+  expect(within(screen.getByRole('complementary', { name: 'Alerts' })).getByRole('listitem')).toHaveTextContent(
+    "82' · Control shiftFrance taking control",
+  )
 })

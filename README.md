@@ -96,6 +96,16 @@ The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1)
 - `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid;
 - `make webhook` in another terminal and `make engine ARGS="--webhook http://localhost:9000"`: each alert is also POSTed as JSON. `make webhook ARGS="--fail 2"` answers the first 2 requests with 503, so you can watch the engine retry.
 
+### Watching a match in the dashboard
+
+```sh
+make sim                                                            # terminal 1
+make engine                                                         # terminal 2
+make dashboard                                                      # terminal 3, then open http://localhost:5173
+```
+
+Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Seek to a minute to watch the engine catch up, or stop the engine and restart it: the dashboard reconnects by itself.
+
 ## Data attribution
 
 Match data comes from [StatsBomb Open Data](https://github.com/statsbomb/open-data) and is used under their non-commercial terms. Data files are downloaded locally and never committed.

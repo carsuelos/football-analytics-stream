@@ -19,9 +19,11 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 | `src/usePlayback.ts` | `usePlayback`: the match list and playback status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken |
 | `src/MatchPicker.tsx` | Chooses the match to load (named without its score) |
 | `src/PlaybackControls.tsx` | Play/pause, speed presets (1×, 10×, 30×, 60×) and seek to a minute within a period |
-| `src/timeline.ts` | The charts' time axis: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'") |
+| `src/timeline.ts` | The charts' time axis: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'"); `matchMinute` labels a single moment the same way |
 | `src/chartData.ts` | Snapshots for one window as chart points, home first; `matchTeams` takes home and away from the match list |
 | `src/MetricCharts.tsx` | Field tilt (stacked to 100%), xT added and pressure per team, with a 5'/10' window toggle, period starts and alerts marked |
+| `src/AlertFeed.tsx` | The match's alerts, latest in the match first, with their minute, type and team colour |
+| `src/StatusBar.tsx` | The stream's connection, the engine's state and the match clock; the last state stays on screen, dimmed, while reconnecting |
 | `src/ui.ts` | Shared Tailwind classes |
 | `src/index.css` | Tailwind CSS entry point and theme (team colours) |
 | `src/test/` | UI test setup (Testing Library matchers and cleanup) factories for API and stream messages, and a fake `EventSource` |

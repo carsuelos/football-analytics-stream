@@ -164,11 +164,12 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - REST endpoints for status, snapshots and alerts
   - typed passthrough to the simulator (match list, playback status, controls); its errors keep their `{"error": ...}` shape
   - one process: uvicorn serves the API and runs the run loop alongside it; Ctrl+C ends open streams cleanly
-- [ ] **Dashboard (lean):**
+- [x] **Dashboard (lean):**
   - match picker
   - playback controls
   - live charts: field tilt, xT, pressure (5' window by default, with a 10' toggle; alert markers)
   - alert feed
+  - status bar: connection, engine state, match clock
   - stack: Recharts, Tailwind CSS, and a `useMatchStream` hook (EventSource + a pure `useReducer` reducer)
   - talks only to the engine, through `/api` (a Vite proxy in development, so no CORS)
   - playback state comes from each control reply, a fetch on load, and a refetch when the engine's state changes
