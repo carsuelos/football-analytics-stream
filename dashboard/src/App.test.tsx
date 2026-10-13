@@ -17,6 +17,8 @@ beforeEach(() => {
     switch (url) {
       case '/api/matches':
         return json({ schema_version: 1, matches: [matchInfo()] })
+      case '/api/control':
+        return json(status({ state: 'paused' }))
       case '/api/broadcast':
         return init?.method === 'POST'
           ? json(broadcast({ state: 'paused' }))
@@ -35,18 +37,20 @@ afterEach(() => {
 it('renders the layout', () => {
   render(<App />)
   expect(screen.getByRole('heading', { name: 'Live Football Analytics' })).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Playback' })).toBeInTheDocument()
+  const controls = screen.getByRole('region', { name: 'Controls' })
+  expect(within(controls).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
+  expect(within(controls).getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
   expect(screen.getByRole('complementary', { name: 'Alerts' })).toBeInTheDocument()
 })
 
 it('loads a match through the engine, which enables the controls', async () => {
   render(<App />)
-  const playbackBar = screen.getByRole('region', { name: 'Playback' })
-  expect(within(playbackBar).getByRole('button', { name: 'Play' })).toBeDisabled()
+  const broadcastBar = screen.getByRole('group', { name: 'Broadcast' })
+  expect(within(broadcastBar).getByRole('button', { name: 'Play' })).toBeDisabled()
 
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Match' }), '3869685')
-  expect(await within(playbackBar).findByRole('button', { name: 'Play' })).toBeEnabled()
+  expect(await within(broadcastBar).findByRole('button', { name: 'Play' })).toBeEnabled()
   const [, init] = fetch.mock.calls.find(([url, init]) => url === '/api/broadcast' && init?.method === 'POST')!
   expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'load_match', match_id: 3869685 })
 })
@@ -75,4 +79,24 @@ it('shows the stream in the status bar, charts and alert feed', async () => {
   expect(within(screen.getByRole('complementary', { name: 'Alerts' })).getByRole('listitem')).toHaveTextContent(
     "82' · Control shiftFrance taking control",
   )
+})
+
+it('drives the viewer through the engine, which shows on the stream', async () => {
+  render(<App />)
+  const viewerBar = screen.getByRole('group', { name: 'Viewer' })
+  expect(within(viewerBar).getByRole('button', { name: 'Play' })).toBeDisabled()
+  const stream = FakeEventSource.instances[0]
+  const edge = { offset: 2000, period: 2, match_clock_s: 70 * 60, play_s: 70 * 60 }
+  act(() => {
+    stream.open()
+    stream.send('status', status({ state: 'live', live_edge: edge, behind_live_s: 0, speed: 1 }))
+  })
+  expect(viewerBar).toHaveTextContent('LIVE')
+
+  await userEvent.click(within(viewerBar).getByRole('button', { name: 'Pause' }))
+  const [, init] = fetch.mock.calls.find(([url]) => url === '/api/control')!
+  expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'pause' })
+  act(() => stream.send('status', status({ state: 'paused', live_edge: edge, behind_live_s: 65, speed: 1 })))
+  expect(viewerBar).toHaveTextContent('1:05 behind live')
+  expect(within(viewerBar).getByRole('button', { name: 'Go live' })).toBeEnabled()
 })

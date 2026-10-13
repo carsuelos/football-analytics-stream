@@ -31,6 +31,12 @@ function minuteLabel(period: number, clockMinutes: number) {
   return minute > end ? `${end}+${minute - end}'` : `${minute}'`
 }
 
+/** Seconds of play as minutes and seconds, e.g. "12:05". */
+export function duration(seconds: number) {
+  const s = Math.floor(seconds)
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`
+}
+
 export interface Position {
   /** 1-5, as the schema guarantees. */
   period: number

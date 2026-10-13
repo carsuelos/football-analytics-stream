@@ -113,7 +113,7 @@ make engine                                                         # terminal 2
 make dashboard                                                      # terminal 3, then open http://localhost:5173
 ```
 
-Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
+Choose a match, pick a speed (60× plays a half in under a minute) and press Play. That drives the broadcast. The viewer controls below it drive your view of it, as on a TV box: pause, rewind to any minute up to the live edge (the engine rebuilds the charts and alerts up to there), catch up at a faster speed, or jump back to live. The badge shows "LIVE" or how far behind it you are. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
 
 ### Running it all in Docker
 

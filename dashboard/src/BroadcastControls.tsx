@@ -1,4 +1,4 @@
-import type { Command } from './api'
+import type { BroadcastAction } from './api'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
 import { buttonClass } from './ui'
 
@@ -7,7 +7,7 @@ const SPEEDS = [1, 10, 30, 60]
 interface Props {
   status: BroadcastStatus | null
   disabled: boolean
-  onCommand: (command: Command) => void
+  onCommand: (command: BroadcastAction) => void
 }
 
 /**

@@ -232,7 +232,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - simulator: loads a match and publishes it once, at a broadcast speed; the feed serves any offset up to the live edge, and no longer seeks or resets
   - engine: a DVR over the source with pause, speed, seek up to the live edge, and "go live"; a seek replays from the DVR's in-memory copy and rebuilds without alerts; the status reports the live edge and how far behind it the viewer is
   - the smoke test rewatches the first match from P2 60:00 and checks the DVR rebuilds exactly what was built live
-- [ ] **Dashboard DVR controls:** how far behind live the viewer is, a "Go live" button, seeking bounded by the live edge, and the broadcast speed.
+- [x] **Dashboard DVR controls:** separate broadcast (simulator: play/pause, speed) and viewer (engine DVR) controls; the viewer's shows "LIVE" or how far behind it, play/pause, speed, a "Go live" button, and a seek to a period and minute bounded by the live edge.
 - [ ] **Kafka transport:**
   - Redpanda in Compose; confluent-kafka (librdkafka) clients in Go and Python, with no Redpanda-only features, so it moves to Azure Event Hubs with config changes
   - simulator producer: events and markers in an `events` topic keyed by `match_id`

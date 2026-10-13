@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getMatches, getBroadcast, sendCommand } from './api'
+import { ApiError, getMatches, getBroadcast, sendBroadcast } from './api'
 import type { EngineState } from './schema/engine_status.schema'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
 import { deferred, matchInfo, broadcast } from './test/factories'
@@ -10,7 +10,7 @@ vi.mock('./api', async (original) => ({
   ...(await original<typeof import('./api')>()),
   getMatches: vi.fn(),
   getBroadcast: vi.fn(),
-  sendCommand: vi.fn(),
+  sendBroadcast: vi.fn(),
 }))
 
 const MATCHES = { schema_version: 1 as const, matches: [matchInfo()] }
@@ -38,7 +38,7 @@ describe('useBroadcast', () => {
 
   it('takes the status from the command reply, and is pending meanwhile', async () => {
     const reply = deferred<BroadcastStatus>()
-    vi.mocked(sendCommand).mockReturnValue(reply.promise)
+    vi.mocked(sendBroadcast).mockReturnValue(reply.promise)
     const { result } = renderBroadcast()
     await waitFor(() => expect(result.current.status).not.toBeNull())
 
@@ -46,7 +46,7 @@ describe('useBroadcast', () => {
     act(() => {
       sent = result.current.send({ command: 'play' })
     })
-    expect(sendCommand).toHaveBeenCalledWith({ command: 'play' })
+    expect(sendBroadcast).toHaveBeenCalledWith({ command: 'play' })
     expect(result.current.pending).toBe(true)
 
     await act(async () => {
@@ -58,7 +58,7 @@ describe('useBroadcast', () => {
   })
 
   it('shows a failed command and keeps the last status, until the next success', async () => {
-    vi.mocked(sendCommand).mockRejectedValueOnce(new ApiError('no match loaded', 409))
+    vi.mocked(sendBroadcast).mockRejectedValueOnce(new ApiError('no match loaded', 409))
     const { result } = renderBroadcast()
     await waitFor(() => expect(result.current.status).not.toBeNull())
 
@@ -67,7 +67,7 @@ describe('useBroadcast', () => {
     expect(result.current.status).toEqual(broadcast())
     expect(result.current.pending).toBe(false)
 
-    vi.mocked(sendCommand).mockResolvedValueOnce(broadcast({ state: 'playing' }))
+    vi.mocked(sendBroadcast).mockResolvedValueOnce(broadcast({ state: 'playing' }))
     await act(() => result.current.send({ command: 'play' }))
     expect(result.current.error).toBeNull()
   })
@@ -101,7 +101,7 @@ describe('useBroadcast', () => {
   ])('ignores a %s that a later request has overtaken', async (_, settle) => {
     const slowFetch = deferred<BroadcastStatus>()
     vi.mocked(getBroadcast).mockReturnValue(slowFetch.promise)
-    vi.mocked(sendCommand).mockResolvedValue(broadcast({ state: 'playing' }))
+    vi.mocked(sendBroadcast).mockResolvedValue(broadcast({ state: 'playing' }))
     const { result } = renderBroadcast()
 
     await act(() => result.current.send({ command: 'play' }))

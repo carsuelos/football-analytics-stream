@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ApiError, getMatches, getBroadcast, sendCommand } from './api'
+import { ApiError, getBroadcast, getMatches, sendBroadcast, sendViewer } from './api'
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -29,12 +29,23 @@ describe('api', () => {
 
   it('posts a command as JSON, with the schema version', async () => {
     const fetch = stubFetch(json(BROADCAST))
-    expect(await sendCommand({ command: 'load_match', match_id: 3869685 })).toEqual(BROADCAST)
+    expect(await sendBroadcast({ command: 'load_match', match_id: 3869685 })).toEqual(BROADCAST)
     const [url, init] = fetch.mock.calls[0]
     expect(url).toBe('/api/broadcast')
     expect(init?.method).toBe('POST')
     expect(init?.headers).toEqual({ 'Content-Type': 'application/json' })
     expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'load_match', match_id: 3869685 })
+  })
+
+  it("posts a viewer command to the engine's DVR", async () => {
+    const engine = { schema_version: 1, state: 'paused', generation: 1, released: 0, buffered: 0, late_dropped: 0, duplicates: 0 }
+    const fetch = stubFetch(json(engine))
+    const seek_to = { period: 2, match_clock_s: 3600 }
+    expect(await sendViewer({ command: 'seek', seek_to })).toEqual(engine)
+    const [url, init] = fetch.mock.calls[0]
+    expect(url).toBe('/api/control')
+    expect(init?.method).toBe('POST')
+    expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'seek', seek_to })
   })
 
   it.each([

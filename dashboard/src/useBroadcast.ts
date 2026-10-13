@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getMatches, getBroadcast, sendCommand, type Command } from './api'
+import { getMatches, getBroadcast, sendBroadcast, type BroadcastAction } from './api'
 import type { EngineState } from './schema/engine_status.schema'
 import type { MatchInfo } from './schema/match_list.schema'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
@@ -12,7 +12,7 @@ export interface Broadcast {
   error: string | null
   /** Whether a command is in flight; controls are disabled meanwhile. */
   pending: boolean
-  send: (command: Command) => Promise<void>
+  send: (command: BroadcastAction) => Promise<void>
 }
 
 /**
@@ -62,10 +62,10 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
   }, [engineState, loaded])
 
   const send = useCallback(
-    async (command: Command) => {
+    async (command: BroadcastAction) => {
       setInFlight((n) => n + 1)
       try {
-        await track(sendCommand(command))
+        await track(sendBroadcast(command))
       } finally {
         setInFlight((n) => n - 1)
       }
