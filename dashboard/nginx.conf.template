@@ -1,0 +1,28 @@
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    # The engine's API, including the /api/stream server-sent events.
+    location /api/ {
+        proxy_pass ${ENGINE_URL};
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # Pass each event on as it comes, and keep a quiet stream open.
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 1h;
+    }
+
+    # Hashed build assets never change; index.html must always be fresh.
+    location /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+    }
+    location / {
+        add_header Cache-Control "no-cache";
+        try_files $uri /index.html;
+    }
+
+    gzip on;
+    gzip_types text/css application/javascript application/json image/svg+xml;
+}

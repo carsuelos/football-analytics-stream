@@ -9,7 +9,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard smoke evaluate webhook
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard smoke evaluate webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -86,3 +86,16 @@ dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine
 
 webhook: ## Run a webhook receiver on :9000 that prints the alerts it gets (for ARGS="--webhook http://localhost:9000")
 	uv run scripts/webhook_echo.py $(ARGS)
+
+up: ## Build and start the whole stack in Docker; the dashboard is on http://localhost:3000
+	docker compose up -d --build --wait
+
+down: ## Stop the Docker stack
+	docker compose down
+
+logs: ## Follow the Docker stack's logs
+	docker compose logs -f
+
+smoke-compose: ## Start the Docker stack with events up to 3s late and run the smoke test against it. Flags via ARGS="..."
+	SIM_JITTER=3s docker compose up -d --build --wait
+	uv run scripts/smoke_test.py --external http://localhost:$${DASHBOARD_PORT:-3000} $(ARGS)

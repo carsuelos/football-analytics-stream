@@ -1,0 +1,31 @@
+# The whole stack: `make up`, then open http://localhost:3000.
+# Needs `make fetch-data` first: match data and the xT grid are mounted from
+# ./data (they can't be redistributed, so they are never baked into images).
+name: football-analytics
+
+services:
+  simulator:
+    build: simulator
+    command: ["-jitter", "${SIM_JITTER:-0s}"]
+    volumes:
+      - ./data/statsbomb:/data/statsbomb:ro
+    ports:
+      - "${SIM_PORT:-8080}:8080"
+
+  engine:
+    build: engine
+    command: ["--simulator", "http://simulator:8080"]
+    volumes:
+      - ./data/xt:/data/xt:ro
+    ports:
+      - "${ENGINE_PORT:-8000}:8000"
+    depends_on:
+      - simulator
+
+  dashboard:
+    build: dashboard
+    ports:
+      - "${DASHBOARD_PORT:-3000}:8080"
+    depends_on:
+      engine:
+        condition: service_healthy
