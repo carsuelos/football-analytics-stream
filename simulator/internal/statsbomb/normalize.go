@@ -20,30 +20,36 @@ var periodStartMs = map[int]int64{
 }
 
 // eventTypes maps StatsBomb type names to ours. Anything else (Starting XI,
-// Tactical Shift, Injury Stoppage, Own Goal For/Against, ...) becomes "other".
+// Tactical Shift, Injury Stoppage, ...) becomes "other".
+//
+// StatsBomb records each own goal twice: "Own Goal Against" for the side that
+// put the ball into its own net (with the player), and "Own Goal For" for the
+// side it counts for. Only the first becomes own_goal, so each goal appears
+// once in the feed and its team is the side that acted, as for every event.
 var eventTypes = map[string]schema.MatchEventType{
-	"Pass":           schema.MatchEventTypePass,
-	"Carry":          schema.MatchEventTypeCarry,
-	"Shot":           schema.MatchEventTypeShot,
-	"Ball Receipt*":  schema.MatchEventTypeBallReceipt,
-	"Ball Recovery":  schema.MatchEventTypeBallRecovery,
-	"Interception":   schema.MatchEventTypeInterception,
-	"Duel":           schema.MatchEventTypeDuel,
-	"Dribble":        schema.MatchEventTypeDribble,
-	"Dribbled Past":  schema.MatchEventTypeDribbledPast,
-	"Clearance":      schema.MatchEventTypeClearance,
-	"Block":          schema.MatchEventTypeBlock,
-	"Pressure":       schema.MatchEventTypePressure,
-	"Foul Committed": schema.MatchEventTypeFoulCommitted,
-	"Foul Won":       schema.MatchEventTypeFoulWon,
-	"Miscontrol":     schema.MatchEventTypeMiscontrol,
-	"Dispossessed":   schema.MatchEventTypeDispossessed,
-	"Goal Keeper":    schema.MatchEventTypeGoalkeeper,
-	"50/50":          schema.MatchEventTypeFiftyFifty,
-	"Offside":        schema.MatchEventTypeOffside,
-	"Substitution":   schema.MatchEventTypeSubstitution,
-	"Half Start":     schema.MatchEventTypeHalfStart,
-	"Half End":       schema.MatchEventTypeHalfEnd,
+	"Pass":             schema.MatchEventTypePass,
+	"Carry":            schema.MatchEventTypeCarry,
+	"Shot":             schema.MatchEventTypeShot,
+	"Ball Receipt*":    schema.MatchEventTypeBallReceipt,
+	"Ball Recovery":    schema.MatchEventTypeBallRecovery,
+	"Interception":     schema.MatchEventTypeInterception,
+	"Duel":             schema.MatchEventTypeDuel,
+	"Dribble":          schema.MatchEventTypeDribble,
+	"Dribbled Past":    schema.MatchEventTypeDribbledPast,
+	"Clearance":        schema.MatchEventTypeClearance,
+	"Block":            schema.MatchEventTypeBlock,
+	"Pressure":         schema.MatchEventTypePressure,
+	"Foul Committed":   schema.MatchEventTypeFoulCommitted,
+	"Foul Won":         schema.MatchEventTypeFoulWon,
+	"Miscontrol":       schema.MatchEventTypeMiscontrol,
+	"Dispossessed":     schema.MatchEventTypeDispossessed,
+	"Goal Keeper":      schema.MatchEventTypeGoalkeeper,
+	"50/50":            schema.MatchEventTypeFiftyFifty,
+	"Offside":          schema.MatchEventTypeOffside,
+	"Substitution":     schema.MatchEventTypeSubstitution,
+	"Half Start":       schema.MatchEventTypeHalfStart,
+	"Half End":         schema.MatchEventTypeHalfEnd,
+	"Own Goal Against": schema.MatchEventTypeOwnGoal,
 }
 
 // contestOutcomes classifies outcomes of duels, dribbles, interceptions and

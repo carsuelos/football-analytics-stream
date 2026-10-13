@@ -1,7 +1,7 @@
 import pytest
 
 from engine.detectors import GoalThreat, GoalThreatConfig, Signal
-from engine.schema.event_schema import MatchEvent, ShotOutcome
+from engine.schema.event_schema import EventType, MatchEvent, ShotOutcome
 from tests.detector_specs import METRICS, build, progression, recoveries, shot, touch
 from tests.factories import AWAY, HOME, tick_after
 
@@ -59,6 +59,18 @@ def test_only_play_since_the_last_goal_in_the_window_counts() -> None:
     f = features(e)
     assert f[HOME.id] == {"pressure_index": 4.5, "xt_velocity": 0.0, "covered_s": 60.0}
     assert f[AWAY.id]["pressure_index"] == 0.0  # its goal is where the count starts
+
+
+def test_an_own_goal_also_starts_the_count_again() -> None:
+    own_goal = {"type": EventType.own_goal, "location": (5.0, 40.0)}
+    e = build(
+        touch(0),
+        recoveries(HOME, 10, 10),
+        (50, AWAY, own_goal),  # Away put it into their own net: a goal for Home
+        recoveries(HOME, 2, 60),
+        touch(110),
+    )
+    assert features(e)[HOME.id] == {"pressure_index": 2.0, "xt_velocity": 0.0, "covered_s": 60.0}
 
 
 def test_a_goal_before_the_window_does_not_matter() -> None:

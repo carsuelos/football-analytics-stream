@@ -16,6 +16,7 @@
     "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
     "type": {
       "title": "EventType",
+      "description": "What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.",
       "type": "string",
       "enum": [
         "pass",
@@ -40,6 +41,7 @@
         "substitution",
         "half_start",
         "half_end",
+        "own_goal",
         "other"
       ]
     },

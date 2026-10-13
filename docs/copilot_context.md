@@ -42,16 +42,19 @@ Decisions from planning sessions. The full roadmap and design rules are in [`PLA
 | Languages | Go for the stream simulator; Python for the analytics engine; TypeScript for the dashboard | Go for the whole live pipeline (more Go, slower MVP); all Python |
 | Infrastructure | Phased: in-memory (Phase 1) → Docker Compose with a broker (Phase 2) → Azure (Phase 4). Interfaces behave like a broker log from day one (stable IDs, offsets, safe-to-repeat processing, seek to offset). Redis only if justified (several engine instances or crash recovery) | Real broker and cache from day one; in-memory only |
 | Schema | JSON Schema in `schema/jsonschema/` as the single source of truth. Types generated for Python (pydantic), TS and Go. Shared fixtures are tested in every language; messages carry `schema_version` | Protobuf + `buf`; hand-written types |
-| Simulator → engine link | WebSocket, one JSON event per message, each with an `offset`; resume with `?from_offset=N`. Playback controls go over a separate HTTP API | SSE; gRPC streaming |
+| Simulator → engine link | WebSocket, one JSON event per message, each with an `offset`; resume with `?from_offset=N`. Playback controls go over a separate HTTP API. From Phase 2, Kafka is a second transport | SSE; gRPC streaming |
 | Data | StatsBomb open data replay, starting with the 2022 FIFA World Cup. The final (Argentina vs France) is the fixed end-to-end test match. A pluggable source adapter leaves room for a live provider later | Real live provider now |
 | Match concurrency | One match at a time in v1; all state, topics and APIs keyed by `match_id` | Several matches at once from the start |
 | Persistence | None in v1 (log sink only); add a database when needed | SQLite in v1; Postgres in Phase 2 |
 | Dashboard | React + Vite SPA over WS/SSE. Lean v1: match picker, controls, live charts, alert feed (pitch view later) | Svelte; FastAPI + HTMX; Streamlit/Dash |
 | Prediction | Rule-based first (thresholds, z-scores against the match baseline); trained, calibrated model in Phase 3 | Machine learning from the start; rules only |
 | xT | Start with Karun Singh's published 12×8 grid; compute our own in Phase 3 and compare | — |
-| Broker (Phase 2) | Redpanda locally through a standard Kafka client, so it moves to Azure Event Hubs with only config changes | Redis Streams |
+| Broker (Phase 2) | Redpanda locally through a standard Kafka client, so it moves to Azure Event Hubs with only config changes. confluent-kafka (librdkafka) in Go and Python. The WebSocket feed stays for runs without Docker | Redis Streams; franz-go + aiokafka; segmentio/kafka-go; Kafka only |
+| Playback (Phase 2) | The simulator is a broadcaster, like a live provider: it publishes each match once at a broadcast speed. Viewer controls (pause, speed, seek up to the live edge, go live) move to a DVR in the engine | Simulator keeps playback control and the broker is only a transport; seek that only shows a frozen state |
+| Alert delivery (Phase 2) | The engine publishes `metrics` and `alerts` topics. A Go notifier service consumes `alerts` and POSTs a webhook, at least once, dropping repeats by alert id | Publish only; defer publishing |
+| Own goals (Phase 2) | An `own_goal` event type, added before the broker work | Leave to Phase 3 |
 | Cloud | Azure (Visual Studio subscription credit). Container Apps for the simulator and engine; Static Web Apps for the dashboard; Event Hubs Standard (Kafka); Container Registry; Log Analytics + App Insights; Key Vault. GitHub Actions deploys via OIDC | AKS; App Service; a single VM with Docker Compose |
 | Infrastructure as code | Bicep; the costly resources can be torn down and recreated to save credit | Terraform |
 | Dashboard access | Shared password or Container Apps' built-in Microsoft account sign-in; playback controls are never public | Fully public |
 
-**Still open:** Azure region; which dashboard sign-in option; goal window X and alert thresholds (tuned in Phase 3); whether generated code is committed.
+**Still open:** Azure region; which dashboard sign-in option; goal window X and alert thresholds (tuned in Phase 3); whether the broadcaster keeps a pause for demos (PR 2 of Phase 2); how CI gets match data for the Compose smoke test.

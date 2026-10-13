@@ -57,6 +57,36 @@ Makefile       gen, dev, test, lint, run-all targets
 .github/workflows/ci.yml
 ```
 
+From Phase 2 there is also `notifier/` (a Go module: `alerts` topic → webhook), a Dockerfile in each service's directory, and `compose.yaml` at the root.
+
+## Architecture (Phase 2 target)
+
+```mermaid
+flowchart LR
+  SB[(StatsBomb open-data JSON)] --> SIM
+  subgraph SIM[Go simulator: broadcaster]
+    L[Loader + normalizer] --> B[Broadcaster<br/>load match, broadcast speed]
+    B --> WS[/WS /feed/]
+    B --> PROD[Kafka producer]
+  end
+  PROD --> TE[[events topic]]
+  TE --> ENG
+  WS -. runs without Docker .-> ENG
+  subgraph ENG[Python engine: viewer]
+    SRC[EventSource: Kafka or WebSocket<br/>subscribe from any offset] --> RB[Reorder buffer]
+    RB --> DVR[DVR playback clock<br/>pause, speed, seek up to live, go live]
+    DVR --> MD[Windows, metrics, detectors]
+    MD --> HUB[Match hub] --> API[FastAPI: SSE + REST]
+    MD --> PUB[Kafka sinks]
+  end
+  PUB --> TM[[metrics topic]]
+  PUB --> TA[[alerts topic]]
+  TA --> NOT[Go notifier<br/>webhook, at least once]
+  API -- SSE + REST --> UI[React dashboard<br/>nginx in Compose]
+  UI -- viewer controls --> API
+  API -- broadcaster controls --> SIM
+```
+
 ## Key design rules
 - **Match time, not wall-clock.** Windows, metrics and alerts are based on match time (period + game clock), so results are identical at any playback speed and after a seek.
 - **Canonical event schema.** The simulator converts StatsBomb events into a slim format: `id`, `match_id`, `offset`, `period`, `match_clock_s`, `type`, `team`, `player`, `location`, `end_location`, `outcome`, `possession_id`, plus `schema_version`. The JSON Schemas in `schema/jsonschema/` are the single source of truth.
@@ -69,16 +99,16 @@ Makefile       gen, dev, test, lint, run-all targets
   - Raw StatsBomb JSON never leaves the simulator, which keeps the boundary clean for a future live provider.
 - **Events behave like a broker log.**
   - Every event has a stable `id` and a per-match sequence `offset`.
-  - `EventSource` has one method, `subscribe(from_offset)`. Seeks need no method of their own: the feed sends a `reset` marker and replays from offset 0.
+  - `EventSource` has one method, `subscribe(from_offset)`. Seeks need no method of their own. In Phase 1 the feed sends a `reset` marker and replays from offset 0; from Phase 2 the engine subscribes again from offset 0 (a Kafka consumer seek, or a WebSocket reconnect with `?from_offset=0`).
   - Processing is safe to repeat: duplicates are dropped by `id`.
   - Everything is keyed by `match_id`, which becomes the broker partition key later.
   - The WebSocket feed sends one JSON event per message, and clients resume after a disconnect with `?from_offset=N`.
 - **Out-of-order safety.** The engine holds events in a small reorder buffer with a watermark, which sets how late (in match seconds) an event may arrive and still be accepted (`--allowed-lateness`, default 5s). Events behind the watermark are dropped and counted, not patched in. The simulator's `--jitter` mode shuffles events slightly to test this.
 - **Windows run on play time.** Periods are joined end to end (each starts where the previous one's last event was), so a 5-minute window runs smoothly across half-time. `--window-mode per_period` restarts windows at each kick-off instead. Penalty shootout events are left out of windows.
 - **Seek semantics.**
-  1. When playback seeks, the simulator sends a `reset` control message.
-  2. The engine discards its window state.
-  3. It then rebuilds that state by fast-replaying from offset 0 up to the target time.
+  - *Phase 1:* when playback seeks, the simulator sends a `reset` control message. The engine discards its window state, then rebuilds it by fast-replaying from offset 0 up to the target time.
+  - *From Phase 2:* the simulator is a broadcaster. Like a live provider, it publishes each match once, in order, and never seeks. The engine is the viewer, a DVR: to seek, it subscribes again from the match start, rebuilds up to the target time without sending alerts, and plays on from there. It can't seek past the live edge (what has been published so far).
+- **Only the DVR uses the wall clock** (from Phase 2). The engine's playback clock releases each event when playback reaches its match time, at the viewer's speed. Windows, metrics and detectors still see only match time.
 - **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without sending alerts for them.
 - **One match at a time in v1.** All state, topics and APIs are still keyed by `match_id`, so several matches can be supported later.
 - **No database in v1.** Alerts go to the log and, with `--webhook URL`, are POSTed as JSON. Storage is added only when there's a need.
@@ -184,15 +214,30 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - **Baseline: the heuristic alerts don't predict goals.** On the default 20 matches (47 goals), 294 alerts have a 10' lift of 0.7 (momentum 0.5, goal threat 0.6, control shift 1.0); 45% of goals had an alert for the scorer in the 10' before. A one-off run over all 64 World Cup matches gave 1.0–1.2. Control shifts are the most reactive: 10% fire within 5' after the team scored.
   - Phase 1 ships them as they are: they describe a change in the game, not a forecast. Making them predictive is the Phase 3 goal.
 
-### Phase 2: Containers and broker
-- [ ] Dockerfiles for all three services, plus Docker Compose.
-- [ ] Redpanda-based `EventSource` and publisher:
-  - uses a standard Kafka client with no Redpanda-only features, so it also works with Azure Event Hubs
-  - topics keyed by `match_id`
-  - seek works by rewinding the consumer offset
-- [ ] Publish metrics and alerts to the broker so several services can consume them.
-- [ ] CI builds the container images.
-- [ ] *(Only if justified)* Redis `StateStore`, for running several engine instances or recovering after a crash.
+### Phase 2: Containers, broker and DVR
+The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*), the broker joins as a second transport, and alerts get a service of their own.
+
+- [x] **Own goals in the schema:** an `own_goal` event type in all three languages; goal threat resets on it.
+- [ ] **Containers:**
+  - Dockerfiles for the simulator, engine and dashboard (nginx serves the build and proxies `/api`, with buffering off for SSE)
+  - Docker Compose, with `make up` and `make down`
+  - the smoke test can run against a running stack
+  - CI builds the images
+- [ ] **Broadcaster and DVR** (over WebSocket first):
+  - simulator: loads a match and publishes it once, at a broadcast speed; the feed serves any offset up to the live edge
+  - engine: a playback clock with pause, speed, seek up to the live edge, and "go live"; a seek subscribes again from the match start and rebuilds without alerts; the status reports the live edge
+- [ ] **Dashboard DVR controls:** how far behind live the viewer is, a "Go live" button, seeking bounded by the live edge, and the broadcast speed.
+- [ ] **Kafka transport:**
+  - Redpanda in Compose; confluent-kafka (librdkafka) clients in Go and Python, with no Redpanda-only features, so it moves to Azure Event Hubs with config changes
+  - simulator producer: events and markers in an `events` topic keyed by `match_id`
+  - engine `KafkaSource`, chosen with `--source kafka`; the WebSocket feed stays for quick runs without Docker
+  - the smoke test runs on both transports
+- [ ] **Metrics and alerts on the broker:**
+  - the engine publishes `metrics` and `alerts` topics, keyed by `match_id`
+  - a Go **notifier** service consumes `alerts` and POSTs each one to a webhook. It commits its offset only after delivery (at least once) and drops repeats by alert id, since a DVR viewer re-watching a stretch publishes its alerts again
+  - the engine's in-process webhook sink stays for runs without the broker
+- [ ] **Smoke test in CI** against Docker Compose.
+- Not planned: a Redis `StateStore`. The broker log is the recovery story (rewind and rebuild), and there is one engine. Revisit if several engine instances are needed.
 
 ### Phase 3: Modeling
 **Goal: alerts that predict goals.** Beat chance on matches the model wasn't trained on: a 10' lift clearly above 1 and a better Brier score than the base rate, measured by `make evaluate` over all 64 World Cup matches, with training data from other StatsBomb competitions (Phase 1 baseline: lift 0.7–1.2).
@@ -231,7 +276,6 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - Whether a more compact wire format is worth it on the broker (unlikely at this scale).
 
 ## Known gaps
-- **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
 - **Alerts can be lost.** The webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. That is fine for notifications; the broker (Phase 2) gives durable delivery.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.

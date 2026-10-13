@@ -33,8 +33,8 @@ class GoalThreatConfig:
 class GoalThreat:
     """Signals when a team's recent pressure and progression add up to danger.
 
-    Only play since the last goal in the window counts, by either team: a goal
-    is followed by a kick-off, and the danger that led to it is over.
+    Only play since the last goal in the window counts, by either team and
+    including own goals: a goal is followed by a kick-off, and the danger that led to it is over.
     Shots need no feature of their own, since the pressure index already
     counts them, weighted by xG. The score has no memory, so this detector
     keeps no state.
@@ -93,6 +93,8 @@ class GoalThreat:
 
 
 def _is_goal(e: MatchEvent) -> bool:
+    if e.type is EventType.own_goal:
+        return True
     return e.type is EventType.shot and e.shot is not None and e.shot.outcome is ShotOutcome.goal
 
 

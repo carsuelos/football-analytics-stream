@@ -9,6 +9,10 @@ from . import common_schema
 
 
 class EventType(StrEnum):
+    """
+    What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.
+    """
+
     pass_ = "pass"
     carry = "carry"
     shot = "shot"
@@ -31,6 +35,7 @@ class EventType(StrEnum):
     substitution = "substitution"
     half_start = "half_start"
     half_end = "half_end"
+    own_goal = "own_goal"
     other = "other"
 
 
@@ -86,7 +91,13 @@ class MatchEvent(BaseModel):
             ge=0.0,
         ),
     ]
-    type: Annotated[EventType, Field(title="EventType")]
+    type: Annotated[
+        EventType,
+        Field(
+            description="What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.",
+            title="EventType",
+        ),
+    ]
     team: common_schema.Team
     possession_id: Annotated[
         int, Field(description="Possession sequence number within the match.", ge=0)
