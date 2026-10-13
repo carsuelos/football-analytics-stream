@@ -12,6 +12,22 @@ export default defineConfig({
   server: {
     proxy: { '/api': engineUrl },
   },
+  // Libraries go in their own chunks: they change less often than the app,
+  // so browsers keep them cached across deploys. React is split from the rest
+  // (Recharts and its d3/redux dependencies) so each stays under Vite's 500 KB
+  // warning. Groups are matched in order.
+  build: {
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            { name: 'react', test: /node_modules[\\/](react|react-dom|scheduler)[\\/]/ },
+            { name: 'vendor', test: /node_modules/ },
+          ],
+        },
+      },
+    },
+  },
   test: {
     projects: [
       {

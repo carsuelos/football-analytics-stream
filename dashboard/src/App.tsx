@@ -1,4 +1,7 @@
+import { useMemo } from 'react'
+import { matchTeams } from './chartData'
 import { MatchPicker } from './MatchPicker'
+import { MetricCharts } from './MetricCharts'
 import { PlaybackControls } from './PlaybackControls'
 import { useMatchStream } from './useMatchStream'
 import { usePlayback } from './usePlayback'
@@ -6,6 +9,7 @@ import { usePlayback } from './usePlayback'
 export default function App() {
   const match = useMatchStream()
   const playback = usePlayback(match.status?.state)
+  const teams = useMemo(() => matchTeams(match.status, playback.matches), [match.status, playback.matches])
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4">
@@ -27,7 +31,13 @@ export default function App() {
         )}
       </section>
       <main className="grid flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
-        <section aria-label="Charts" className="rounded-lg bg-slate-900 p-4" />
+        <section aria-label="Charts" className="rounded-lg bg-slate-900 p-4">
+          <MetricCharts
+            teams={teams}
+            snapshots={match.snapshots}
+            alerts={match.alerts}
+          />
+        </section>
         <aside aria-label="Alerts" className="rounded-lg bg-slate-900 p-4" />
       </main>
     </div>

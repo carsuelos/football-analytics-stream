@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import type { Command } from './api'
 import type { PlaybackStatus } from './schema/status.schema'
+import { buttonClass } from './ui'
 
 const SPEEDS = [1, 10, 30, 60]
 
@@ -11,9 +12,6 @@ const PERIODS = [
   { period: 3, label: 'Extra time, 1st half', start: 90 },
   { period: 4, label: 'Extra time, 2nd half', start: 105 },
 ]
-
-const button =
-  'rounded-md bg-slate-800 px-3 py-1.5 text-sm hover:bg-slate-700 disabled:opacity-50 disabled:hover:bg-slate-800 aria-pressed:bg-sky-700'
 
 interface Props {
   status: PlaybackStatus | null
@@ -30,7 +28,7 @@ export function PlaybackControls({ status, disabled, onCommand }: Props) {
     <div className="flex flex-wrap items-center gap-3">
       <button
         type="button"
-        className={button}
+        className={buttonClass}
         disabled={off || status?.state === 'ended'}
         onClick={() => onCommand({ command: playing ? 'pause' : 'play' })}
       >
@@ -41,7 +39,7 @@ export function PlaybackControls({ status, disabled, onCommand }: Props) {
           <button
             key={speed}
             type="button"
-            className={button}
+            className={buttonClass}
             aria-pressed={status?.speed === speed}
             disabled={off}
             onClick={() => onCommand({ command: 'set_speed', speed })}
@@ -105,7 +103,7 @@ function SeekForm({ disabled, onSeek }: SeekProps) {
         onChange={(e) => setMinute(e.target.value)}
         className="w-16 rounded-md bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
       />
-      <button type="submit" className={button} disabled={disabled}>
+      <button type="submit" className={buttonClass} disabled={disabled}>
         Go
       </button>
     </form>
