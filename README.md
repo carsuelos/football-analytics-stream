@@ -38,7 +38,7 @@ make test                                     # all tests, including schema cont
 | `make lint` | gofmt, go vet, ruff, mypy, oxlint, tsc |
 | `make test` | go test, pytest, vitest |
 | `make fmt` | Auto-format Go and Python |
-| `make ci` | Everything CI runs |
+| `make ci` | What CI runs, except the Compose smoke test (`make smoke-compose`) |
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
@@ -150,7 +150,7 @@ The **notifier** (`notifier/`, Go) consumes `alerts` as the `notifier` consumer 
 
 - `make smoke ARGS="--sample"`: the final and 10 random other matches, on the same processes, so switching matches is tested too. A failing sample is reproduced with the `--seed` it printed.
 - `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
-- `make smoke-compose`: the same checks against the Docker stack (so over Kafka), started with events up to 3 s late, through the dashboard's proxy, plus a check that the notifier delivered every alert to the `webhook` service exactly once, as the engine raised it (rewatch included). Its logs are not checked (see `make logs`).
+- `make smoke-compose`: the same checks against the Docker stack (so over Kafka), started with events up to 3 s late, through the dashboard's proxy, plus a check that the notifier delivered every alert to the `webhook` service exactly once, as the engine raised it (rewatch included). Its logs are not checked (see `make logs`). CI runs this on every push, with the final's data.
 
 A failure prints what went wrong and where the processes' logs are.
 
