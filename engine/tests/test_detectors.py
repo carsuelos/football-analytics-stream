@@ -102,7 +102,7 @@ def test_a_seek_starts_the_detectors_over_and_gives_the_same_alerts() -> None:
     d = Detectors([fake])
     run(d, start(), *events(e[:25]), pipeline=p)
     assert fake.resets == 1
-    seek = feed_marker(K.reset, 20, clock_s=600)  # back to 10:00, replaying from 0
+    seek = feed_marker(K.match_start, 0, head=20)  # back to 10:00, replaying from 0
     after_seek = run(d, seek, *events(e), pipeline=p)
     assert fake.resets == 2
     assert after_seek == live

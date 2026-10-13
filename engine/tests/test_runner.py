@@ -74,7 +74,7 @@ def test_status_report_has_no_metrics_until_both_teams_appear() -> None:
 
 def test_status_report_shows_rebuilding_after_a_seek() -> None:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    for msg in (*MSGS[:4], feed_marker(K.reset, 3), MSGS[1]):
+    for msg in (*MSGS[:4], feed_marker(K.match_start, 0, head=3), MSGS[1]):
         p.handle(msg)
     assert status_report(p).endswith("| rebuilding to offset 3")
 
@@ -141,11 +141,11 @@ def brief(u: Update) -> tuple[object, int]:
             return "Alert", u.offset
 
 
-async def test_run_gives_the_hub_each_match_from_its_reset() -> None:
+async def test_run_gives_the_hub_each_match_from_its_start() -> None:
     hub = MatchHub()
     sub = hub.subscribe()
     await anext(sub)
-    seek = feed_marker(K.reset, 2, clock_s=70)
+    seek = feed_marker(K.match_start, 0, head=2)  # the DVR seeking back to 01:10
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     await run(
         ListSource(*MSGS[:4], seek, *MSGS[1:]),

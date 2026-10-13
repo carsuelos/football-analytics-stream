@@ -41,15 +41,15 @@ def test_events_come_out_in_order_once_the_watermark_passes() -> None:
     assert p.clock.play_s == 10
 
 
-def test_reset_rebuilds_the_same_state_from_the_replay() -> None:
+def test_starting_over_rebuilds_the_same_state_from_the_replay() -> None:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     e = match([(1, 0), (1, 60), (1, 400), (1, 500)])
     feed(p, start(), *map(feed_event, e))
     before = window(p)
     assert before == [e[2].id, e[3].id]
 
-    # Seek back to 01:00: the feed sends reset, then replays offsets 0-1.
-    feed(p, feed_marker(K.reset, 2, clock_s=60))
+    # The DVR seeks back to 01:00: it starts over, then replays offsets 0-1.
+    feed(p, feed_marker(K.match_start, 0, head=2))
     assert p.windows is not None
     assert p.windows.now is None
     assert p.rebuilding
@@ -121,13 +121,13 @@ def test_team_ids_once_both_teams_have_appeared_in_order() -> None:
     assert p.teams[AWAY.id] == AWAY
 
 
-def test_teams_are_forgotten_on_reset() -> None:
+def test_teams_are_forgotten_on_starting_over() -> None:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     feed(
         p, start(), feed_event(event(1, 0, offset=0)), feed_event(event(1, 1, offset=1, team=AWAY))
     )
     assert p.team_ids is not None
-    feed(p, feed_marker(K.reset, 2))
+    feed(p, feed_marker(K.match_start, 0, head=2))
     assert p.team_ids is None and p.teams == {}
 
 
@@ -155,18 +155,21 @@ def test_a_reconnect_keeps_the_state_and_marks_missed_events_as_catch_up() -> No
 def test_a_reconnect_during_a_replay_keeps_replaying_to_the_head() -> None:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     e = match([(1, 0), (1, 10), (1, 20)])
-    feed(p, start(), *map(feed_event, e), feed_marker(K.reset, 3), feed_event(e[0]))
+    restart = feed_marker(K.match_start, 0, head=3)
+    feed(p, start(), *map(feed_event, e), restart, feed_event(e[0]))
     feed(p, feed_marker(K.match_start, 1, head=3))
     assert window(p) == [e[0].id]
     released = [i for x in e[1:] for i in p.handle(feed_event(x))]
     assert [p.is_replay(i) for i in released] == [True, True]
 
 
-def test_the_head_on_a_reconnect_wins_over_an_older_seek_target() -> None:
-    # Someone seeked back to offset 2 while we were away: offset 2 on is live play.
+def test_the_head_on_a_resume_wins_over_an_older_one() -> None:
+    # The viewer seeked back to offset 3, then forward to offset 2 during the
+    # replay: offset 2 on is played, not replayed.
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     e = match([(1, 0), (1, 10), (1, 20)])
-    feed(p, start(), *map(feed_event, e), feed_marker(K.reset, 3), feed_event(e[0]))
+    restart = feed_marker(K.match_start, 0, head=3)
+    feed(p, start(), *map(feed_event, e), restart, feed_event(e[0]))
     feed(p, feed_marker(K.match_start, 1, head=2))
     released = [i for x in e[1:] for i in p.handle(feed_event(x))]
     assert [p.is_replay(i) for i in released] == [True, False]
@@ -188,5 +191,5 @@ def test_the_generation_goes_up_each_time_the_pipeline_starts_over() -> None:
     assert p.generation == 1
     feed(p, feed_marker(K.match_start, 2, head=2))  # a reconnect
     assert p.generation == 1
-    feed(p, feed_marker(K.reset, 1))
+    feed(p, feed_marker(K.match_start, 0, head=1))  # the DVR seeks back
     assert p.generation == 2

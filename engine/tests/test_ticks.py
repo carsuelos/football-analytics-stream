@@ -90,7 +90,7 @@ def test_ticks_start_over_with_the_match() -> None:
     e = match(*((1, float(s)) for s in range(0, 100, 30)))
     t, p = Ticker(METRICS), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     first = ticks(start(), *map(feed_event, e), ticker=t, pipeline=p)
-    seek = feed_marker(K.reset, 2, clock_s=60)
+    seek = feed_marker(K.match_start, 0, head=2)
     again = ticks(seek, *map(feed_event, e), ticker=t, pipeline=p)
     assert at(again) == at(first) == [(1, 30), (1, 60), (1, 90)]
     # The seek lands on offset 2, so the tick at offset 1 is the only replay.

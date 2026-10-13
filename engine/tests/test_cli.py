@@ -101,6 +101,21 @@ async def test_the_engine_serves_the_match_its_run_loop_builds() -> None:
     assert stops == [None]
 
 
+async def test_viewer_controls_drive_the_engines_dvr() -> None:
+    stops: list[BaseException | None] = []
+    source = ListSource(*MSGS[:2], pause_s=0.2)
+    async with (
+        serving(engine_server(source, stops)) as url,
+        httpx.AsyncClient(base_url=url) as c,
+    ):
+        pause = {"schema_version": 1, "command": "pause"}
+        assert (await c.post("/api/control", json=pause)).status_code == 409  # no match yet
+        await until(lambda: stops)
+        r = await c.post("/api/control", json=pause)
+        assert (r.status_code, r.json()["state"]) == (200, EngineState.paused)
+        assert (await c.get("/api/status")).json()["state"] == EngineState.paused
+
+
 async def test_a_failing_run_loop_stops_the_engine(caplog: pytest.LogCaptureFixture) -> None:
     stops: list[BaseException | None] = []
     async with serving(engine_server(Failing(), stops)):

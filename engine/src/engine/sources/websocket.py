@@ -107,9 +107,6 @@ def _advance(msg: FeedMessage, match_id: int | None, next_offset: int) -> tuple[
         case FeedMessageKind.match_start | FeedMessageKind.match_end:
             marker = _marker(msg)
             return marker.match_id, marker.offset
-        case FeedMessageKind.reset:
-            # A replay from offset 0 follows.
-            return _marker(msg).match_id, 0
 
 
 def _marker(msg: FeedMessage) -> FeedMarker:

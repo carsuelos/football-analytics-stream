@@ -150,30 +150,22 @@ async def test_resumes_where_it_left_off(how: Literal["close", "drop"]) -> None:
     assert sleeps.delays == [0.5]
 
 
-async def test_resumes_inside_a_replay_after_reset() -> None:
+async def test_passes_on_the_match_from_kick_off_when_it_was_reloaded_while_away() -> None:
     feed = FakeFeed(
-        Connection(
-            [start(0), *map(feed_event, E[:3]), feed_marker(K.reset, 3), feed_event(E[0])],
-            then="drop",
-        ),
+        Connection([start(0), *map(feed_event, E[:3])], then="drop"),
+        # We are past the new broadcast's head, so it starts us from offset 0.
+        Connection([start(0), feed_event(E[0])], then="drop"),
         Connection([start(1), feed_event(E[1])]),
     )
     async with running(feed) as url:
         msgs = await take(WebSocketSource(url, sleep=Sleeps()), 8)
-    assert [m.kind for m in msgs][-4:] == [K.reset, K.event, K.match_start, K.event]
-    assert summary(msgs)[-3:] == [("event", 1, 0), ("match_start", 1, 1), ("event", 1, 1)]
-    assert feed.from_offsets == [0, 1]
-
-
-async def test_resumes_from_zero_when_dropped_right_after_reset() -> None:
-    feed = FakeFeed(
-        Connection([start(0), *map(feed_event, E[:3]), feed_marker(K.reset, 3)], then="drop"),
-        Connection([start(0), feed_event(E[0])]),
-    )
-    async with running(feed) as url:
-        msgs = await take(WebSocketSource(url, sleep=Sleeps()), 7)
-    assert summary(msgs)[-3:] == [("reset", 1, 3), ("match_start", 1, 0), ("event", 1, 0)]
-    assert feed.from_offsets == [0, 0]
+    assert summary(msgs)[-4:] == [
+        ("match_start", 1, 0),
+        ("event", 1, 0),
+        ("match_start", 1, 1),
+        ("event", 1, 1),
+    ]
+    assert feed.from_offsets == [0, 3, 1]
 
 
 async def test_starts_over_when_another_match_was_loaded_while_away() -> None:

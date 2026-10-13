@@ -12,12 +12,15 @@ from pydantic import BaseModel
 
 from engine.api import create_app
 from engine.cli import server
+from engine.dvr import InvalidCommandError, NoMatchError
 from engine.hub import MatchHub
+from engine.schema.engine_status_schema import EngineStatus
+from engine.schema.viewer_command_schema import ViewerCommand
 from tests.factories import alert
 from tests.test_hub import reset, snap, status, take
 from tests.test_schema_contract import FIXTURES_DIR, _validator
 
-PLAYBACK = json.loads((FIXTURES_DIR / "valid/status/playing.json").read_text())
+BROADCAST = json.loads((FIXTURES_DIR / "valid/broadcast_status/playing.json").read_text())
 MATCHES = json.loads((FIXTURES_DIR / "valid/match_list/one_match.json").read_text())
 PLAY = {"schema_version": 1, "command": "play"}
 
@@ -31,7 +34,7 @@ class FakeSimulator:
 
     def __init__(self) -> None:
         self.requests: list[httpx.Request] = []
-        self.reply: tuple[int, Any] | Exception = (200, PLAYBACK)
+        self.reply: tuple[int, Any] | Exception = (200, BROADCAST)
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.requests.append(request)
@@ -48,16 +51,35 @@ def sim() -> FakeSimulator:
     return FakeSimulator()
 
 
+class FakeControl:
+    """Records viewer commands, and answers with status or raises error."""
+
+    def __init__(self) -> None:
+        self.commands: list[ViewerCommand] = []
+        self.error: Exception | None = None
+
+    def __call__(self, cmd: ViewerCommand) -> EngineStatus:
+        self.commands.append(cmd)
+        if self.error:
+            raise self.error
+        return status(7)
+
+
+@pytest.fixture
+def ctl() -> FakeControl:
+    return FakeControl()
+
+
 @pytest.fixture
 def hub() -> MatchHub:
     return MatchHub()
 
 
 @pytest.fixture
-async def app(hub: MatchHub, sim: FakeSimulator) -> AsyncIterator[FastAPI]:
+async def app(hub: MatchHub, sim: FakeSimulator, ctl: FakeControl) -> AsyncIterator[FastAPI]:
     transport = httpx.MockTransport(sim.handle)
     async with httpx.AsyncClient(transport=transport, base_url="http://simulator") as simulator:
-        yield create_app(hub, simulator)
+        yield create_app(hub, simulator, control=ctl)
 
 
 @pytest.fixture
@@ -94,7 +116,7 @@ async def test_metrics_and_alerts_are_the_match_so_far(
 
 @pytest.mark.parametrize(
     ("path", "simulator_path", "reply"),
-    [("/api/matches", "/matches", MATCHES), ("/api/playback", "/status", PLAYBACK)],
+    [("/api/matches", "/matches", MATCHES), ("/api/broadcast", "/status", BROADCAST)],
 )
 async def test_gets_pass_through_to_the_simulator(
     client: httpx.AsyncClient, sim: FakeSimulator, path: str, simulator_path: str, reply: Any
@@ -111,30 +133,70 @@ async def test_gets_pass_through_to_the_simulator(
     [
         PLAY,
         {"schema_version": 1, "command": "load_match", "match_id": 3869685},
-        {"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4800}},
+        {"schema_version": 1, "command": "set_speed", "speed": 60},
     ],
 )
-async def test_control_passes_the_command_through_and_returns_the_playback_status(
+async def test_broadcast_commands_pass_through_and_return_the_broadcast_status(
     client: httpx.AsyncClient, sim: FakeSimulator, command: dict[str, Any]
 ) -> None:
-    r = await client.post("/api/control", json=command)
-    assert (r.status_code, r.json()) == (200, PLAYBACK)
+    r = await client.post("/api/broadcast", json=command)
+    assert (r.status_code, r.json()) == (200, BROADCAST)
     [req] = sim.requests
     assert (req.method, req.url.path) == ("POST", "/control")
     assert req.headers["content-type"] == "application/json"
     assert json.loads(req.content) == command
 
 
-async def test_an_invalid_command_never_reaches_the_simulator(
-    client: httpx.AsyncClient, sim: FakeSimulator
+@pytest.mark.parametrize("path", ["/api/broadcast", "/api/control"])
+async def test_an_invalid_command_goes_nowhere(
+    client: httpx.AsyncClient, sim: FakeSimulator, ctl: FakeControl, path: str
 ) -> None:
-    r = await client.post("/api/control", json={"schema_version": 1, "command": "dance"})
+    r = await client.post(path, json={"schema_version": 1, "command": "dance"})
     assert r.status_code == 400
-    assert r.json()["error"].startswith("invalid request: command: Input should be 'load_match'")
-    r = await client.post("/api/control", content=b"not json")
+    assert r.json()["error"].startswith("invalid request: command: Input should be ")
+    r = await client.post(path, content=b"not json")
     assert r.status_code == 400
     assert r.json()["error"].startswith("invalid request: ")
     assert sim.requests == []
+    assert ctl.commands == []
+
+
+async def test_seek_is_a_viewer_command_not_a_broadcast_one(
+    client: httpx.AsyncClient, sim: FakeSimulator
+) -> None:
+    seek = {"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 60}}
+    r = await client.post("/api/broadcast", json=seek)
+    assert r.status_code == 400
+    assert sim.requests == []
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        PLAY,
+        {"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4800}},
+        {"schema_version": 1, "command": "go_live"},
+    ],
+)
+async def test_viewer_commands_go_to_the_dvr_and_return_the_engine_status(
+    client: httpx.AsyncClient, sim: FakeSimulator, ctl: FakeControl, command: dict[str, Any]
+) -> None:
+    r = await client.post("/api/control", json=command)
+    assert (r.status_code, r.json()) == (200, dump(status(7)))
+    assert [dump(c) for c in ctl.commands] == [command]
+    assert sim.requests == []
+
+
+@pytest.mark.parametrize(
+    ("error", "code"),
+    [(InvalidCommandError("speed too high"), 400), (NoMatchError("no match has started"), 409)],
+)
+async def test_viewer_command_errors(
+    client: httpx.AsyncClient, ctl: FakeControl, error: Exception, code: int
+) -> None:
+    ctl.error = error
+    r = await client.post("/api/control", json=PLAY)
+    assert (r.status_code, r.json()) == (code, {"error": str(error)})
 
 
 @pytest.mark.parametrize(
@@ -145,7 +207,7 @@ async def test_simulator_errors_pass_through_and_its_failures_are_bad_gateway(
     client: httpx.AsyncClient, sim: FakeSimulator, simulator_code: int, code: int
 ) -> None:
     sim.reply = (simulator_code, {"error": "no match loaded"})
-    r = await client.post("/api/control", json=PLAY)
+    r = await client.post("/api/broadcast", json=PLAY)
     assert (r.status_code, r.json()) == (code, {"error": "no match loaded"})
 
 
@@ -157,7 +219,7 @@ async def test_an_unreachable_simulator_is_bad_gateway(
     client: httpx.AsyncClient, sim: FakeSimulator, failure: Exception
 ) -> None:
     sim.reply = failure
-    r = await client.get("/api/playback")
+    r = await client.get("/api/broadcast")
     assert (r.status_code, r.json()) == (502, {"error": "simulator unavailable"})
 
 
@@ -173,7 +235,7 @@ async def test_an_invalid_reply_from_the_simulator_is_bad_gateway(
     client: httpx.AsyncClient, sim: FakeSimulator, reply: tuple[int, Any]
 ) -> None:
     sim.reply = reply
-    r = await client.get("/api/playback")
+    r = await client.get("/api/broadcast")
     assert (r.status_code, r.json()) == (502, {"error": "invalid reply from simulator"})
 
 
@@ -292,12 +354,17 @@ async def test_the_stream_ends_when_the_client_falls_too_far_behind(
 def test_the_api_is_documented(app: FastAPI) -> None:
     paths = app.openapi()["paths"]
     assert sorted(paths) == [
-        "/api/alerts", "/api/control", "/api/matches", "/api/metrics",
-        "/api/playback", "/api/status", "/api/stream",
+        "/api/alerts", "/api/broadcast", "/api/control", "/api/matches", "/api/metrics",
+        "/api/status", "/api/stream",
     ]  # fmt: skip
+    broadcast = paths["/api/broadcast"]["post"]
+    assert broadcast["requestBody"]["content"]["application/json"]["schema"] == {
+        "$ref": "#/components/schemas/BroadcastCommand"
+    }
+    assert "502" in broadcast["responses"]
     control = paths["/api/control"]["post"]
     assert control["requestBody"]["content"]["application/json"]["schema"] == {
-        "$ref": "#/components/schemas/PlaybackCommand"
+        "$ref": "#/components/schemas/ViewerCommand"
     }
-    assert "502" in control["responses"]
+    assert {"400", "409"} <= set(control["responses"])
     assert "text/event-stream" in paths["/api/stream"]["get"]["responses"]["200"]["content"]

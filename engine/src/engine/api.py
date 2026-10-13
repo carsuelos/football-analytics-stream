@@ -1,12 +1,14 @@
-"""The HTTP API: the match stream for the dashboard, and playback passthrough.
+"""The HTTP API: the match stream and viewer controls for the dashboard, and
+broadcast controls passed through to the simulator.
 
-GET  /api/stream    the match as server-sent events (see stream below)
-GET  /api/status    where the engine is in the match
-GET  /api/metrics   the match's metric snapshots so far
-GET  /api/alerts    the match's alerts so far
-GET  /api/matches   the simulator's matches
-GET  /api/playback  the simulator's playback status
-POST /api/control   send the simulator a playback command
+GET  /api/stream     the match as server-sent events (see stream below)
+GET  /api/status     where the engine is in the match
+GET  /api/metrics    the match's metric snapshots so far
+GET  /api/alerts     the match's alerts so far
+POST /api/control    a viewer command for the engine's DVR: play, pause, seek...
+GET  /api/matches    the simulator's matches
+GET  /api/broadcast  the simulator's broadcast status
+POST /api/broadcast  send the simulator a broadcast command
 
 Every error has the simulator's shape: {"error": "..."}.
 """
@@ -24,14 +26,16 @@ from fastapi.sse import EventSourceResponse, ServerSentEvent
 from pydantic import BaseModel, ValidationError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from engine.dvr import InvalidCommandError, NoMatchError
 from engine.hub import MatchHub, Update
 from engine.schema.alert_schema import Alert
-from engine.schema.command_schema import PlaybackCommand
+from engine.schema.broadcast_command_schema import BroadcastCommand
+from engine.schema.broadcast_status_schema import BroadcastStatus
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
-from engine.schema.status_schema import PlaybackStatus
+from engine.schema.viewer_command_schema import ViewerCommand
 
 log = logging.getLogger(__name__)
 
@@ -65,19 +69,30 @@ def event_name(update: Update) -> str:
             assert_never(update)
 
 
+CONTROL_ERRORS: dict[int | str, dict[str, Any]] = {
+    400: {"model": ApiError, "description": "Invalid command"},
+    409: {"model": ApiError, "description": "No match has started"},
+}
+
+
 def create_app(
     hub: MatchHub,
     simulator: httpx.AsyncClient,
     *,
+    control: Callable[[ViewerCommand], EngineStatus],
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
 ) -> FastAPI:
     """The API over hub. simulator is a client whose base_url is the simulator's.
+
+    control applies a viewer command and returns the engine's status; it may
+    raise InvalidCommandError or NoMatchError. It is called on the event loop.
 
     lifespan, if given, runs around the app's life (e.g. the engine's run loop).
     """
     app = FastAPI(
         title="Football analytics engine",
-        description="Live match metrics and alerts, and playback passthrough to the simulator.",
+        description="Live match metrics and alerts with DVR controls, "
+        "and broadcast controls passed through to the simulator.",
         lifespan=lifespan,
     )
 
@@ -159,12 +174,22 @@ def create_app(
     async def matches() -> MatchList:
         return await call_simulator(MatchList, "GET", "/matches")
 
-    @app.get("/api/playback", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
-    async def playback() -> PlaybackStatus:
-        return await call_simulator(PlaybackStatus, "GET", "/status")
+    @app.get("/api/broadcast", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
+    async def broadcast() -> BroadcastStatus:
+        return await call_simulator(BroadcastStatus, "GET", "/status")
 
-    @app.post("/api/control", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
-    async def control(command: PlaybackCommand) -> PlaybackStatus:
-        return await call_simulator(PlaybackStatus, "POST", "/control", command)
+    @app.post("/api/broadcast", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
+    async def broadcast_command(command: BroadcastCommand) -> BroadcastStatus:
+        return await call_simulator(BroadcastStatus, "POST", "/control", command)
+
+    # async, so control runs on the event loop with the DVR, not in a thread.
+    @app.post("/api/control", response_model_exclude_none=True, responses=CONTROL_ERRORS)
+    async def viewer_command(command: ViewerCommand) -> EngineStatus:
+        try:
+            return control(command)
+        except InvalidCommandError as e:
+            raise HTTPException(400, str(e)) from e
+        except NoMatchError as e:
+            raise HTTPException(409, str(e)) from e
 
     return app
