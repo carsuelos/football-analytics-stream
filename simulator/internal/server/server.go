@@ -2,8 +2,8 @@
 //
 //	GET  /healthz                 liveness probe
 //	GET  /matches                 MatchList of matches available to replay
-//	GET  /status                  current PlaybackStatus
-//	POST /control                 apply a PlaybackCommand, returns PlaybackStatus
+//	GET  /status                  current BroadcastStatus
+//	POST /control                 apply a BroadcastCommand, returns BroadcastStatus
 //	GET  /feed?from_offset=N      WebSocket stream of FeedMessages, one per message
 //
 // Errors are returned as {"error": "..."} with a matching status code.
@@ -22,8 +22,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
-	"github.com/carsuelos/football-analytics-stream/simulator/internal/playback"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
 
@@ -35,14 +35,14 @@ const (
 )
 
 type Server struct {
-	player  *playback.Player
-	catalog match.Catalog
-	log     *slog.Logger
-	feeds   sync.WaitGroup // open /feed connections
+	broadcaster *broadcast.Broadcaster
+	catalog     match.Catalog
+	log         *slog.Logger
+	feeds       sync.WaitGroup // open /feed connections
 }
 
-func New(player *playback.Player, catalog match.Catalog, log *slog.Logger) *Server {
-	return &Server{player: player, catalog: catalog, log: log}
+func New(broadcaster *broadcast.Broadcaster, catalog match.Catalog, log *slog.Logger) *Server {
+	return &Server{broadcaster: broadcaster, catalog: catalog, log: log}
 }
 
 // WaitFeeds blocks until every /feed connection has closed, or ctx is done.
@@ -94,7 +94,7 @@ func (s *Server) matches(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) status(w http.ResponseWriter, r *http.Request) {
-	st, err := s.player.Status(r.Context())
+	st, err := s.broadcaster.Status(r.Context())
 	if err != nil {
 		s.fail(w, err)
 		return
@@ -103,19 +103,19 @@ func (s *Server) status(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) control(w http.ResponseWriter, r *http.Request) {
-	var cmd schema.PlaybackCommand
+	var cmd schema.BroadcastCommand
 	// The generated UnmarshalJSON enforces the JSON Schema: required fields,
 	// the command enum and the speed range.
 	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCommandBytes)).Decode(&cmd); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid command: "+err.Error())
 		return
 	}
-	st, err := s.player.Execute(r.Context(), cmd)
+	st, err := s.broadcaster.Execute(r.Context(), cmd)
 	if err != nil {
 		s.fail(w, err)
 		return
 	}
-	s.log.Info("playback command", "command", cmd.Command, "state", st.State)
+	s.log.Info("broadcast command", "command", cmd.Command, "state", st.State)
 	writeJSON(w, http.StatusOK, st)
 }
 
@@ -152,7 +152,7 @@ func (s *Server) feed(w http.ResponseWriter, r *http.Request) {
 	s.log.Info("feed client connected", "remote", r.RemoteAddr, "from_offset", from)
 	defer s.log.Info("feed client disconnected", "remote", r.RemoteAddr)
 
-	sub := s.player.Subscribe(from)
+	sub := s.broadcaster.Subscribe(from)
 	for {
 		msg, err := sub.Next(ctx)
 		if err != nil {
@@ -178,13 +178,13 @@ func write(ctx context.Context, conn *websocket.Conn, msg schema.FeedMessage) er
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch {
-	case errors.Is(err, playback.ErrInvalidCommand):
+	case errors.Is(err, broadcast.ErrInvalidCommand):
 		code = http.StatusBadRequest
 	case errors.Is(err, match.ErrNotFound):
 		code = http.StatusNotFound
-	case errors.Is(err, playback.ErrNoMatch):
+	case errors.Is(err, broadcast.ErrNoMatch):
 		code = http.StatusConflict
-	case errors.Is(err, playback.ErrStopped):
+	case errors.Is(err, broadcast.ErrStopped):
 		code = http.StatusServiceUnavailable
 	}
 	msg := err.Error()

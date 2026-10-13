@@ -1,4 +1,4 @@
-package playback
+package broadcast
 
 import (
 	"context"
@@ -25,7 +25,7 @@ func TestPlaysInMatchTime(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 30)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
+		sub := h.b.Subscribe(0)
 		h.do(setSpeed(2))
 		h.do(play())
 
@@ -36,7 +36,7 @@ func TestPlaysInMatchTime(t *testing.T) {
 			"event m1-e2 @15s",
 			"match_end m1 3 (1, 30) @15s",
 		)
-		h.expectStatus(schema.PlaybackStatusStateEnded, 3, 1, 30)
+		h.expectStatus(schema.BroadcastStatusStateEnded, 3, 1, 30)
 	})
 }
 
@@ -46,7 +46,7 @@ func TestSkipsBreakBetweenPeriods(t *testing.T) {
 		// restarts at 45:00, so the clock goes backwards between periods.
 		h := start(t, newMatch(1, at(1, 0), at(1, 2760), at(2, 2700), at(2, 2710)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
+		sub := h.b.Subscribe(0)
 		h.do(play())
 
 		h.expect(sub,
@@ -64,16 +64,16 @@ func TestPauseAndResume(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 20)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
+		sub := h.b.Subscribe(0)
 		h.do(play())
 		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s", "event m1-e1 @10s")
 
 		time.Sleep(5 * time.Second)
 		h.do(pause())
-		h.expectStatus(schema.PlaybackStatusStatePaused, 2, 1, 15)
+		h.expectStatus(schema.BroadcastStatusStatePaused, 2, 1, 15)
 
 		time.Sleep(100 * time.Second) // the match clock stands still
-		h.expectStatus(schema.PlaybackStatusStatePaused, 2, 1, 15)
+		h.expectStatus(schema.BroadcastStatusStatePaused, 2, 1, 15)
 		h.do(play())
 		h.expect(sub, "event m1-e2 @120s", "match_end m1 3 (1, 20) @120s")
 	})
@@ -83,7 +83,7 @@ func TestSetSpeedWhilePlaying(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 100)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
+		sub := h.b.Subscribe(0)
 		h.do(play())
 		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s")
 
@@ -98,58 +98,30 @@ func TestStatusInterpolatesClock(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 100)))
 		h.expectIdle()
 		h.do(load(1))
-		h.expectStatus(schema.PlaybackStatusStatePaused, 0, 1, 0)
+		h.expectStatus(schema.BroadcastStatusStatePaused, 0, 1, 0)
 		h.do(play())
 		time.Sleep(3500 * time.Millisecond)
-		h.expectStatus(schema.PlaybackStatusStatePlaying, 1, 1, 3.5)
+		h.expectStatus(schema.BroadcastStatusStatePlaying, 1, 1, 3.5)
 	})
 }
 
-func TestSeekBackwardResetsAndReplays(t *testing.T) {
+func TestLateSubscriberCatchesUp(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 20), at(1, 30)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
 		h.do(play())
-		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s", "event m1-e1 @10s", "event m1-e2 @20s")
+		time.Sleep(15 * time.Second)
 
-		h.do(seek(1, 15))
-		h.expectStatus(schema.PlaybackStatusStatePlaying, 2, 1, 15)
-		h.expect(sub,
-			"reset m1 2 (1, 15) @20s",
-			"event m1-e0 @20s", // replay up to the seek target, immediately
-			"event m1-e1 @20s",
-			"event m1-e2 @25s", // then live again from 15 s
-			"event m1-e3 @35s",
-			"match_end m1 4 (1, 30) @35s",
+		// What was published before it subscribed arrives at once, then the
+		// rest as it is broadcast. The head says where the catch-up ends.
+		h.expect(h.b.Subscribe(0),
+			"match_start m1 0 (1, 0) head 2 @15s",
+			"event m1-e0 @15s",
+			"event m1-e1 @15s",
+			"event m1-e2 @20s",
+			"event m1-e3 @30s",
+			"match_end m1 4 (1, 30) @30s",
 		)
-	})
-}
-
-func TestSeekToStartOfPeriodWhilePaused(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(2, 2700), at(2, 2710)))
-		h.do(load(1))
-		sub := h.p.Subscribe(0)
-		h.expect(sub, "match_start m1 0 (1, 0) head 0 @0s")
-
-		// 0:00 in the second half is clamped to the half's first event.
-		h.do(seek(2, 0))
-		h.expectStatus(schema.PlaybackStatusStatePaused, 2, 2, 2700)
-		h.expect(sub, "reset m1 2 (2, 2700) @0s", "event m1-e0 @0s", "event m1-e1 @0s")
-		h.expectNothing(sub)
-	})
-}
-
-func TestSeekPastEndEndsPlayback(t *testing.T) {
-	synctest.Test(t, func(t *testing.T) {
-		h := start(t, newMatch(1, at(1, 0), at(1, 10)))
-		h.do(load(1))
-		h.do(play())
-		h.do(seek(5, 0))
-		h.expectStatus(schema.PlaybackStatusStateEnded, 2, 5, 0)
-		h.expect(h.p.Subscribe(0),
-			"match_start m1 0 (1, 0) head 2 @0s", "event m1-e0 @0s", "event m1-e1 @0s", "match_end m1 2 (1, 10) @0s")
 	})
 }
 
@@ -157,17 +129,24 @@ func TestSubscribeFromOffset(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 20)))
 		h.do(load(1))
-		h.do(seek(1, 100)) // publish everything
+		h.do(play())
+		time.Sleep(time.Minute) // publish everything
 
-		h.expect(h.p.Subscribe(1),
-			"match_start m1 1 (1, 0) head 3 @0s", "event m1-e1 @0s", "event m1-e2 @0s", "match_end m1 3 (1, 20) @0s")
+		h.expect(h.b.Subscribe(1),
+			"match_start m1 1 (1, 0) head 3 @60s", "event m1-e1 @60s", "event m1-e2 @60s", "match_end m1 3 (1, 20) @60s")
+	})
+}
 
-		// A client that saw offsets 0-2 reconnects after someone seeked back:
-		// it is ahead of the feed, so it is told to rebuild.
-		h.do(seek(1, 5))
-		sub := h.p.Subscribe(3)
-		h.expect(sub, "match_start m1 3 (1, 20) head 1 @0s", "reset m1 1 (1, 0) @0s", "event m1-e0 @0s")
-		h.expectNothing(sub)
+func TestSubscribePastHeadStartsFromKickOff(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 20)))
+		h.do(load(1))
+		h.do(play())
+
+		// A client that saw offsets 0-2 of an earlier broadcast reconnects after
+		// the match was loaded again: it is ahead, so it gets the match from the start.
+		sub := h.b.Subscribe(3)
+		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s", "event m1-e1 @10s")
 	})
 }
 
@@ -175,25 +154,25 @@ func TestLoadingAnotherMatchRestartsSubscribers(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10)), newMatch(2, at(1, 0)))
 		h.do(load(1))
-		sub := h.p.Subscribe(0)
+		sub := h.b.Subscribe(0)
 		h.do(play())
 		h.expect(sub, "match_start m1 0 (1, 0) head 1 @0s", "event m1-e0 @0s")
 
 		h.do(load(2)) // a new match starts paused
-		h.expectStatus(schema.PlaybackStatusStatePaused, 0, 1, 0)
+		h.expectStatus(schema.BroadcastStatusStatePaused, 0, 1, 0)
 		h.do(play())
 		h.expect(sub, "match_start m2 0 (1, 0) head 1 @0s", "event m2-e0 @0s", "match_end m2 1 (1, 0) @0s")
 	})
 }
 
-func TestSlowSubscriberDoesNotBlockPlayback(t *testing.T) {
+func TestSlowSubscriberDoesNotBlockTheBroadcast(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
 		h := start(t, newMatch(1, at(1, 0), at(1, 10), at(1, 20)))
 		h.do(load(1))
-		_ = h.p.Subscribe(0) // never read
+		_ = h.b.Subscribe(0) // never read
 		h.do(play())
 		time.Sleep(time.Minute)
-		h.expectStatus(schema.PlaybackStatusStateEnded, 3, 1, 20)
+		h.expectStatus(schema.BroadcastStatusStateEnded, 3, 1, 20)
 	})
 }
 
@@ -206,23 +185,20 @@ func TestCommandErrors(t *testing.T) {
 
 		tests := []struct {
 			name string
-			cmd  schema.PlaybackCommand
+			cmd  schema.BroadcastCommand
 			want error
 		}{
 			{"play before load", play(), ErrNoMatch},
 			{"unknown match", load(99), match.ErrNotFound},
 			{"load without id", missingID, ErrInvalidCommand},
 			{"load", load(1), nil},
-			{"set_speed without speed", schema.PlaybackCommand{Command: schema.PlaybackCommandCommandSetSpeed}, ErrInvalidCommand},
+			{"set_speed without speed", schema.BroadcastCommand{Command: schema.BroadcastCommandCommandSetSpeed}, ErrInvalidCommand},
 			{"zero speed", setSpeed(0), ErrInvalidCommand},
-			{"speed too high", schema.PlaybackCommand{Command: schema.PlaybackCommandCommandSetSpeed, Speed: &tooFast}, ErrInvalidCommand},
-			{"seek without target", schema.PlaybackCommand{Command: schema.PlaybackCommandCommandSeek}, ErrInvalidCommand},
-			{"seek to period 6", seek(6, 0), ErrInvalidCommand},
-			{"seek to negative clock", seek(1, -1), ErrInvalidCommand},
-			{"unknown command", schema.PlaybackCommand{Command: "rewind"}, ErrInvalidCommand},
+			{"speed too high", schema.BroadcastCommand{Command: schema.BroadcastCommandCommandSetSpeed, Speed: &tooFast}, ErrInvalidCommand},
+			{"unknown command", schema.BroadcastCommand{Command: "rewind"}, ErrInvalidCommand},
 		}
 		for _, tt := range tests {
-			_, err := h.p.Execute(t.Context(), tt.cmd)
+			_, err := h.b.Execute(t.Context(), tt.cmd)
 			if !errors.Is(err, tt.want) {
 				t.Errorf("%s: error = %v, want %v", tt.name, err, tt.want)
 			}
@@ -230,32 +206,32 @@ func TestCommandErrors(t *testing.T) {
 	})
 }
 
-func TestStoppedPlayer(t *testing.T) {
+func TestStoppedBroadcaster(t *testing.T) {
 	synctest.Test(t, func(t *testing.T) {
-		p := New(stubCatalog{})
+		b := New(stubCatalog{})
 		ctx, cancel := context.WithCancel(t.Context())
-		go p.Run(ctx)
+		go b.Run(ctx)
 		cancel()
 		synctest.Wait() // until Run has returned
-		if _, err := p.Status(t.Context()); !errors.Is(err, ErrStopped) {
+		if _, err := b.Status(t.Context()); !errors.Is(err, ErrStopped) {
 			t.Errorf("Status after stop: %v, want ErrStopped", err)
 		}
 	})
 }
 
-// TestReplaysWorldCupFinal plays the whole 2022 final at real speed. Under
+// TestBroadcastsWorldCupFinal plays the whole 2022 final at real speed. Under
 // synctest it takes a fraction of a second. Skipped unless the data is fetched.
-func TestReplaysWorldCupFinal(t *testing.T) {
+func TestBroadcastsWorldCupFinal(t *testing.T) {
 	const dataDir = "../../../data/statsbomb"
 	if _, err := os.Stat(dataDir + "/events/3869685.json"); err != nil {
 		t.Skip("World Cup final not downloaded; run: make fetch-data")
 	}
 	synctest.Test(t, func(t *testing.T) {
-		p := New(statsbomb.NewCatalog(dataDir))
-		go p.Run(t.Context())
-		h := &harness{t: t, p: p, start: time.Now()}
+		b := New(statsbomb.NewCatalog(dataDir))
+		go b.Run(t.Context())
+		h := &harness{t: t, b: b, start: time.Now()}
 		h.do(load(3869685))
-		sub := p.Subscribe(0)
+		sub := b.Subscribe(0)
 		h.do(play())
 
 		var events []schema.MatchEvent
@@ -295,9 +271,9 @@ func TestReplaysWorldCupFinal(t *testing.T) {
 		}
 		got := time.Since(h.start).Seconds()
 		if math.Abs(got-want) > 1e-3 {
-			t.Errorf("replay took %.3fs, want %.3fs", got, want)
+			t.Errorf("broadcast took %.3fs, want %.3fs", got, want)
 		}
-		t.Logf("replayed %d events in %v of match time", len(events), time.Since(h.start).Round(time.Second))
+		t.Logf("broadcast %d events in %v of match time", len(events), time.Since(h.start).Round(time.Second))
 	})
 }
 
@@ -341,55 +317,49 @@ func newMatch(id int, positions ...position) *match.Match {
 	return m
 }
 
-func command(c schema.PlaybackCommandCommand) schema.PlaybackCommand {
-	return schema.PlaybackCommand{SchemaVersion: 1, Command: c}
+func command(c schema.BroadcastCommandCommand) schema.BroadcastCommand {
+	return schema.BroadcastCommand{SchemaVersion: 1, Command: c}
 }
 
-func load(id int) schema.PlaybackCommand {
-	cmd, mid := command(schema.PlaybackCommandCommandLoadMatch), schema.MatchID(id)
+func load(id int) schema.BroadcastCommand {
+	cmd, mid := command(schema.BroadcastCommandCommandLoadMatch), schema.MatchID(id)
 	cmd.MatchID = &mid
 	return cmd
 }
 
-func play() schema.PlaybackCommand  { return command(schema.PlaybackCommandCommandPlay) }
-func pause() schema.PlaybackCommand { return command(schema.PlaybackCommandCommandPause) }
+func play() schema.BroadcastCommand  { return command(schema.BroadcastCommandCommandPlay) }
+func pause() schema.BroadcastCommand { return command(schema.BroadcastCommandCommandPause) }
 
-func setSpeed(speed float64) schema.PlaybackCommand {
-	cmd := command(schema.PlaybackCommandCommandSetSpeed)
+func setSpeed(speed float64) schema.BroadcastCommand {
+	cmd := command(schema.BroadcastCommandCommandSetSpeed)
 	cmd.Speed = &speed
-	return cmd
-}
-
-func seek(period int, clock float64) schema.PlaybackCommand {
-	cmd := command(schema.PlaybackCommandCommandSeek)
-	cmd.SeekTo = &schema.SeekTarget{Period: schema.Period(period), MatchClockS: schema.MatchClockSeconds(clock)}
 	return cmd
 }
 
 type harness struct {
 	t     *testing.T
-	p     *Player
+	b     *Broadcaster
 	start time.Time // fake wall time at the start of the test
 }
 
-// start runs a player over the given matches. Run stops when the test's
+// start runs a broadcaster over the given matches. Run stops when the test's
 // context is cancelled at the end of the test.
 func start(t *testing.T, matches ...*match.Match) *harness {
 	catalog := stubCatalog{}
 	for _, m := range matches {
 		catalog[int(m.MatchID)] = m
 	}
-	p := New(catalog)
-	go p.Run(t.Context())
-	return &harness{t: t, p: p, start: time.Now()}
+	b := New(catalog)
+	go b.Run(t.Context())
+	return &harness{t: t, b: b, start: time.Now()}
 }
 
-// do executes cmd, then waits until the player has acted on it: Run replies
+// do executes cmd, then waits until the broadcaster has acted on it: Run replies
 // before it publishes the events that are due, so without the wait a
 // subscriber could read the feed before they are published.
-func (h *harness) do(cmd schema.PlaybackCommand) schema.PlaybackStatus {
+func (h *harness) do(cmd schema.BroadcastCommand) schema.BroadcastStatus {
 	h.t.Helper()
-	st, err := h.p.Execute(h.t.Context(), cmd)
+	st, err := h.b.Execute(h.t.Context(), cmd)
 	if err != nil {
 		h.t.Fatalf("%s: %v", cmd.Command, err)
 	}
@@ -426,9 +396,9 @@ func (h *harness) expectNothing(sub *Subscription) {
 	}
 }
 
-func (h *harness) expectStatus(state schema.PlaybackStatusState, offset, period int, clock float64) {
+func (h *harness) expectStatus(state schema.BroadcastStatusState, offset, period int, clock float64) {
 	h.t.Helper()
-	st, err := h.p.Status(h.t.Context())
+	st, err := h.b.Status(h.t.Context())
 	if err != nil {
 		h.t.Fatal(err)
 	}
@@ -442,11 +412,11 @@ func (h *harness) expectStatus(state schema.PlaybackStatusState, offset, period 
 
 func (h *harness) expectIdle() {
 	h.t.Helper()
-	st, err := h.p.Status(h.t.Context())
+	st, err := h.b.Status(h.t.Context())
 	if err != nil {
 		h.t.Fatal(err)
 	}
-	if st.State != schema.PlaybackStatusStateIdle || st.Speed != DefaultSpeed || st.MatchID != nil {
+	if st.State != schema.BroadcastStatusStateIdle || st.Speed != DefaultSpeed || st.MatchID != nil {
 		h.t.Errorf("status = %+v, want idle at default speed", st)
 	}
 }
