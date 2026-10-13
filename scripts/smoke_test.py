@@ -22,7 +22,9 @@ reproduced with the --seed it printed.
 
 With --external, nothing is built or started: the checks run against an
 engine API that is already up (such as `make up`, through the dashboard's
-proxy), and its logs are not checked.
+proxy), and its logs are not checked. With --webhook too (the stack's
+webhook_echo.py), it also checks that the notifier delivered every alert of
+the run exactly once, rewatch included, as the engine raised it.
 """
 
 import argparse
@@ -52,6 +54,7 @@ JITTER = "3s"
 WINDOWS = {300, 600}
 READY_TIMEOUT_S = 120  # the first `uv run` may have to install the engine
 MATCH_TIMEOUT_S = 60  # a match with a shootout takes about 10s at 1000x
+DELIVERY_TIMEOUT_S = 15
 
 type Json = dict[str, Any]
 
@@ -402,12 +405,15 @@ def choose(args: argparse.Namespace, downloaded: dict[int, Json]) -> list[Json]:
     return [downloaded[m] for m in chosen]
 
 
-def check(api: Api, processes: list[Process], match: Json, *, rewatching: bool) -> bool:
-    """Replays a match (and rewatches it) and prints how it went. Returns whether all
-    checks passed."""
+def check(
+    api: Api, processes: list[Process], match: Json, alerts: list[Json], *, rewatching: bool
+) -> bool:
+    """Replays a match (and rewatches it) and prints how it went. Adds the alerts the
+    engine raised to alerts. Returns whether all checks passed."""
     match_id = match["match_id"]
     name = f"{match['home_team']['name']} v {match['away_team']['name']} ({match_id})"
     r = replay(api, processes, match)
+    alerts.extend(r.alerts)
     expected = EXPECTATIONS[match_id](r) if match_id in EXPECTATIONS else []
     problems = general_checks(r) + expected + log_errors(processes)
     print(
@@ -420,6 +426,7 @@ def check(api: Api, processes: list[Process], match: Json, *, rewatching: bool) 
         return not problems
 
     again = rewatch(api, processes, match, REWATCH_FROM)
+    alerts.extend(again.alerts)
     rewatch_problems = rewatch_checks(r, again) + log_errors(processes)
     print(
         f"{'✗' if rewatch_problems else '✓'} {name}: rewatched from {at(when(REWATCH_FROM))}"
@@ -428,6 +435,36 @@ def check(api: Api, processes: list[Process], match: Json, *, rewatching: bool) 
     )
     report(rewatch_problems)
     return not (problems or rewatch_problems)
+
+
+def received(webhook: str) -> list[Json]:
+    alerts: list[Json] = Api(webhook).get("/alerts")
+    return alerts
+
+
+def delivery_checks(webhook: str, before: int, raised: list[Json]) -> list[str]:
+    """Waits for the notifier to deliver the alerts raised, and checks it delivered each
+    once, as raised. Alerts the webhook had received before the run (its first `before`)
+    are ignored."""
+    expected = {a["id"]: a for a in raised}
+    started = time.monotonic()
+    while True:
+        delivered = received(webhook)[before:]
+        missing = expected.keys() - {a["id"] for a in delivered}
+        if not missing or time.monotonic() - started > DELIVERY_TIMEOUT_S:
+            break
+        time.sleep(0.5)
+    problems = [f"alert {i} was not delivered" for i in sorted(missing)]
+    seen: set[str] = set()
+    for a in delivered:
+        if a["id"] in seen:
+            problems.append(f"alert {a['id']} was delivered more than once")
+        elif a["id"] not in expected:
+            problems.append(f"alert {a['id']} was delivered but not raised in this run")
+        elif a != expected[a["id"]]:
+            problems.append(f"alert {a['id']} was delivered as {a}, raised as {expected[a['id']]}")
+        seen.add(a["id"])
+    return problems
 
 
 def report(problems: list[str]) -> None:
@@ -457,7 +494,14 @@ def main() -> None:
         metavar="URL",
         help="check a running stack at this base URL instead of starting one",
     )
+    parser.add_argument(
+        "--webhook",
+        metavar="URL",
+        help="with --external, check the notifier delivered the alerts to this webhook_echo.py",
+    )
     args = parser.parse_args()
+    if args.webhook and not args.external:
+        parser.error("--webhook needs --external")
 
     logs = Path(tempfile.mkdtemp(prefix="smoke-"))
     failed = True
@@ -468,14 +512,22 @@ def main() -> None:
         with running as processes:
             api = Api(args.external or f"http://127.0.0.1:{args.engine_port}")
             downloaded = {m["match_id"]: m for m in wait_ready(api, processes)}
+            before = len(received(args.webhook)) if args.webhook else 0
+            raised: list[Json] = []
             # One pair of processes for every match, so switching matches is tested too.
             passed = [
-                check(api, processes, m, rewatching=i == 0)
+                check(api, processes, m, raised, rewatching=i == 0)
                 for i, m in enumerate(choose(args, downloaded))
             ]
             if len(passed) > 1:
                 print(f"{sum(passed)} of {len(passed)} matches passed")
             failed = not all(passed)
+            if args.webhook:
+                problems = delivery_checks(args.webhook, before, raised)
+                n = len({a["id"] for a in raised})
+                print(f"{'✗' if problems else '✓'} the notifier delivered {n} alerts once each")
+                report(problems)
+                failed = failed or bool(problems)
     except SmokeError as e:
         print(f"smoke test: {e}", file=sys.stderr)
     except KeyboardInterrupt:

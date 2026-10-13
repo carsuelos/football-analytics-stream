@@ -111,8 +111,13 @@ async def test_run_sends_every_alert_to_every_sink() -> None:
     assert sinks[1] == sinks[0]
 
 
-async def test_replayed_alerts_go_to_the_hub_but_not_the_sinks() -> None:
-    sink, hub = ListSink(), MatchHub()
+class ListMetricSink(list[MetricSnapshot]):
+    def send(self, snapshot: MetricSnapshot) -> None:
+        self.append(snapshot)
+
+
+async def test_replayed_ticks_go_to_the_hub_but_not_the_sinks() -> None:
+    sink, metric_sink, hub = ListSink(), ListMetricSink(), MatchHub()
     catch_up = (feed_marker(K.match_start, 0, head=2), *MSGS[1:])
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     await run(
@@ -121,12 +126,28 @@ async def test_replayed_alerts_go_to_the_hub_but_not_the_sinks() -> None:
         ticker=Ticker(METRICS),
         detectors=Detectors([Fake()]),
         sinks=[sink],
+        metric_sinks=[metric_sink],
         hub=hub,
         report=lambda _: None,
     )
-    # The alert at 01:10 was caught up on; only the one at 06:40 is live.
+    # The tick at 01:10 was caught up on; only the one at 06:40 is live.
     assert [a.offset for a in sink] == [2]
     assert [a.offset for a in hub.alerts] == [1, 2]
+    assert [(s.offset, s.window_s) for s in metric_sink] == [(2, 300), (2, 600)]
+    assert metric_sink == hub.snapshots[-2:]
+
+
+async def test_metric_sinks_work_without_a_hub() -> None:
+    metric_sink = ListMetricSink()
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    await run(
+        ListSource(*MSGS),
+        p,
+        ticker=Ticker(METRICS),
+        metric_sinks=[metric_sink],
+        report=lambda _: None,
+    )
+    assert [s.offset for s in metric_sink] == [1, 1, 2, 2]
 
 
 def brief(u: Update) -> tuple[object, int]:

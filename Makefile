@@ -3,7 +3,8 @@ SHELL := /bin/bash
 SCHEMA_DIR := schema/jsonschema
 SCHEMAS := $(sort $(wildcard $(SCHEMA_DIR)/*.schema.json))
 
-GO_GEN := simulator/internal/schema/schema_gen.go
+GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go
+GO_MODULES := simulator notifier
 PY_GEN := engine/src/engine/schema
 TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
@@ -15,7 +16,7 @@ help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
 
 setup: ## Install dependencies for all components
-	cd simulator && go mod download
+	for m in $(GO_MODULES); do (cd $$m && go mod download) || exit 1; done
 	cd engine && uv sync
 	cd dashboard && pnpm install --frozen-lockfile
 
@@ -25,6 +26,9 @@ gen-go:
 	cd simulator && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
 		--capitalization ID --capitalization XG \
 		--output internal/schema/schema_gen.go $(addprefix ../,$(SCHEMAS))
+	cd notifier && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
+		--capitalization ID --capitalization XG \
+		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/alert.schema.json ../$(SCHEMA_DIR)/common.schema.json
 
 gen-py:
 	rm -rf $(PY_GEN)
@@ -49,18 +53,18 @@ check-gen: gen ## Fail if generated code differs from what is committed
 	fi
 
 lint: ## Lint and type-check all components
-	cd simulator && unformatted=$$(gofmt -l .) && if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
-	cd simulator && go vet ./...
+	@unformatted=$$(gofmt -l $(GO_MODULES)) && if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
+	for m in $(GO_MODULES); do (cd $$m && go vet ./...) || exit 1; done
 	cd engine && uv run ruff check . ../scripts && uv run ruff format --check . ../scripts && uv run mypy
 	cd dashboard && pnpm lint && pnpm typecheck
 
 test: ## Run all tests (including schema contract tests)
-	cd simulator && go test ./...
+	for m in $(GO_MODULES); do (cd $$m && go test ./...) || exit 1; done
 	cd engine && uv run pytest
 	cd dashboard && pnpm test
 
 fmt: ## Auto-format Go and Python code
-	cd simulator && gofmt -w .
+	gofmt -w $(GO_MODULES)
 	cd engine && uv run ruff check --fix . ../scripts && uv run ruff format . ../scripts
 
 ci: check-gen lint test ## Run everything CI runs
@@ -96,6 +100,7 @@ down: ## Stop the Docker stack
 logs: ## Follow the Docker stack's logs
 	docker compose logs -f
 
-smoke-compose: ## Start the Docker stack with events up to 3s late and run the smoke test against it. Flags via ARGS="..."
+smoke-compose: ## Start the Docker stack with events up to 3s late and run the smoke test against it, notifier included. Flags via ARGS="..."
 	SIM_JITTER=3s docker compose up -d --build --wait
-	uv run scripts/smoke_test.py --external http://localhost:$${DASHBOARD_PORT:-3000} $(ARGS)
+	uv run scripts/smoke_test.py --external http://localhost:$${DASHBOARD_PORT:-3000} \
+		--webhook http://localhost:$${WEBHOOK_PORT:-9000} $(ARGS)
