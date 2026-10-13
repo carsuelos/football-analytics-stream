@@ -41,6 +41,7 @@ make test                                     # all tests, including schema cont
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
 | `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--sample"` adds 10 random matches; `ARGS="--match ID"` for another match) |
+| `make evaluate` | Replay 20 matches and measure whether the alerts predict goals (about 3 minutes; `ARGS="--sample N --seed S"` for others) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
@@ -115,6 +116,10 @@ Choose a match, pick a speed (60× plays a half in under a minute) and press Pla
 - `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
 
 A failure prints what went wrong and where the processes' logs are.
+
+### Do the alerts predict goals?
+
+Not yet. `make evaluate` replays 20 matches the same way and compares every alert with the goals that followed. The lift is how much more often the alerted team scores in the next 5 or 10 minutes than a team does in any 5 or 10 minutes: 1.0 means no better than chance. The Phase 1 alerts score about 0.7–1.2, so for now they describe a shift in the game rather than forecast a goal. A trained model that beats chance is the Phase 3 goal (see [the plan](docs/PLAN.md)).
 
 ## Data attribution
 

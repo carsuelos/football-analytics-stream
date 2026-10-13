@@ -180,6 +180,9 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - the final's story: Argentina home, penalties, Argentina's first-half field tilt over 50%
   - leading signals: a goal threat for France (70') before their 79' goal, and for Argentina (106') before Messi's 108'
   - not the 82' control shift for France once planned here: it fires *after* France's 79' and 81' goals, so it reacts rather than predicts
+- [x] **Alert evaluation** (`make evaluate`): replays 20 matches (the same ones every run, `--seed 2022`) and scores each alert against StatsBomb's goals: how often the alerted team scores in the next 5' and 10' compared with any 5' or 10' (the lift; 1.0 is chance), how often the opponent scores instead, and how often an alert fires just after the team scored. All 64 matches are left to Phase 3, to keep runs short.
+  - **Baseline: the heuristic alerts don't predict goals.** On the default 20 matches (47 goals), 294 alerts have a 10' lift of 0.7 (momentum 0.5, goal threat 0.6, control shift 1.0); 45% of goals had an alert for the scorer in the 10' before. A one-off run over all 64 World Cup matches gave 1.0–1.2. Control shifts are the most reactive: 10% fire within 5' after the team scored.
+  - Phase 1 ships them as they are: they describe a change in the game, not a forecast. Making them predictive is the Phase 3 goal.
 
 ### Phase 2: Containers and broker
 - [ ] Dockerfiles for all three services, plus Docker Compose.
@@ -192,6 +195,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - [ ] *(Only if justified)* Redis `StateStore`, for running several engine instances or recovering after a crash.
 
 ### Phase 3: Modeling
+**Goal: alerts that predict goals.** Beat chance on matches the model wasn't trained on: a 10' lift clearly above 1 and a better Brier score than the base rate, measured by `make evaluate` over all 64 World Cup matches, with training data from other StatsBomb competitions (Phase 1 baseline: lift 0.7–1.2).
 - [ ] Compute our own xT grid from StatsBomb data and compare it with the published grid.
 - [ ] Backtest harness that runs many matches offline through the engine.
 - [ ] Training data: windows labelled by whether a goal follows within X minutes.
