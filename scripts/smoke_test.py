@@ -10,7 +10,8 @@ Builds and starts the simulator (delivering events up to 3s late, so the
 engine has to reorder them) and the engine, on their own ports so a dev setup
 can keep running. Each match is played at 1000x through the engine's
 /api/control until the engine reports it ended, then its metrics and alerts
-are checked. Needs `make fetch-data`, Go and uv. Exits 1 if a check fails, and
+are checked: for any match, that they are consistent, and for the final, that
+they tell the story of the match. Needs `make fetch-data`, Go and uv. Exits 1 if a check fails, and
 then keeps the processes' logs.
 """
 
@@ -26,10 +27,11 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from statistics import mean
 from typing import Any
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -205,10 +207,22 @@ def replay(api: Api, processes: list[Process], match: Json) -> Replay:
     )
 
 
-def at(x: Json) -> str:
+type Time = tuple[int, float]  # period, match clock in seconds
+
+
+def clock(period: int, minute: int, second: int) -> Time:
+    return period, minute * 60 + second
+
+
+def when(x: Json) -> Time:
+    return x["period"], x["match_clock_s"]
+
+
+def at(x: Json | Time) -> str:
     """Where something happened, e.g. "P2 82:27"."""
-    m, s = divmod(int(x["match_clock_s"]), 60)
-    return f"P{x['period']} {m}:{s:02}"
+    period, clock_s = when(x) if isinstance(x, dict) else x
+    m, s = divmod(int(clock_s), 60)
+    return f"P{period} {m}:{s:02}"
 
 
 def general_checks(r: Replay) -> list[str]:
@@ -258,6 +272,43 @@ def general_checks(r: Replay) -> list[str]:
     return problems
 
 
+ARGENTINA, FRANCE = 779, 771
+
+
+def final_checks(r: Replay) -> list[str]:
+    """What happened in the 2022 World Cup final: Argentina 3-3 France, 4-2 on penalties."""
+    problems = []
+    home, away = r.match["home_team"], r.match["away_team"]
+    if (home["id"], away["id"]) != (ARGENTINA, FRANCE):
+        problems.append(
+            f"home and away are {home['name']} and {away['name']}, not Argentina and France"
+        )
+    if r.status["period"] != 5:
+        problems.append(f"the match ended in period {r.status['period']}, not in the shootout")
+
+    first_half = [s for s in r.metrics if s["window_s"] == 600 and s["period"] == 1]
+    tilts = [t["field_tilt"] for s in first_half for t in s["teams"] if t["team_id"] == ARGENTINA]
+    tilt = mean(tilts) if tilts else 0.0
+    if tilt <= 0.5:
+        problems.append(f"Argentina's first-half 10' field tilt averaged {tilt:.0%}, not over 50%")
+
+    # The goal threat should warn before a team scores, not after: before France's first
+    # goal and Messi's extra-time goal, each counted from the previous goal.
+    for team, name, since, goal in (
+        (FRANCE, "France", clock(1, 35, 22), clock(2, 79, 24)),
+        (ARGENTINA, "Argentina", clock(2, 80, 59), clock(4, 107, 58)),
+    ):
+        if not any(
+            a["type"] == "goal_threat" and a["team_id"] == team and since < when(a) < goal
+            for a in r.alerts
+        ):
+            problems.append(f"no goal threat for {name} before their goal at {at(goal)}")
+    return problems
+
+
+EXPECTATIONS: dict[int, Callable[[Replay], list[str]]] = {FINAL: final_checks}
+
+
 def log_errors(processes: list[Process]) -> list[str]:
     """Errors the processes logged, though they kept running."""
     errors = []
@@ -287,7 +338,8 @@ def main() -> None:
             match = matches[args.match]
             name = f"{match['home_team']['name']} v {match['away_team']['name']} ({args.match})"
             r = replay(api, processes, match)
-            problems = general_checks(r) + log_errors(processes)
+            expected = EXPECTATIONS[args.match](r) if args.match in EXPECTATIONS else []
+            problems = general_checks(r) + expected + log_errors(processes)
             print(
                 f"{'✗' if problems else '✓'} {name}: ended after {r.seconds:.1f}s,"
                 f" {len(r.metrics)} snapshots, {len(r.alerts)} alerts"
