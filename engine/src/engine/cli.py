@@ -4,9 +4,10 @@ import argparse
 import asyncio
 import contextlib
 import logging
+import os
 import socket
 import sys
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from contextlib import AsyncExitStack, asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
@@ -26,7 +27,8 @@ from engine.runner import engine_status, run
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.viewer_command_schema import ViewerCommand
 from engine.sinks import AlertSink, LogSink, WebhookSink
-from engine.sources import EventSource, WebSocketSource
+from engine.sources import EventSource, KafkaSource, WebSocketSource
+from engine.sources.kafka import config_from_env
 from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore, WindowMode
 
@@ -37,7 +39,9 @@ log = logging.getLogger(__name__)
 SHUTDOWN_GRACE_S = 1
 
 
-def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
+def parse_args(
+    argv: Sequence[str] | None = None, env: Mapping[str, str] = os.environ
+) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="engine",
         description="Read the simulator feed, compute live match metrics and raise alerts, "
@@ -48,7 +52,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--simulator",
         default="http://localhost:8080",
         metavar="URL",
-        help="simulator base URL: the feed is its /feed, and broadcast controls pass through to it",
+        help="simulator base URL: broadcast controls pass through to it, and with --source ws "
+        "the feed is its /feed",
+    )
+    parser.add_argument(
+        "--source",
+        choices=["ws", "kafka"],
+        default="ws",
+        help="read the broadcast from the simulator's WebSocket feed, or from the Kafka topic it "
+        "publishes to (set KAFKA_BOOTSTRAP_SERVERS, and any other KAFKA_* client settings)",
+    )
+    parser.add_argument(
+        "--kafka-topic", default="events", metavar="TOPIC", help="the topic for --source kafka"
     )
     parser.add_argument("--host", default="127.0.0.1", help="address to serve the API on")
     parser.add_argument("--port", type=int, default=8000, help="port to serve the API on")
@@ -95,6 +110,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         args.feed = feed_url(args.simulator)
     except ValueError as e:
         parser.error(f"--simulator: {e}")
+    args.kafka = config_from_env(env)
+    if args.source == "kafka" and "bootstrap.servers" not in args.kafka:
+        parser.error("--source kafka needs KAFKA_BOOTSTRAP_SERVERS")
     if not 0 <= args.port <= 65535:
         parser.error("--port must be between 0 and 65535")
     if args.allowed_lateness < 0:
@@ -111,6 +129,12 @@ def feed_url(simulator: str) -> str:
     if url.scheme not in schemes or not url.netloc:
         raise ValueError(f"want an http:// or https:// URL, got {simulator!r}")
     return urlunsplit((schemes[url.scheme], url.netloc, url.path.rstrip("/") + "/feed", "", ""))
+
+
+def event_source(args: argparse.Namespace) -> EventSource:
+    if args.source == "kafka":
+        return KafkaSource(args.kafka, args.kafka_topic)
+    return WebSocketSource(args.feed)
 
 
 def engine_app(
@@ -229,7 +253,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         srv.should_exit = True
 
     hub = MatchHub()
-    app = engine_app(args, grid, WebSocketSource(args.feed), hub, on_stop=stop)
+    app = engine_app(args, grid, event_source(args), hub, on_stop=stop)
     srv = server(app, hub, args.host, args.port)
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(srv.serve())

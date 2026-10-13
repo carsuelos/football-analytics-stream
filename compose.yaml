@@ -1,26 +1,70 @@
 # The whole stack: `make up`, then open http://localhost:3000.
 # Needs `make fetch-data` first: match data and the xT grid are mounted from
 # ./data (they can't be redistributed, so they are never baked into images).
+#
+# The simulator publishes the broadcast to Kafka (Redpanda here) and the engine
+# consumes it from there. Both take librdkafka settings as KAFKA_* variables, so
+# pointing them at another cluster (Event Hubs, Confluent Cloud) is config only.
 name: football-analytics
 
+x-kafka: &kafka
+  KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+
 services:
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=1G
+      - --kafka-addr=internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr=internal://redpanda:9092,external://localhost:${KAFKA_PORT:-19092}
+    ports:
+      - "${KAFKA_PORT:-19092}:19092"
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health", "--exit-when-healthy"]
+      interval: 2s
+      timeout: 10s
+      retries: 30
+
+  # The apps don't create topics: here a one-shot job does, in the cloud IaC will.
+  topics:
+    image: docker.redpanda.com/redpandadata/redpanda:v26.2.4
+    entrypoint: ["rpk", "topic", "create", "events", "--if-not-exists", "--partitions", "3"]
+    environment:
+      RPK_BROKERS: redpanda:9092
+    depends_on:
+      redpanda:
+        condition: service_healthy
+    restart: "no"
+
   simulator:
     build: simulator
     command: ["-jitter", "${SIM_JITTER:-0s}"]
+    environment: *kafka
     volumes:
       - ./data/statsbomb:/data/statsbomb:ro
     ports:
       - "${SIM_PORT:-8080}:8080"
+    depends_on:
+      topics:
+        condition: service_completed_successfully
 
   engine:
     build: engine
-    command: ["--simulator", "http://simulator:8080"]
+    command: ["--simulator", "http://simulator:8080", "--source", "kafka"]
+    environment: *kafka
     volumes:
       - ./data/xt:/data/xt:ro
     ports:
       - "${ENGINE_PORT:-8000}:8000"
     depends_on:
-      - simulator
+      simulator:
+        condition: service_started
+      topics:
+        condition: service_completed_successfully
 
   dashboard:
     build: dashboard

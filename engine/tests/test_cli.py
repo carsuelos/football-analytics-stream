@@ -6,12 +6,21 @@ from pathlib import Path
 import httpx
 import pytest
 
-from engine.cli import SHUTDOWN_GRACE_S, Server, engine_app, feed_url, main, parse_args, server
+from engine.cli import (
+    SHUTDOWN_GRACE_S,
+    Server,
+    engine_app,
+    event_source,
+    feed_url,
+    main,
+    parse_args,
+    server,
+)
 from engine.hub import MatchHub
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.schema.engine_status_schema import EngineState
 from engine.schema.feed_schema import FeedMessage
-from engine.sources import EventSource
+from engine.sources import EventSource, KafkaSource, WebSocketSource
 from engine.windows import WindowMode
 from tests.test_api import serving, sse
 from tests.test_hub import take
@@ -19,7 +28,8 @@ from tests.test_runner import METRICS, MSGS, ListSource
 
 
 def test_cli_defaults_and_validation() -> None:
-    args = parse_args([])
+    args = parse_args([], env={})
+    assert args.source == "ws"
     assert args.simulator == "http://localhost:8080"
     assert args.feed == "ws://localhost:8080/feed"
     assert (args.host, args.port) == ("127.0.0.1", 8000)
@@ -41,9 +51,22 @@ def test_cli_defaults_and_validation() -> None:
         ["--simulator", "http://"],
         ["--port", "70000"],
         ["--status-every", "0"],
+        ["--source", "kafka"],
+        ["--source", "carrier-pigeon"],
     ):
         with pytest.raises(SystemExit):
-            parse_args(bad)
+            parse_args(bad, env={})
+
+
+def test_the_source_is_the_websocket_feed_or_a_kafka_topic() -> None:
+    ws = event_source(parse_args([], env={}))
+    assert isinstance(ws, WebSocketSource) and ws.url == "ws://localhost:8080/feed"
+
+    env = {"KAFKA_BOOTSTRAP_SERVERS": "redpanda:9092", "KAFKA_CLIENT_ID": "engine-2"}
+    kafka = event_source(parse_args(["--source", "kafka", "--kafka-topic", "feed"], env=env))
+    assert isinstance(kafka, KafkaSource)
+    assert kafka.config == {"bootstrap.servers": "redpanda:9092", "client.id": "engine-2"}
+    assert kafka.topic == "feed"
 
 
 @pytest.mark.parametrize(
