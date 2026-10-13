@@ -1,4 +1,4 @@
-package playback
+package broadcast
 
 import (
 	"context"
@@ -16,10 +16,6 @@ type position struct {
 	clock  float64 // match_clock_s
 }
 
-func (p position) before(q position) bool {
-	return p.period < q.period || (p.period == q.period && p.clock < q.clock)
-}
-
 func eventPos(ev schema.MatchEvent) position {
 	return position{period: int(ev.Period), clock: float64(ev.MatchClockS)}
 }
@@ -27,11 +23,12 @@ func eventPos(ev schema.MatchEvent) position {
 // kickOff is where every match starts.
 var kickOff = position{period: 1, clock: 0}
 
-// feed is the published part of the loaded match, Events[:head]. The playback
+// feed is the published part of the loaded match, Events[:head]. The broadcast
 // goroutine is its only writer; any number of subscribers read it concurrently.
 //
 // It behaves like a broker log: each subscriber keeps its own cursor and reads
-// at its own pace, so a slow client never holds up playback or other clients.
+// at its own pace, from any offset up to the head, so a slow client never holds
+// up the broadcast or other clients.
 type feed struct {
 	mu sync.Mutex
 	// changed is closed and replaced on every write. Closing a channel wakes
@@ -41,11 +38,6 @@ type feed struct {
 	match   *match.Match
 	head    int // Events[:head] have been published
 	loadGen int // incremented by every load
-	seekGen int // incremented by every seek
-
-	// Snapshot taken at the latest seek, sent to subscribers in the reset marker.
-	seekHead int
-	seekPos  position
 }
 
 func newFeed() *feed {
@@ -72,23 +64,13 @@ func (f *feed) publish(head int) {
 	f.update(func() { f.head = head })
 }
 
-func (f *feed) seek(head int, pos position) {
-	f.update(func() {
-		f.head = head
-		f.seekGen++
-		f.seekHead, f.seekPos = head, pos
-	})
-}
-
 // Subscription reads the feed from a given offset. It is not safe for
 // concurrent use; give each client its own.
 type Subscription struct {
 	f       *feed
-	cursor  int // next offset to send
-	loadGen int // 0 until the first match_start has been sent
-	seekGen int
+	cursor  int  // next offset to send
+	loadGen int  // 0 until the first match_start has been sent
 	ended   bool // match_end already sent for the current match
-	pending []schema.FeedMessage
 }
 
 func (f *feed) subscribe(fromOffset int) *Subscription {
@@ -101,8 +83,6 @@ func (f *feed) subscribe(fromOffset int) *Subscription {
 //   - match_start when it first syncs and whenever a new match is loaded,
 //     with the head at that moment: offsets below it are a catch-up, not live;
 //   - every published event, in offset order;
-//   - reset after a seek, followed by a replay from offset 0, so consumers can
-//     rebuild their state (see the reset marker for where the replay ends);
 //   - match_end once the last event has been sent.
 func (s *Subscription) Next(ctx context.Context) (schema.FeedMessage, error) {
 	for {
@@ -124,11 +104,6 @@ func (s *Subscription) Next(ctx context.Context) (schema.FeedMessage, error) {
 // next returns the next message if one is ready. It must be called with
 // s.f.mu held.
 func (s *Subscription) next() (schema.FeedMessage, bool) {
-	if len(s.pending) > 0 {
-		msg := s.pending[0]
-		s.pending = s.pending[1:]
-		return msg, true
-	}
 	f := s.f
 	if f.match == nil {
 		return schema.FeedMessage{}, false
@@ -140,22 +115,17 @@ func (s *Subscription) next() (schema.FeedMessage, bool) {
 		if s.loadGen != 0 {
 			s.cursor = 0 // a newly loaded match is always sent from the start
 		}
-		s.loadGen, s.seekGen, s.ended = f.loadGen, f.seekGen, false
+		s.loadGen, s.ended = f.loadGen, false
+		if s.cursor > f.head {
+			// The client asked to resume past what has been published, e.g.
+			// the match was loaded again while it was away. Its state is
+			// ahead of the broadcast, so send the match from the start.
+			s.cursor = 0
+		}
 		start := s.marker(schema.FeedMessageKindMatchStart, s.cursor, positionBefore(events, s.cursor))
 		head := schema.Offset(f.head)
 		start.Marker.Head = &head
-		if s.cursor > f.head {
-			// The client asked to resume past what has been published, e.g.
-			// it missed a backward seek while disconnected. Its state is
-			// ahead of the match, so make it rebuild.
-			s.pending = append(s.pending, s.marker(schema.FeedMessageKindReset, f.head, positionBefore(events, f.head)))
-			s.cursor = 0
-		}
 		return start, true
-
-	case s.seekGen != f.seekGen:
-		s.seekGen, s.ended, s.cursor = f.seekGen, false, 0
-		return s.marker(schema.FeedMessageKindReset, f.seekHead, f.seekPos), true
 
 	case s.cursor < f.head:
 		ev := events[s.cursor] // a copy, so the receiver cannot modify the shared slice

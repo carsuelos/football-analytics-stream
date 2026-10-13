@@ -5,6 +5,7 @@ import logging
 from collections.abc import Callable, Sequence
 
 from engine.detectors import Detectors
+from engine.dvr import Dvr
 from engine.hub import MatchHub
 from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
@@ -40,9 +41,11 @@ async def run(
 
     At the start, then every status_every_s seconds of wall-clock time, report
     the status (with metrics, if a config is given; logged at DEBUG by default)
-    if it has changed, and give it to the hub.
+    if it has changed, and give it to the hub. If the source is a Dvr, the
+    status includes the viewer's side.
     """
     last = ""
+    dvr = source if isinstance(source, Dvr) else None
 
     def report_if_changed() -> None:
         nonlocal last
@@ -51,7 +54,7 @@ async def run(
             report(line)
             last = line
         if hub:
-            hub.set_status(engine_status(pipeline))
+            hub.set_status(engine_status(pipeline, dvr))
 
     async def report_every() -> None:
         while True:
@@ -65,7 +68,7 @@ async def run(
             items = pipeline.handle(msg)
             if hub and pipeline.generation != hub.generation:
                 hub.start(pipeline.generation, pipeline.match_id)
-                hub.set_status(engine_status(pipeline))
+                hub.set_status(engine_status(pipeline, dvr))
             for item in items:
                 tick = ticker.observe(pipeline, item) if ticker else None
                 if tick is None:
@@ -110,20 +113,26 @@ def status_report(p: Pipeline, metrics: MetricsConfig | None = None) -> str:
     return "\n".join(lines)
 
 
-def engine_status(p: Pipeline) -> EngineStatus:
-    """Where the pipeline is in the match, for the dashboard."""
+def engine_status(p: Pipeline, dvr: Dvr | None = None) -> EngineStatus:
+    """Where the pipeline is in the match, and the viewer relative to the
+    broadcast if there is a DVR, for the dashboard."""
     if p.match_id is None:
         state = EngineState.waiting
     elif p.ended:
         state = EngineState.ended
     elif p.rebuilding:
         state = EngineState.rebuilding
+    elif dvr:
+        state = EngineState(dvr.mode)
     else:
         state = EngineState.live
     now, stats = p.clock.now, p.buffer.stats
     return EngineStatus(
         schema_version=1,
         state=state,
+        speed=dvr.speed if dvr else None,
+        live_edge=dvr.live_edge() if dvr else None,
+        behind_live_s=dvr.behind_live_s() if dvr else None,
         generation=p.generation,
         match_id=p.match_id,
         teams=list(p.teams.values()) or None,

@@ -1,22 +1,21 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
-export type PlaybackCommandType = "load_match" | "play" | "pause" | "set_speed" | "seek";
+/**
+ * `play`, `pause` and `set_speed` act on the viewer's own playback; `seek` moves it to a point in the match up to the live edge (a later point goes live); `go_live` catches up with the broadcast and follows it.
+ */
+export type ViewerCommandType = "play" | "pause" | "set_speed" | "seek" | "go_live";
 
 /**
- * Request body for the simulator's HTTP control API.
+ * Request body for the engine's playback control: the engine is a DVR over the broadcast.
  */
-export interface PlaybackCommand {
+export interface ViewerCommand {
   /**
    * Wire-format version. Bump only for breaking changes.
    */
   schema_version: 1;
-  command: PlaybackCommandType;
+  command: ViewerCommandType;
   /**
-   * Required for load_match.
-   */
-  match_id?: number;
-  /**
-   * Playback speed multiplier. Required for set_speed.
+   * Playback speed multiplier while behind live. Required for set_speed.
    */
   speed?: number;
   seek_to?: SeekTarget;

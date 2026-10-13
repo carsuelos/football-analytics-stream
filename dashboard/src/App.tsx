@@ -3,15 +3,15 @@ import { AlertFeed } from './AlertFeed'
 import { matchTeams } from './chartData'
 import { MatchPicker } from './MatchPicker'
 import { MetricCharts } from './MetricCharts'
-import { PlaybackControls } from './PlaybackControls'
+import { BroadcastControls } from './BroadcastControls'
 import { StatusBar } from './StatusBar'
 import { useMatchStream } from './useMatchStream'
-import { usePlayback } from './usePlayback'
+import { useBroadcast } from './useBroadcast'
 
 export default function App() {
   const match = useMatchStream()
-  const playback = usePlayback(match.status?.state)
-  const teams = useMemo(() => matchTeams(match.status, playback.matches), [match.status, playback.matches])
+  const broadcast = useBroadcast(match.status?.state)
+  const teams = useMemo(() => matchTeams(match.status, broadcast.matches), [match.status, broadcast.matches])
 
   return (
     <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4">
@@ -21,15 +21,15 @@ export default function App() {
       </header>
       <section aria-label="Playback" className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-900 p-3">
         <MatchPicker
-          matches={playback.matches}
-          matchId={playback.status?.match_id}
-          disabled={playback.pending}
-          onLoad={(match_id) => playback.send({ command: 'load_match', match_id })}
+          matches={broadcast.matches}
+          matchId={broadcast.status?.match_id}
+          disabled={broadcast.pending}
+          onLoad={(match_id) => broadcast.send({ command: 'load_match', match_id })}
         />
-        <PlaybackControls status={playback.status} disabled={playback.pending} onCommand={playback.send} />
-        {playback.error && (
+        <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
+        {broadcast.error && (
           <p role="alert" className="text-sm text-red-400">
-            {playback.error}
+            {broadcast.error}
           </p>
         )}
       </section>

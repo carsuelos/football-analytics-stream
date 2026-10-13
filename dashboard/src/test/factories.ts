@@ -3,7 +3,7 @@ import type { EngineStatus } from '../schema/engine_status.schema'
 import type { MatchReset } from '../schema/match_reset.schema'
 import type { MetricSnapshot, TeamMetrics } from '../schema/metric.schema'
 import type { MatchInfo } from '../schema/match_list.schema'
-import type { PlaybackStatus } from '../schema/status.schema'
+import type { BroadcastStatus } from '../schema/broadcast_status.schema'
 
 export const ARGENTINA = { id: 779, name: 'Argentina' }
 export const FRANCE = { id: 771, name: 'France' }
@@ -60,7 +60,7 @@ export const alert = (overrides: Partial<Alert> = {}): Alert => ({
   ...overrides,
 })
 
-export const playback = (overrides: Partial<PlaybackStatus> = {}): PlaybackStatus => ({
+export const broadcast = (overrides: Partial<BroadcastStatus> = {}): BroadcastStatus => ({
   schema_version: 1,
   state: 'paused',
   speed: 1,

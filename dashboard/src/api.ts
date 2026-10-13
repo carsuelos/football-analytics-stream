@@ -1,6 +1,6 @@
-import type { PlaybackCommand } from './schema/command.schema'
+import type { BroadcastCommand } from './schema/broadcast_command.schema'
 import type { MatchList } from './schema/match_list.schema'
-import type { PlaybackStatus } from './schema/status.schema'
+import type { BroadcastStatus } from './schema/broadcast_status.schema'
 
 /** An error from the engine API: its message, and the HTTP status (0 if the engine was unreachable). */
 export class ApiError extends Error {
@@ -13,16 +13,16 @@ export class ApiError extends Error {
   }
 }
 
-/** A playback command; schema_version is added when it is sent. */
-export type Command = Omit<PlaybackCommand, 'schema_version'>
+/** A broadcast command; schema_version is added when it is sent. */
+export type Command = Omit<BroadcastCommand, 'schema_version'>
 
 export const getMatches = () => request<MatchList>('/matches')
 
-export const getPlayback = () => request<PlaybackStatus>('/playback')
+export const getBroadcast = () => request<BroadcastStatus>('/broadcast')
 
-/** Sends a playback command to the simulator (through the engine) and returns the new playback status. */
+/** Sends a broadcast command to the simulator (through the engine) and returns the new broadcast status. */
 export const sendCommand = (command: Command) =>
-  request<PlaybackStatus>('/control', {
+  request<BroadcastStatus>('/broadcast', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ schema_version: 1, ...command }),

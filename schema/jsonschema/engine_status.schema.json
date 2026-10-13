@@ -7,9 +7,9 @@
     "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
     "state": {
       "title": "EngineState",
-      "description": "`waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`; or the match has `ended`.",
+      "description": "`waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`, following the broadcast as it happens; `playing` behind live, at the viewer's speed; `paused`; or the viewer has reached the end of the match (`ended`).",
       "type": "string",
-      "enum": ["waiting", "rebuilding", "live", "ended"]
+      "enum": ["waiting", "rebuilding", "live", "playing", "paused", "ended"]
     },
     "generation": {
       "description": "The generation of the last MatchReset.",
@@ -24,7 +24,7 @@
       "maxItems": 2
     },
     "period": {
-      "description": "Period of the latest event processed.",
+      "description": "Period of the latest event processed: where the viewer is.",
       "$ref": "common.schema.json#/definitions/Period"
     },
     "match_clock_s": {
@@ -33,6 +33,35 @@
     },
     "play_s": {
       "description": "Seconds of play so far, continuous across periods.",
+      "type": "number",
+      "minimum": 0
+    },
+    "speed": {
+      "description": "The viewer's playback speed while behind live.",
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "live_edge": {
+      "title": "LiveEdge",
+      "description": "The latest point of the broadcast received so far: the viewer can seek up to here.",
+      "type": "object",
+      "properties": {
+        "offset": {
+          "description": "Events received so far.",
+          "$ref": "common.schema.json#/definitions/Offset"
+        },
+        "period": { "$ref": "common.schema.json#/definitions/Period" },
+        "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+        "play_s": {
+          "description": "Seconds of play up to the live edge, continuous across periods.",
+          "type": "number",
+          "minimum": 0
+        }
+      },
+      "required": ["offset", "period", "match_clock_s", "play_s"]
+    },
+    "behind_live_s": {
+      "description": "Seconds of play between the viewer and the live edge.",
       "type": "number",
       "minimum": 0
     },

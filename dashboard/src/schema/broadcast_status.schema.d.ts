@@ -1,20 +1,20 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
-export type PlaybackState = "idle" | "playing" | "paused" | "ended";
+export type BroadcastState = "idle" | "playing" | "paused" | "ended";
 
 /**
- * Current simulator playback state.
+ * Where the simulator's broadcast is.
  */
-export interface PlaybackStatus {
+export interface BroadcastStatus {
   /**
    * Wire-format version. Bump only for breaking changes.
    */
   schema_version: 1;
-  state: PlaybackState;
+  state: BroadcastState;
   speed: number;
   match_id?: number;
   /**
-   * Next offset to be emitted.
+   * Next offset to be published: the live edge.
    */
   offset?: number;
   /**

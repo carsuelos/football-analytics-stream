@@ -69,16 +69,19 @@ The live feed is a WebSocket at `ws://localhost:8080/feed` (add `?from_offset=N`
 make sim ARGS="-jitter 3s"                                          # terminal 1
 make engine                                                         # terminal 2
 curl -N localhost:8000/api/stream                                   # terminal 3
-curl --json '{"schema_version": 1, "command": "load_match", "match_id": 3869685}' localhost:8000/api/control   # terminal 4
-curl --json '{"schema_version": 1, "command": "set_speed", "speed": 60}' localhost:8000/api/control
-curl --json '{"schema_version": 1, "command": "play"}' localhost:8000/api/control
+curl --json '{"schema_version": 1, "command": "load_match", "match_id": 3869685}' localhost:8000/api/broadcast   # terminal 4
+curl --json '{"schema_version": 1, "command": "set_speed", "speed": 60}' localhost:8000/api/broadcast
+curl --json '{"schema_version": 1, "command": "play"}' localhost:8000/api/broadcast
 ```
 
 The engine serves its API on `http://localhost:8000` (`--simulator` sets where the simulator is, `--host` and `--port` where to listen):
 
 - `GET /api/stream`: server-sent events. A `reset`, the latest `status`, the match so far (a `snapshot` every 30s of play, and each `alert`), then updates as they happen.
 - `GET /api/status`, `/api/metrics`, `/api/alerts`: the same, once.
-- `GET /api/matches`, `GET /api/playback`, `POST /api/control`: passed through to the simulator, so the dashboard only talks to the engine. `POST` bodies must be sent as JSON (`curl --json`, not `-d`).
+- `GET /api/matches`, `GET /api/broadcast`, `POST /api/broadcast`: passed through to the simulator (the broadcaster: load a match, play, pause, speed), so the dashboard only talks to the engine.
+- `POST /api/control`: the viewer's controls. The engine is a DVR over the broadcast: `pause`, `play`, `set_speed` (while behind live), `seek` to any point up to the live edge, and `go_live`. It replies with the engine's status, which also shows the live edge and how far behind it the viewer is (`behind_live_s`).
+
+`POST` bodies must be sent as JSON (`curl --json`, not `-d`).
 
 With `ARGS="--log-level DEBUG"`, every second the engine also logs where the match is and how many events it has released, held back, or dropped as late or duplicate. For each of the last 5 and 10 minutes of play it also logs each team's field tilt, xT added (and per minute) and pressure index:
 
@@ -96,7 +99,7 @@ ALERT P2 82:27 control_shift: France taking control: pressure balance +0.69 over
 
 The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1), and the alert definitions in [Predictive signals](docs/PLAN.md#predictive-signals-v1-rule-based). Try:
 
-- a seek (`{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4500}}`): the engine rebuilds its windows from a replay;
+- a seek back to `/api/control` (`{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 4500}}`): the engine rebuilds its windows from its copy of the match and plays on from 75:00 while the broadcast carries on; `{"schema_version": 1, "command": "go_live"}` catches up;
 - `make engine ARGS="--allowed-lateness 1"` with `-jitter 3s`: events arriving more than 1s late are dropped and counted;
 - stopping and restarting the simulator: the engine reconnects and resumes from its last offset;
 - `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid;
@@ -110,7 +113,7 @@ make engine                                                         # terminal 2
 make dashboard                                                      # terminal 3, then open http://localhost:5173
 ```
 
-Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Seek to a minute to watch the engine catch up, or stop the engine and restart it: the dashboard reconnects by itself.
+Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
 
 ### Running it all in Docker
 

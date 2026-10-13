@@ -1,6 +1,6 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
-export type FeedMessageKind = "event" | "match_start" | "reset" | "match_end";
+export type FeedMessageKind = "event" | "match_start" | "match_end";
 /**
  * What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.
  */
@@ -43,7 +43,7 @@ export type EventOutcome = "success" | "failure";
 export type ShotOutcome = "goal" | "saved" | "blocked" | "off_target" | "post" | "other";
 
 /**
- * One WebSocket message on the simulator feed. `kind` says which payload field is set.
+ * One message on the event feed. `kind` says which payload field is set. `match_start` comes first when a subscriber syncs and whenever a new match is loaded; then the match's events in offset order; then `match_end` after the last one.
  */
 export interface FeedMessage {
   /**
@@ -105,7 +105,7 @@ export interface ShotDetail {
   outcome: ShotOutcome;
 }
 /**
- * Stream position for non-event messages. On `reset`, consumers drop state and rebuild up to this position.
+ * Stream position for non-event messages.
  */
 export interface FeedMarker {
   match_id: number;

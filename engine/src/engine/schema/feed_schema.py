@@ -11,13 +11,12 @@ from . import event_schema
 class FeedMessageKind(StrEnum):
     event = "event"
     match_start = "match_start"
-    reset = "reset"
     match_end = "match_end"
 
 
 class FeedMarker(BaseModel):
     """
-    Stream position for non-event messages. On `reset`, consumers drop state and rebuild up to this position.
+    Stream position for non-event messages.
     """
 
     match_id: Annotated[int, Field(ge=0)]
@@ -41,7 +40,7 @@ class FeedMarker(BaseModel):
     head: Annotated[
         int | None,
         Field(
-            description="On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them, as after a `reset`.",
+            description="On `match_start`: how many events had been published when the subscriber synced. Events below this offset are a catch-up on what already happened, so consumers rebuild state from them without acting on them.",
             ge=0,
         ),
     ] = None
@@ -49,7 +48,7 @@ class FeedMarker(BaseModel):
 
 class FeedMessage(BaseModel):
     """
-    One WebSocket message on the simulator feed. `kind` says which payload field is set.
+    One message on the event feed. `kind` says which payload field is set. `match_start` comes first when a subscriber syncs and whenever a new match is loaded; then the match's events in offset order; then `match_end` after the last one.
     """
 
     schema_version: Annotated[
@@ -59,8 +58,5 @@ class FeedMessage(BaseModel):
     event: event_schema.MatchEvent | None = None
     marker: Annotated[
         FeedMarker | None,
-        Field(
-            description="Stream position for non-event messages. On `reset`, consumers drop state and rebuild up to this position.",
-            title="FeedMarker",
-        ),
+        Field(description="Stream position for non-event messages.", title="FeedMarker"),
     ] = None

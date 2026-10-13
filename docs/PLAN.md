@@ -11,7 +11,7 @@ This is the implementation roadmap for the Live Football Analytics Stream. The p
 ## Approach
 A phased build in three languages:
 
-- **Go stream simulator** replays StatsBomb open data as a live WebSocket feed, with pause, resume, speed and seek.
+- **Go stream simulator** broadcasts StatsBomb open data as a live WebSocket feed, like a live provider: each match once, in order, at a chosen speed.
 - **Python analytics engine** computes rolling-window metrics and heuristic alerts.
 - **React + Vite dashboard** shows metrics and alerts live.
 
@@ -46,7 +46,7 @@ flowchart LR
 
 ```
 schema/        jsonschema/ (single source of truth for events, controls, metrics, alerts, engine status) + fixtures/{valid,invalid}/
-simulator/     Go module: cmd/simulator, internal/{loader,playback,clock,server}
+simulator/     Go module: cmd/simulator, internal/{statsbomb,match,jitter,broadcast,server,schema}
 engine/        Python package (uv): sources/, clock/, windows/, metrics/, detectors/, sinks/, api/
 dashboard/     React + Vite + TypeScript
 data/          gitignored local cache of StatsBomb files (fetched by script)
@@ -99,7 +99,7 @@ flowchart LR
   - Raw StatsBomb JSON never leaves the simulator, which keeps the boundary clean for a future live provider.
 - **Events behave like a broker log.**
   - Every event has a stable `id` and a per-match sequence `offset`.
-  - `EventSource` has one method, `subscribe(from_offset)`. Seeks need no method of their own. In Phase 1 the feed sends a `reset` marker and replays from offset 0; from Phase 2 the engine subscribes again from offset 0 (a Kafka consumer seek, or a WebSocket reconnect with `?from_offset=0`).
+  - `EventSource` has one method, `subscribe(from_offset)`. Seeks need no method of their own: the engine's DVR replays from its own copy of the match (see *Seek semantics*), and only a restarted engine subscribes again from offset 0.
   - Processing is safe to repeat: duplicates are dropped by `id`.
   - Everything is keyed by `match_id`, which becomes the broker partition key later.
   - The WebSocket feed sends one JSON event per message, and clients resume after a disconnect with `?from_offset=N`.
@@ -107,7 +107,12 @@ flowchart LR
 - **Windows run on play time.** Periods are joined end to end (each starts where the previous one's last event was), so a 5-minute window runs smoothly across half-time. `--window-mode per_period` restarts windows at each kick-off instead. Penalty shootout events are left out of windows.
 - **Seek semantics.**
   - *Phase 1:* when playback seeks, the simulator sends a `reset` control message. The engine discards its window state, then rebuilds it by fast-replaying from offset 0 up to the target time.
-  - *From Phase 2:* the simulator is a broadcaster. Like a live provider, it publishes each match once, in order, and never seeks. The engine is the viewer, a DVR: to seek, it subscribes again from the match start, rebuilds up to the target time without sending alerts, and plays on from there. It can't seek past the live edge (what has been published so far).
+  - *From Phase 2:* the simulator is a broadcaster. Like a live provider, it publishes each match once, in order, and never seeks; its controls are load, play, pause and speed. The engine is the viewer, a DVR (`engine.dvr`):
+    - it keeps the current match's feed in memory, in arrival order, so a seek never goes back to the source. That works for push-only providers too, and replays exactly what was received, jitter included;
+    - a seek back starts the match over from that copy, rebuilds up to the target time without sending alerts, and plays on from there at the viewer's speed; a seek forward fast-forwards through the copy;
+    - it can't seek past the live edge (what has been received so far): a later target goes live. Playing to the end of the copy goes live too, and "go live" catches up at once;
+    - viewer controls are `POST /api/control` (play, pause, speed, seek, go live); broadcaster controls pass through `/api/broadcast`. The status reports the viewer's state, the live edge, and how far behind it the viewer is in play time;
+    - a new match from the source restarts the DVR live. On a reconnect, the broadcaster resends the match from offset 0 if the engine asks for more than it has published (e.g. after a broadcaster restart), and the engine starts over.
 - **Only the DVR uses the wall clock** (from Phase 2). The engine's playback clock releases each event when playback reaches its match time, at the viewer's speed. Windows, metrics and detectors still see only match time.
 - **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without sending alerts for them.
 - **One match at a time in v1.** All state, topics and APIs are still keyed by `match_id`, so several matches can be supported later.
@@ -223,9 +228,10 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - Docker Compose, with `make up` and `make down`
   - the smoke test can run against a running stack
   - CI builds the images
-- [ ] **Broadcaster and DVR** (over WebSocket first):
-  - simulator: loads a match and publishes it once, at a broadcast speed; the feed serves any offset up to the live edge
-  - engine: a playback clock with pause, speed, seek up to the live edge, and "go live"; a seek subscribes again from the match start and rebuilds without alerts; the status reports the live edge
+- [x] **Broadcaster and DVR** (over WebSocket first):
+  - simulator: loads a match and publishes it once, at a broadcast speed; the feed serves any offset up to the live edge, and no longer seeks or resets
+  - engine: a DVR over the source with pause, speed, seek up to the live edge, and "go live"; a seek replays from the DVR's in-memory copy and rebuilds without alerts; the status reports the live edge and how far behind it the viewer is
+  - the smoke test rewatches the first match from P2 60:00 and checks the DVR rebuilds exactly what was built live
 - [ ] **Dashboard DVR controls:** how far behind live the viewer is, a "Go live" button, seeking bounded by the live edge, and the broadcast speed.
 - [ ] **Kafka transport:**
   - Redpanda in Compose; confluent-kafka (librdkafka) clients in Go and Python, with no Redpanda-only features, so it moves to Azure Event Hubs with config changes

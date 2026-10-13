@@ -12,6 +12,8 @@ const STATE_NAMES: Record<EngineState, string> = {
   waiting: 'Waiting for a match',
   rebuilding: 'Catching up',
   live: 'Live',
+  playing: 'Replaying',
+  paused: 'Paused',
   ended: 'Ended',
 }
 

@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
 import { FakeEventSource } from './test/fakeEventSource'
-import { alert, matchInfo, playback, reset, snapshot, status } from './test/factories'
+import { alert, matchInfo, broadcast, reset, snapshot, status } from './test/factories'
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -13,14 +13,14 @@ let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>
 beforeEach(() => {
   FakeEventSource.instances = []
   vi.stubGlobal('EventSource', FakeEventSource)
-  fetch = vi.fn<typeof globalThis.fetch>((url) => {
+  fetch = vi.fn<typeof globalThis.fetch>((url, init) => {
     switch (url) {
       case '/api/matches':
         return json({ schema_version: 1, matches: [matchInfo()] })
-      case '/api/playback':
-        return json(playback({ state: 'idle', match_id: undefined }))
-      case '/api/control':
-        return json(playback({ state: 'paused' }))
+      case '/api/broadcast':
+        return init?.method === 'POST'
+          ? json(broadcast({ state: 'paused' }))
+          : json(broadcast({ state: 'idle', match_id: undefined }))
       default:
         return json({ error: 'not found' }, 404)
     }
@@ -47,7 +47,7 @@ it('loads a match through the engine, which enables the controls', async () => {
 
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Match' }), '3869685')
   expect(await within(playbackBar).findByRole('button', { name: 'Play' })).toBeEnabled()
-  const [, init] = fetch.mock.calls.find(([url]) => url === '/api/control')!
+  const [, init] = fetch.mock.calls.find(([url, init]) => url === '/api/broadcast' && init?.method === 'POST')!
   expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'load_match', match_id: 3869685 })
 })
 

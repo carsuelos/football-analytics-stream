@@ -10,13 +10,40 @@ from . import common_schema
 
 class EngineState(StrEnum):
     """
-    `waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`; or the match has `ended`.
+    `waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`, following the broadcast as it happens; `playing` behind live, at the viewer's speed; `paused`; or the viewer has reached the end of the match (`ended`).
     """
 
     waiting = "waiting"
     rebuilding = "rebuilding"
     live = "live"
+    playing = "playing"
+    paused = "paused"
     ended = "ended"
+
+
+class LiveEdge(BaseModel):
+    """
+    The latest point of the broadcast received so far: the viewer can seek up to here.
+    """
+
+    offset: Annotated[int, Field(description="Events received so far.", ge=0)]
+    period: Annotated[
+        int,
+        Field(description="1-2 regular halves, 3-4 extra time, 5 penalty shootout.", ge=1, le=5),
+    ]
+    match_clock_s: Annotated[
+        float,
+        Field(
+            description="Game clock in seconds (e.g. the second half starts at 2700). Clocks overlap across periods because of stoppage time, so always pair with period.",
+            ge=0.0,
+        ),
+    ]
+    play_s: Annotated[
+        float,
+        Field(
+            description="Seconds of play up to the live edge, continuous across periods.", ge=0.0
+        ),
+    ]
 
 
 class EngineStatus(BaseModel):
@@ -30,7 +57,7 @@ class EngineStatus(BaseModel):
     state: Annotated[
         EngineState,
         Field(
-            description="`waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`; or the match has `ended`.",
+            description="`waiting` for a match; `rebuilding` state from events that already happened (after a seek or a mid-match connect); `live`, following the broadcast as it happens; `playing` behind live, at the viewer's speed; `paused`; or the viewer has reached the end of the match (`ended`).",
             title="EngineState",
         ),
     ]
@@ -41,7 +68,8 @@ class EngineStatus(BaseModel):
         Field(description="The teams seen so far, in order of first appearance.", max_length=2),
     ] = None
     period: Annotated[
-        int | None, Field(description="Period of the latest event processed.", ge=1, le=5)
+        int | None,
+        Field(description="Period of the latest event processed: where the viewer is.", ge=1, le=5),
     ] = None
     match_clock_s: Annotated[
         float | None, Field(description="Game clock of the latest event processed.", ge=0.0)
@@ -49,6 +77,20 @@ class EngineStatus(BaseModel):
     play_s: Annotated[
         float | None,
         Field(description="Seconds of play so far, continuous across periods.", ge=0.0),
+    ] = None
+    speed: Annotated[
+        float | None, Field(description="The viewer's playback speed while behind live.", gt=0.0)
+    ] = None
+    live_edge: Annotated[
+        LiveEdge | None,
+        Field(
+            description="The latest point of the broadcast received so far: the viewer can seek up to here.",
+            title="LiveEdge",
+        ),
+    ] = None
+    behind_live_s: Annotated[
+        float | None,
+        Field(description="Seconds of play between the viewer and the live edge.", ge=0.0),
     ] = None
     rebuilding_to: Annotated[
         int | None,

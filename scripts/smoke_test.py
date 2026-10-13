@@ -11,10 +11,12 @@
 
 Builds and starts the simulator (delivering events up to 3s late, so the
 engine has to reorder them) and the engine, on their own ports so a dev setup
-can keep running. Each match is played in turn at 1000x through the engine's
-/api/control until the engine reports it ended, then its metrics and alerts
+can keep running. Each match is broadcast in turn at 1000x through the engine's
+/api/broadcast until the engine reports it ended, then its metrics and alerts
 are checked: for any match, that they are consistent, and for the final, that
-they tell the story of the match. Needs `make fetch-data`, Go and uv. Exits 1
+they tell the story of the match. The first match is then rewatched from
+P2 60:00 through the engine's DVR (/api/control), which has to rebuild exactly
+what it built live. Needs `make fetch-data`, Go and uv. Exits 1
 if a check fails, and then keeps the processes' logs. A failing --sample is
 reproduced with the --seed it printed.
 
@@ -67,10 +69,18 @@ class Api:
     def get(self, path: str) -> Any:
         return self._send(urllib.request.Request(self.base + path))
 
+    def broadcast(self, command: str, **fields: Any) -> Json:
+        """Drives the simulator's broadcast."""
+        return self._post("/api/broadcast", command, fields)
+
     def control(self, command: str, **fields: Any) -> Json:
+        """Drives the viewer: the engine's DVR."""
+        return self._post("/api/control", command, fields)
+
+    def _post(self, path: str, command: str, fields: Json) -> Json:
         body = json.dumps({"schema_version": 1, "command": command, **fields}).encode()
         request = urllib.request.Request(
-            self.base + "/api/control", body, {"Content-Type": "application/json"}
+            self.base + path, body, {"Content-Type": "application/json"}
         )
         reply: Json = self._send(request)
         return reply
@@ -191,18 +201,32 @@ class Replay:
 
 
 def replay(api: Api, processes: list[Process], match: Json) -> Replay:
-    """Plays a match at full speed and returns what the engine made of it."""
+    """Broadcasts a match at full speed and returns what the engine made of it."""
+    generation = api.get("/api/status")["generation"]
+    api.broadcast("load_match", match_id=match["match_id"])
+    api.broadcast("set_speed", speed=SPEED)
+    api.broadcast("play")
+    return until_ended(api, processes, match, generation)
+
+
+def rewatch(api: Api, processes: list[Process], match: Json, target: Json) -> Replay:
+    """Seeks the engine's viewer back to target and plays to the end at full speed."""
+    generation = api.get("/api/status")["generation"]
+    api.control("set_speed", speed=SPEED)
+    api.control("seek", seek_to=target)
+    return until_ended(api, processes, match, generation)
+
+
+def until_ended(api: Api, processes: list[Process], match: Json, generation: int) -> Replay:
+    """Waits for the engine to end match in a generation after generation."""
     match_id = match["match_id"]
     started = time.monotonic()
-    generation = api.get("/api/status")["generation"]
-    api.control("load_match", match_id=match_id)
-    api.control("set_speed", speed=SPEED)
-    api.control("play")
     while True:
         for p in processes:
             p.check_running()
         status: Json = api.get("/api/status")
-        # Loading starts a new generation; until then the status is the previous match's.
+        # Loading or seeking back starts a new generation; until then the status is the
+        # previous one's.
         new = status["generation"] > generation and status.get("match_id") == match_id
         if new and status["state"] == "ended":
             break
@@ -319,6 +343,33 @@ def final_checks(r: Replay) -> list[str]:
 
 EXPECTATIONS: dict[int, Callable[[Replay], list[str]]] = {FINAL: final_checks}
 
+REWATCH_FROM = {"period": 2, "match_clock_s": 3600}
+
+
+def rewatch_checks(live: Replay, again: Replay) -> list[str]:
+    """Rewatching rebuilds the match from the DVR's copy: exactly as it was built live."""
+    problems = []
+    if again.status["state"] != "ended" or again.status.get("behind_live_s") != 0:
+        problems.append(f"after rewatching, the viewer is not live at the end: {again.status}")
+    for what, before, after in (
+        ("snapshots", live.metrics, again.metrics),
+        ("alerts", live.alerts, again.alerts),
+    ):
+        if after != before:
+            first = next(
+                (i for i, (b, a) in enumerate(zip(before, after, strict=False)) if b != a), None
+            )
+            where = f", first at {at(after[first])}" if first is not None else ""
+            problems.append(
+                f"rewatching built {len(after)} {what}, not the {len(before)} built live{where}"
+            )
+    for counter in ("released", "late_dropped", "duplicates"):
+        if again.status[counter] != live.status[counter]:
+            problems.append(
+                f"rewatching: {counter} is {again.status[counter]}, not {live.status[counter]}"
+            )
+    return problems
+
 
 def log_errors(processes: list[Process]) -> list[str]:
     """Errors the processes logged since the last call, though they kept running."""
@@ -351,8 +402,9 @@ def choose(args: argparse.Namespace, downloaded: dict[int, Json]) -> list[Json]:
     return [downloaded[m] for m in chosen]
 
 
-def check(api: Api, processes: list[Process], match: Json) -> bool:
-    """Replays a match and prints how it went. Returns whether all checks passed."""
+def check(api: Api, processes: list[Process], match: Json, *, rewatching: bool) -> bool:
+    """Replays a match (and rewatches it) and prints how it went. Returns whether all
+    checks passed."""
     match_id = match["match_id"]
     name = f"{match['home_team']['name']} v {match['away_team']['name']} ({match_id})"
     r = replay(api, processes, match)
@@ -363,9 +415,24 @@ def check(api: Api, processes: list[Process], match: Json) -> bool:
         f" {len(r.metrics)} snapshots, {len(r.alerts)} alerts",
         flush=True,
     )
+    report(problems)
+    if not rewatching:
+        return not problems
+
+    again = rewatch(api, processes, match, REWATCH_FROM)
+    rewatch_problems = rewatch_checks(r, again) + log_errors(processes)
+    print(
+        f"{'✗' if rewatch_problems else '✓'} {name}: rewatched from {at(when(REWATCH_FROM))}"
+        f" in {again.seconds:.1f}s",
+        flush=True,
+    )
+    report(rewatch_problems)
+    return not (problems or rewatch_problems)
+
+
+def report(problems: list[str]) -> None:
     for problem in problems:
         print(f"    {problem}")
-    return not problems
 
 
 def main() -> None:
@@ -402,7 +469,10 @@ def main() -> None:
             api = Api(args.external or f"http://127.0.0.1:{args.engine_port}")
             downloaded = {m["match_id"]: m for m in wait_ready(api, processes)}
             # One pair of processes for every match, so switching matches is tested too.
-            passed = [check(api, processes, m) for m in choose(args, downloaded)]
+            passed = [
+                check(api, processes, m, rewatching=i == 0)
+                for i, m in enumerate(choose(args, downloaded))
+            ]
             if len(passed) > 1:
                 print(f"{sum(passed)} of {len(passed)} matches passed")
             failed = not all(passed)

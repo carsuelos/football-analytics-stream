@@ -17,8 +17,8 @@ import (
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
-	"github.com/carsuelos/football-analytics-stream/simulator/internal/playback"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
 
@@ -51,16 +51,16 @@ func TestMatches(t *testing.T) {
 func TestControlAndStatus(t *testing.T) {
 	srv := startServer(t)
 
-	var st schema.PlaybackStatus
+	var st schema.BroadcastStatus
 	code, body := get(t, srv.URL+"/status")
 	decode(t, code, body, &st)
-	if st.State != schema.PlaybackStatusStateIdle {
+	if st.State != schema.BroadcastStatusStateIdle {
 		t.Errorf("initial state %s, want idle", st.State)
 	}
 
 	code, body = post(t, srv.URL+"/control", `{"schema_version": 1, "command": "load_match", "match_id": 1}`)
 	decode(t, code, body, &st)
-	if st.State != schema.PlaybackStatusStatePaused || st.MatchID == nil || *st.MatchID != 1 {
+	if st.State != schema.BroadcastStatusStatePaused || st.MatchID == nil || *st.MatchID != 1 {
 		t.Errorf("after load: %s", body)
 	}
 
@@ -123,10 +123,41 @@ func TestFeedStreamsLiveEvents(t *testing.T) {
 func TestFeedResumesFromOffset(t *testing.T) {
 	srv := startServer(t)
 	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "load_match", "match_id": 1}`)
-	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "seek", "seek_to": {"period": 2, "match_clock_s": 3000}}`) // past the end
+	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "set_speed", "speed": 1000}`)
+	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "play"}`)
+	waitForState(t, srv, schema.BroadcastStatusStateEnded)
 
 	conn := dial(t, srv, "?from_offset=2")
 	expectFeed(t, conn, "match_start 2", "event 2", "match_end 3")
+}
+
+func TestFeedSendsTheMatchAgainWhenResumingPastTheHead(t *testing.T) {
+	srv := startServer(t)
+	post(t, srv.URL+"/control", `{"schema_version": 1, "command": "load_match", "match_id": 1}`)
+
+	// Nothing is published yet, so a client resuming at 2 is ahead of the broadcast.
+	conn := dial(t, srv, "?from_offset=2")
+	expectFeed(t, conn, "match_start 0")
+}
+
+// waitForState polls /status until the broadcast is in state.
+func waitForState(t *testing.T, srv *httptest.Server, state schema.BroadcastStatusState) {
+	t.Helper()
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		_, body := get(t, srv.URL+"/status")
+		var st schema.BroadcastStatus
+		if err := json.Unmarshal([]byte(body), &st); err != nil {
+			t.Fatal(err)
+		}
+		if st.State == state {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("broadcast is %s, want %s", st.State, state)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 func TestFeedRejectsBadOffset(t *testing.T) {
@@ -219,11 +250,11 @@ func startShutdownable(t *testing.T) (*httptest.Server, *Server, context.CancelF
 		})
 	}
 	catalog := fakeCatalog{1: m}
-	player := playback.New(catalog)
-	go player.Run(t.Context())
+	b := broadcast.New(catalog)
+	go b.Run(t.Context())
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	api := New(player, catalog, logger)
+	api := New(b, catalog, logger)
 	srv := httptest.NewUnstartedServer(api.Handler())
 	ctx, shutdown := context.WithCancel(t.Context())
 	srv.Config.BaseContext = func(net.Listener) context.Context { return ctx }

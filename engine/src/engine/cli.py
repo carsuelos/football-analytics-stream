@@ -17,11 +17,14 @@ from fastapi import FastAPI
 
 from engine.api import create_app
 from engine.detectors import ControlShift, Detectors, GoalThreat, Momentum
+from engine.dvr import Dvr
 from engine.hub import MatchHub
 from engine.metrics import MetricsConfig, XTGrid, XTGridError
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
-from engine.runner import run
+from engine.runner import engine_status, run
+from engine.schema.engine_status_schema import EngineStatus
+from engine.schema.viewer_command_schema import ViewerCommand
 from engine.sinks import AlertSink, LogSink, WebhookSink
 from engine.sources import EventSource, WebSocketSource
 from engine.ticks import Ticker
@@ -45,7 +48,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--simulator",
         default="http://localhost:8080",
         metavar="URL",
-        help="simulator base URL: the feed is its /feed, and playback controls pass through to it",
+        help="simulator base URL: the feed is its /feed, and broadcast controls pass through to it",
     )
     parser.add_argument("--host", default="127.0.0.1", help="address to serve the API on")
     parser.add_argument("--port", type=int, default=8000, help="port to serve the API on")
@@ -119,6 +122,8 @@ def engine_app(
 ) -> FastAPI:
     """The API over hub, with the run loop filling hub while the app is up.
 
+    The source goes through a DVR, which the API's viewer controls drive.
+
     The source never ends on its own (it reconnects), so if the run loop stops
     while the app is up, something is wrong: it is logged and on_stop is called
     with the error (None if the source just ended) so the server can exit.
@@ -130,6 +135,13 @@ def engine_app(
     )
     metrics = MetricsConfig(grid)
     simulator = httpx.AsyncClient(base_url=args.simulator, timeout=5)
+    dvr = Dvr(source)
+
+    def control(cmd: ViewerCommand) -> EngineStatus:
+        dvr.execute(cmd)
+        status = engine_status(pipeline, dvr)
+        hub.set_status(status)
+        return status
 
     def stopped(task: asyncio.Task[None]) -> None:
         if task.cancelled():
@@ -147,7 +159,7 @@ def engine_app(
                 sinks.append(await stack.enter_async_context(WebhookSink(url)))
             loop = asyncio.create_task(
                 run(
-                    source,
+                    dvr,
                     pipeline,
                     metrics=metrics,
                     ticker=Ticker(metrics),
@@ -164,7 +176,7 @@ def engine_app(
                 loop.cancel()
                 await asyncio.wait([loop])
 
-    return create_app(hub, simulator, lifespan=lifespan)
+    return create_app(hub, simulator, control=control, lifespan=lifespan)
 
 
 class Server(uvicorn.Server):

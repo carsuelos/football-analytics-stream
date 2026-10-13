@@ -22,16 +22,14 @@ class Pipeline:
 
         feed message -> ReorderBuffer -> MatchClock -> SlidingWindows
 
-    One match at a time. match_start and reset both start from scratch:
-    match_start because a match is (re)loaded, reset because the feed is about
-    to replay the match from offset 0 after a seek. A match_start for the
-    current match at exactly the next expected offset is a reconnect instead,
-    and keeps the state built so far.
+    One match at a time. A match_start starts from scratch, unless it is for
+    the current match at exactly the next expected offset: that resumes (a
+    reconnect, or the DVR skipping ahead) and keeps the state built so far.
 
-    Replayed events rebuild the windows; `is_replay` tells later stages
-    (alerts) not to act on them. They are the events before a seek's target
-    and, after a match_start, the catch-up on everything already published
-    when we (re)connected: acting on those would raise stale alerts.
+    A match_start's head says how much of the match had already happened:
+    the events below it are a replay. They rebuild the windows, and
+    `is_replay` tells later stages (alerts) not to act on them, as that would
+    raise stale alerts.
     """
 
     def __init__(
@@ -49,10 +47,10 @@ class Pipeline:
         self.clock = MatchClock()
         self.windows: SlidingWindows | None = None
         self.ended = False
-        """True once match_end has been seen, until the next start or reset."""
+        """True once match_end has been seen, until the match starts over."""
         self.replay_end_offset = 0
-        """Events below this offset happened before we were live: a replay after
-        a seek, or a catch-up after (re)connecting."""
+        """Events below this offset happened before we were live: a catch-up
+        after (re)connecting, or a replay after a seek."""
         self.teams: dict[int, Team] = {}
         """Teams seen in this match, in order of first appearance."""
         self.generation = 0
@@ -95,14 +93,6 @@ class Pipeline:
                     self.replay_end_offset = marker.head
                 if self.rebuilding:
                     log.info("match %d: catching up to offset %d", marker.match_id, marker.head)
-                return []
-            case FeedMessageKind.reset:
-                marker = _marker(msg)
-                log.info(
-                    "match %d: seek, rebuilding up to offset %d", marker.match_id, marker.offset
-                )
-                self._start(marker.match_id)
-                self.replay_end_offset = marker.offset
                 return []
             case FeedMessageKind.event:
                 if msg.event is None:

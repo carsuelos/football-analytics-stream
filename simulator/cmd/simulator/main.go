@@ -1,4 +1,4 @@
-// Command simulator replays StatsBomb matches as a live feed.
+// Command simulator broadcasts StatsBomb matches as a live feed.
 //
 //	simulator [-addr :8080] [-data data/statsbomb] [-jitter 3s] [-seed 1]
 //
@@ -18,9 +18,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/jitter"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
-	"github.com/carsuelos/football-analytics-stream/simulator/internal/playback"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/server"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/statsbomb"
 )
@@ -65,15 +65,15 @@ func run(args []string) error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	player := playback.New(catalog)
-	go player.Run(ctx)
+	broadcaster := broadcast.New(catalog)
+	go broadcaster.Run(ctx)
 
 	// Listen before serving so a busy port fails here, before we log success.
 	ln, err := net.Listen("tcp", *addr)
 	if err != nil {
 		return err
 	}
-	api := server.New(player, catalog, log)
+	api := server.New(broadcaster, catalog, log)
 	srv := &http.Server{
 		Handler:           api.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
