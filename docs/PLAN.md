@@ -175,7 +175,11 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - playback state comes from each control reply, a fetch on load, and a refetch when the engine's state changes
   - tests: vitest and React Testing Library (jsdom)
   - *The pitch view comes after the MVP.*
-- [ ] **End-to-end smoke test:** replay the 2022 World Cup final (Argentina vs France) at high speed and check the key metrics and alerts. For example, France's comeback should trigger a control-shift alert for France at about 82'.
+- [x] **End-to-end smoke test** (`make smoke`, local only until Phase 2): replays the 2022 World Cup final (Argentina vs France) through the real simulator (with 3 s jitter) and engine at 1000×.
+  - consistency checks for any match; `--sample N` adds random matches with a printed, reproducible seed (all 64 World Cup matches pass). Snapshots are checked in match-time order, not offset order: with jitter, offsets follow arrival
+  - the final's story: Argentina home, penalties, Argentina's first-half field tilt over 50%
+  - leading signals: a goal threat for France (70') before their 79' goal, and for Argentina (106') before Messi's 108'
+  - not the 82' control shift for France once planned here: it fires *after* France's 79' and 81' goals, so it reacts rather than predicts
 
 ### Phase 2: Containers and broker
 - [ ] Dockerfiles for all three services, plus Docker Compose.

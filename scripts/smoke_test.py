@@ -4,20 +4,24 @@
 """End-to-end smoke test: replays matches through the simulator and engine, and checks the results.
 
     uv run scripts/smoke_test.py                    # the 2022 World Cup final
+    uv run scripts/smoke_test.py --sample           # and 10 random other matches
+    uv run scripts/smoke_test.py --sample 5 --seed 42
     uv run scripts/smoke_test.py --match 3857256    # another downloaded match
 
 Builds and starts the simulator (delivering events up to 3s late, so the
 engine has to reorder them) and the engine, on their own ports so a dev setup
-can keep running. Each match is played at 1000x through the engine's
+can keep running. Each match is played in turn at 1000x through the engine's
 /api/control until the engine reports it ended, then its metrics and alerts
 are checked: for any match, that they are consistent, and for the final, that
-they tell the story of the match. Needs `make fetch-data`, Go and uv. Exits 1 if a check fails, and
-then keeps the processes' logs.
+they tell the story of the match. Needs `make fetch-data`, Go and uv. Exits 1
+if a check fails, and then keeps the processes' logs. A failing --sample is
+reproduced with the --seed it printed.
 """
 
 import argparse
 import json
 import os
+import random
 import shutil
 import signal
 import socket
@@ -80,6 +84,7 @@ class Process:
     name: str
     popen: subprocess.Popen[bytes]
     log: Path
+    log_read: int = 0  # bytes of the log already checked for errors
 
     def check_running(self) -> None:
         if self.popen.poll() is not None:
@@ -259,9 +264,10 @@ def general_checks(r: Replay) -> list[str]:
         "snapshots have a negative pressure index",
     )
     for window_s in WINDOWS:
-        offsets = [s["offset"] for s in m if s["window_s"] == window_s]
-        if offsets != sorted(offsets):
-            problems.append(f"{window_s}s snapshots are out of order")
+        # Not offset order: jittered events are numbered in the order they arrive.
+        times = [when(s) for s in m if s["window_s"] == window_s]
+        if times != sorted(times):
+            problems.append(f"{window_s}s snapshots are out of match-time order")
 
     a = r.alerts
     report([x for x in a if x["match_id"] != match_id], "alerts are for another match")
@@ -310,18 +316,68 @@ EXPECTATIONS: dict[int, Callable[[Replay], list[str]]] = {FINAL: final_checks}
 
 
 def log_errors(processes: list[Process]) -> list[str]:
-    """Errors the processes logged, though they kept running."""
+    """Errors the processes logged since the last call, though they kept running."""
     errors = []
     for p in processes:
-        for line in p.log.read_text(errors="replace").splitlines():
+        with p.log.open("rb") as f:
+            f.seek(p.log_read)
+            new = f.read()
+        # Leave a partly written last line for the next call.
+        complete = new[: new.rfind(b"\n") + 1]
+        p.log_read += len(complete)
+        for line in complete.decode(errors="replace").splitlines():
             if "ERROR" in line or "Traceback" in line or "panic:" in line:
                 errors.append(f"{p.name}: {line.strip()}")
     return errors
 
 
+def choose(args: argparse.Namespace, downloaded: dict[int, Json]) -> list[Json]:
+    """The matches to replay: --match (or the final), then a --sample of the others."""
+    chosen = args.match or [FINAL]
+    missing = [m for m in chosen if m not in downloaded]
+    if missing:
+        raise SmokeError(f"match {missing[0]} is not downloaded (see make fetch-data)")
+    if args.sample:
+        others = sorted(downloaded.keys() - set(chosen))
+        seed = args.seed if args.seed is not None else random.randrange(1_000_000)
+        n = min(args.sample, len(others))
+        print(f"Sampling {n} of {len(others)} other matches (--seed {seed})", flush=True)
+        chosen = chosen + random.Random(seed).sample(others, n)
+    return [downloaded[m] for m in chosen]
+
+
+def check(api: Api, processes: list[Process], match: Json) -> bool:
+    """Replays a match and prints how it went. Returns whether all checks passed."""
+    match_id = match["match_id"]
+    name = f"{match['home_team']['name']} v {match['away_team']['name']} ({match_id})"
+    r = replay(api, processes, match)
+    expected = EXPECTATIONS[match_id](r) if match_id in EXPECTATIONS else []
+    problems = general_checks(r) + expected + log_errors(processes)
+    print(
+        f"{'✗' if problems else '✓'} {name}: ended after {r.seconds:.1f}s,"
+        f" {len(r.metrics)} snapshots, {len(r.alerts)} alerts",
+        flush=True,
+    )
+    for problem in problems:
+        print(f"    {problem}")
+    return not problems
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
-    parser.add_argument("--match", type=int, default=FINAL, help="match id (default: the final)")
+    parser.add_argument(
+        "--match", type=int, action="append", help="match id, repeatable (default: the final)"
+    )
+    parser.add_argument(
+        "--sample",
+        type=int,
+        nargs="?",
+        const=10,
+        default=0,
+        metavar="N",
+        help="also replay N (default 10) random other downloaded matches",
+    )
+    parser.add_argument("--seed", type=int, help="seed for --sample (default: random, printed)")
     parser.add_argument("--sim-port", type=int, default=18080)
     parser.add_argument("--engine-port", type=int, default=18000)
     args = parser.parse_args()
@@ -331,22 +387,12 @@ def main() -> None:
     try:
         with stack(args.sim_port, args.engine_port, logs) as processes:
             api = Api(args.engine_port)
-            matches = {m["match_id"]: m for m in wait_ready(api, processes)}
-            if args.match not in matches:
-                raise SmokeError(f"match {args.match} is not downloaded (see make fetch-data)")
-
-            match = matches[args.match]
-            name = f"{match['home_team']['name']} v {match['away_team']['name']} ({args.match})"
-            r = replay(api, processes, match)
-            expected = EXPECTATIONS[args.match](r) if args.match in EXPECTATIONS else []
-            problems = general_checks(r) + expected + log_errors(processes)
-            print(
-                f"{'✗' if problems else '✓'} {name}: ended after {r.seconds:.1f}s,"
-                f" {len(r.metrics)} snapshots, {len(r.alerts)} alerts"
-            )
-            for problem in problems:
-                print(f"    {problem}")
-            failed = bool(problems)
+            downloaded = {m["match_id"]: m for m in wait_ready(api, processes)}
+            # One pair of processes for every match, so switching matches is tested too.
+            passed = [check(api, processes, m) for m in choose(args, downloaded)]
+            if len(passed) > 1:
+                print(f"{sum(passed)} of {len(passed)} matches passed")
+            failed = not all(passed)
     except SmokeError as e:
         print(f"smoke test: {e}", file=sys.stderr)
     except KeyboardInterrupt:

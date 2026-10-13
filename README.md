@@ -40,7 +40,7 @@ make test                                     # all tests, including schema cont
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
-| `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--match ID"` for another match) |
+| `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--sample"` adds 10 random matches; `ARGS="--match ID"` for another match) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
@@ -106,6 +106,15 @@ make dashboard                                                      # terminal 3
 ```
 
 Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Seek to a minute to watch the engine catch up, or stop the engine and restart it: the dashboard reconnects by itself.
+
+### Smoke test
+
+`make smoke` builds the simulator, starts it and the engine on ports 18080 and 18000 (so your dev setup can keep running), and replays the 2022 final at 1000× (about 10 s). The simulator delivers events up to 3 s late, so the engine has to reorder them. Every match is checked for consistency: the right teams, nothing dropped or duplicated, field tilts adding up to 1, snapshots in match-time order, alerts at or above their thresholds, and no errors in the logs. The final is also checked against what happened: Argentina's first-half dominance, penalties, and a goal-threat alert *before* each comeback goal (France's at 79', Messi's at 108').
+
+- `make smoke ARGS="--sample"`: the final and 10 random other matches, on the same processes, so switching matches is tested too. A failing sample is reproduced with the `--seed` it printed.
+- `make smoke ARGS="--match 3857256"`: another match (`--match` can be repeated).
+
+A failure prints what went wrong and where the processes' logs are.
 
 ## Data attribution
 
