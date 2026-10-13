@@ -1,5 +1,8 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
+/**
+ * What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.
+ */
 export type EventType =
   | "pass"
   | "carry"
@@ -23,6 +26,7 @@ export type EventType =
   | "substitution"
   | "half_start"
   | "half_end"
+  | "own_goal"
   | "other";
 /**
  * Pitch coordinates [x, y] on a 120x80 pitch, oriented so the acting team attacks towards x = 120.

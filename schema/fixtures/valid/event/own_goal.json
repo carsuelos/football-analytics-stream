@@ -1,0 +1,14 @@
+{
+  "schema_version": 1,
+  "id": "b2d39518-4fba-4986-ae44-dbca5f95aabb",
+  "match_id": 3869151,
+  "offset": 3453,
+  "period": 2,
+  "match_clock_s": 4571.29,
+  "type": "own_goal",
+  "team": { "id": 779, "name": "Argentina" },
+  "possession_id": 120,
+  "possession_team_id": 792,
+  "player": { "id": 38718, "name": "Enzo Fernandez" },
+  "location": [9.7, 50.9]
+}

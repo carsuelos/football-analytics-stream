@@ -166,6 +166,18 @@ func TestNormalizeEvent(t *testing.T) {
 			wantClock: 0,
 		},
 		{
+			// Enzo Fernández's own goal for Australia (Argentina v Australia, 2022).
+			name:      "own goal against is the own goal",
+			raw:       `"period": 2, "timestamp": "00:31:11.290", "type": {"name": "Own Goal Against"}`,
+			wantType:  schema.MatchEventTypeOwnGoal,
+			wantClock: 4571.29,
+		},
+		{
+			name:     "own goal for is the mirror record and becomes other",
+			raw:      `"period": 2, "timestamp": "00:31:11.290", "type": {"name": "Own Goal For"}`,
+			wantType: schema.MatchEventTypeOther, wantClock: 4571.29,
+		},
+		{
 			name:     "unmapped type becomes other",
 			raw:      `"period": 5, "timestamp": "00:00:00.000", "type": {"name": "Tactical Shift"}`,
 			wantType: schema.MatchEventTypeOther, wantClock: 7200,

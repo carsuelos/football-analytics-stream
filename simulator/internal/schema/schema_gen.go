@@ -463,7 +463,8 @@ type MatchEvent struct {
 	// Team corresponds to the JSON schema field "team".
 	Team Team `json:"team"`
 
-	// Type corresponds to the JSON schema field "type".
+	// What happened. For own_goal, team and player are the side that put the ball
+	// into its own net; the goal counts for the opponent.
 	Type MatchEventType `json:"type"`
 }
 
@@ -556,6 +557,7 @@ const MatchEventTypeInterception MatchEventType = "interception"
 const MatchEventTypeMiscontrol MatchEventType = "miscontrol"
 const MatchEventTypeOffside MatchEventType = "offside"
 const MatchEventTypeOther MatchEventType = "other"
+const MatchEventTypeOwnGoal MatchEventType = "own_goal"
 const MatchEventTypePass MatchEventType = "pass"
 const MatchEventTypePressure MatchEventType = "pressure"
 const MatchEventTypeShot MatchEventType = "shot"
@@ -584,6 +586,7 @@ var enumValues_MatchEventType = []interface{}{
 	"substitution",
 	"half_start",
 	"half_end",
+	"own_goal",
 	"other",
 }
 

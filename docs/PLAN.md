@@ -217,7 +217,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 ### Phase 2: Containers, broker and DVR
 The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*), the broker joins as a second transport, and alerts get a service of their own.
 
-- [ ] **Own goals in the schema:** an `own_goal` event type in all three languages; goal threat resets on it.
+- [x] **Own goals in the schema:** an `own_goal` event type in all three languages; goal threat resets on it.
 - [ ] **Containers:**
   - Dockerfiles for the simulator, engine and dashboard (nginx serves the build and proxies `/api`, with buffering off for SSE)
   - Docker Compose, with `make up` and `make down`
@@ -276,7 +276,6 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 - Whether a more compact wire format is worth it on the broker (unlikely at this scale).
 
 ## Known gaps
-- **Own goals are not in the schema yet.** StatsBomb's "Own Goal For" and "Own Goal Against" events normalize to `other`, so a score built only from goal shots misses own goals. The 2022 final has none. Fix it before replaying other matches or showing a live score: add an event type and run `make gen`.
 - **Runs and possessions are cut at the window edge.** A final-third run or a box possession that started before the window only counts its in-window actions, so the pressure index slightly under-counts at the edge. This is acceptable for a rolling signal.
 - **Alerts can be lost.** The webhook sink drops an alert when its queue is full or after its retries fail, and gives up on anything still queued 5 seconds after the engine stops. That is fine for notifications; the broker (Phase 2) gives durable delivery.
 - **Pressure weights are untuned.** On the 2022 final, sustained actions make up about half of the index. Revisit in Phase 3 together with the alert thresholds.
