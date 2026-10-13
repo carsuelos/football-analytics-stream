@@ -116,22 +116,49 @@ jobs:
       - run: make check-gen
 
   images:
-    name: Container images
+    name: Images and smoke test (Compose)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: docker/setup-buildx-action@v4
+      # Tagged as Compose names them and loaded into Docker, so Compose starts
+      # the stack without building again.
       - name: Build the Compose images
         uses: docker/bake-action@v7
         with:
           source: .
           files: compose.yaml
+          load: true
           set: |
+            simulator.tags=football-analytics-simulator
             simulator.cache-from=type=gha,scope=simulator
             simulator.cache-to=type=gha,scope=simulator,mode=max
+            notifier.tags=football-analytics-notifier
             notifier.cache-from=type=gha,scope=notifier
             notifier.cache-to=type=gha,scope=notifier,mode=max
+            engine.tags=football-analytics-engine
             engine.cache-from=type=gha,scope=engine
             engine.cache-to=type=gha,scope=engine,mode=max
+            dashboard.tags=football-analytics-dashboard
             dashboard.cache-from=type=gha,scope=dashboard
             dashboard.cache-to=type=gha,scope=dashboard,mode=max
+      - uses: astral-sh/setup-uv@v10.2.0
+      # Only the final's data, kept in the Actions cache (it is never committed).
+      - name: Cache the match data
+        id: data
+        uses: actions/cache@v6
+        with:
+          path: data
+          key: data-3869685-${{ hashFiles('scripts/fetch_statsbomb.py', 'scripts/fetch_xt_grid.py') }}
+      - name: Fetch the match data
+        if: steps.data.outputs.cache-hit != 'true'
+        run: make fetch-data ARGS="--match-id 3869685"
+      - name: Smoke test
+        run: make smoke-compose COMPOSE_BUILD=--no-build
+      - name: Stack logs
+        if: failure()
+        run: docker compose logs --no-color --timestamps
+      - name: Stop the stack
+        if: always()
+        run: make down

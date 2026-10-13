@@ -245,7 +245,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - a Go **notifier** service consumes `alerts` and POSTs each one to a webhook. It commits its offset only after delivery (at least once) and drops repeats by alert id, since a DVR viewer re-watching a stretch publishes its alerts again; an `Idempotency-Key` header carries the id for repeats across notifier restarts. Failed deliveries are retried until the alert is older than `-max-age` (5 minutes), which also stops a new consumer group from paging old alerts
   - the engine's in-process webhook sink stays for runs without the broker
   - `make smoke-compose` checks every alert reached the webhook once, rewatch included
-- [ ] **Smoke test in CI** against Docker Compose.
+- [x] **Smoke test in CI** against Docker Compose: the image build job loads the images, starts the stack with `make smoke-compose`, and replays the final (its data kept in the Actions cache), checking the metrics, alerts, rewatch and notifier delivery.
 - Not planned: a Redis `StateStore`. The broker log is the recovery story (rewind and rebuild), and there is one engine. Revisit if several engine instances are needed.
 
 ### Phase 3: Modeling

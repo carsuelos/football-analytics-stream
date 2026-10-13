@@ -5,6 +5,8 @@ SCHEMAS := $(sort $(wildcard $(SCHEMA_DIR)/*.schema.json))
 
 GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go
 GO_MODULES := simulator notifier
+# CI passes --no-build to smoke-compose: it builds the images beforehand.
+COMPOSE_BUILD ?= --build
 PY_GEN := engine/src/engine/schema
 TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
@@ -67,7 +69,7 @@ fmt: ## Auto-format Go and Python code
 	gofmt -w $(GO_MODULES)
 	cd engine && uv run ruff check --fix . ../scripts && uv run ruff format . ../scripts
 
-ci: check-gen lint test ## Run everything CI runs
+ci: check-gen lint test ## Run what CI runs, except the Compose smoke test (make smoke-compose)
 
 fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup) and the xT grid. Extra StatsBomb flags via ARGS="..."
 	uv run scripts/fetch_statsbomb.py $(ARGS)
@@ -101,6 +103,6 @@ logs: ## Follow the Docker stack's logs
 	docker compose logs -f
 
 smoke-compose: ## Start the Docker stack with events up to 3s late and run the smoke test against it, notifier included. Flags via ARGS="..."
-	SIM_JITTER=3s docker compose up -d --build --wait
+	SIM_JITTER=3s docker compose up -d $(COMPOSE_BUILD) --wait
 	uv run scripts/smoke_test.py --external http://localhost:$${DASHBOARD_PORT:-3000} \
 		--webhook http://localhost:$${WEBHOOK_PORT:-9000} $(ARGS)
