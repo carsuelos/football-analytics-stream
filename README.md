@@ -39,6 +39,7 @@ make test                                     # all tests, including schema cont
 | `make ci` | Everything CI runs |
 | `make sim` | Run the simulator on `:8080` (`ARGS="-jitter 3s"` delivers events up to 3s late) |
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
+| `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 
 Generated code is committed. After editing a schema, run `make gen` and commit the result.
@@ -94,6 +95,16 @@ The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1)
 - stopping and restarting the simulator: the engine reconnects and resumes from its last offset;
 - `make engine ARGS="--xt-grid path/to/grid.json"`: use a different 12×8 xT grid;
 - `make webhook` in another terminal and `make engine ARGS="--webhook http://localhost:9000"`: each alert is also POSTed as JSON. `make webhook ARGS="--fail 2"` answers the first 2 requests with 503, so you can watch the engine retry.
+
+### Watching a match in the dashboard
+
+```sh
+make sim                                                            # terminal 1
+make engine                                                         # terminal 2
+make dashboard                                                      # terminal 3, then open http://localhost:5173
+```
+
+Choose a match, pick a speed (60× plays a half in under a minute) and press Play. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Seek to a minute to watch the engine catch up, or stop the engine and restart it: the dashboard reconnects by itself.
 
 ## Data attribution
 

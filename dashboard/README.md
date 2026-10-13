@@ -1,32 +1,32 @@
-# React + TypeScript + Vite
+# dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + Vite + TypeScript dashboard: live metric charts, alerts and playback controls for the match the engine is following.
 
-Currently, two official plugins are available:
-
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```sh
+pnpm dev     # or `make dashboard` from the repo root; http://localhost:5173
+pnpm test    # vitest: schema contract tests (node) and UI tests (jsdom)
+pnpm lint && pnpm typecheck
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+It only talks to the engine, through `/api`. In development Vite proxies `/api` to `http://localhost:8000` (set `ENGINE_URL` to change it), so the engine needs no CORS.
+
+| Path | Does |
+| --- | --- |
+| `src/App.tsx` | Page layout; wires the stream and playback hooks to the components |
+| `src/api.ts` | Typed client for `/api/matches`, `/api/playback` and `POST /api/control`; failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
+| `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts) from stream events; a `reset` starts it over |
+| `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, and reconnects when the browser gives up |
+| `src/usePlayback.ts` | `usePlayback`: the match list and playback status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken |
+| `src/MatchPicker.tsx` | Chooses the match to load (named without its score) |
+| `src/PlaybackControls.tsx` | Play/pause, speed presets (1×, 10×, 30×, 60×) and seek to a minute within a period |
+| `src/timeline.ts` | The charts' time axis: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'"); `matchMinute` labels a single moment the same way |
+| `src/chartData.ts` | Snapshots for one window as chart points, home first; `matchTeams` takes home and away from the match list |
+| `src/MetricCharts.tsx` | Field tilt (stacked to 100%), xT added and pressure per team, with a 5'/10' window toggle, period starts and alerts marked |
+| `src/AlertFeed.tsx` | The match's alerts, latest in the match first, with their minute, type and team colour |
+| `src/StatusBar.tsx` | The stream's connection, the engine's state and the match clock; the last state stays on screen, dimmed, while reconnecting |
+| `src/ui.ts` | Shared Tailwind classes |
+| `src/index.css` | Tailwind CSS entry point and theme (team colours) |
+| `src/test/` | UI test setup (Testing Library matchers and cleanup) factories for API and stream messages, and a fake `EventSource` |
+| `test/` | Contract tests: the shared schema fixtures against the JSON Schemas |
+
+`src/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.

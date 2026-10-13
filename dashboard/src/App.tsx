@@ -1,122 +1,46 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useMemo } from 'react'
+import { AlertFeed } from './AlertFeed'
+import { matchTeams } from './chartData'
+import { MatchPicker } from './MatchPicker'
+import { MetricCharts } from './MetricCharts'
+import { PlaybackControls } from './PlaybackControls'
+import { StatusBar } from './StatusBar'
+import { useMatchStream } from './useMatchStream'
+import { usePlayback } from './usePlayback'
 
-function App() {
-  const [count, setCount] = useState(0)
+export default function App() {
+  const match = useMatchStream()
+  const playback = usePlayback(match.status?.state)
+  const teams = useMemo(() => matchTeams(match.status, playback.matches), [match.status, playback.matches])
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
+    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4">
+      <header className="flex flex-wrap items-baseline justify-between gap-2">
+        <h1 className="text-xl font-semibold">Live Football Analytics</h1>
+        <StatusBar connection={match.connection} status={match.status} />
+      </header>
+      <section aria-label="Playback" className="flex flex-wrap items-center gap-3 rounded-lg bg-slate-900 p-3">
+        <MatchPicker
+          matches={playback.matches}
+          matchId={playback.status?.match_id}
+          disabled={playback.pending}
+          onLoad={(match_id) => playback.send({ command: 'load_match', match_id })}
+        />
+        <PlaybackControls status={playback.status} disabled={playback.pending} onCommand={playback.send} />
+        {playback.error && (
+          <p role="alert" className="text-sm text-red-400">
+            {playback.error}
           </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
+        )}
       </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      <main className="grid flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
+        <section aria-label="Charts" className="rounded-lg bg-slate-900 p-4">
+          <MetricCharts teams={teams} snapshots={match.snapshots} alerts={match.alerts} />
+        </section>
+        <aside aria-label="Alerts" className="rounded-lg bg-slate-900 p-4">
+          <AlertFeed teams={teams} alerts={match.alerts} />
+        </aside>
+      </main>
+    </div>
   )
 }
-
-export default App
