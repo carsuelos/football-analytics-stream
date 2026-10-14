@@ -7,9 +7,10 @@ import { ARGENTINA, FRANCE, incident, matchInfo, status } from './test/factories
 const TEAMS = [ARGENTINA, FRANCE]
 
 describe('Scoreboard', () => {
-  it('waits for a match', () => {
-    render(<Scoreboard teams={null} status={null} incidents={[]} connection="open" />)
-    expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('No match on yet')
+  it('waits for kick-off', () => {
+    render(<Scoreboard teams={TEAMS} status={null} incidents={[]} connection="open" />)
+    expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('Score: Argentina 0, France 0')
+    expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('Kick-off soon')
   })
 
   it('shows the score, the clock to the second and the competition', () => {
@@ -31,7 +32,7 @@ describe('Scoreboard', () => {
     expect(board).toHaveTextContent('Match clock: 36:541st half')
     expect(board).toHaveTextContent('FIFA World Cup · Final')
     expect(board).toHaveTextContent('LIVE')
-    expect(screen.getByRole('list', { name: 'Argentina goals and red cards' })).toHaveTextContent("Ángel Di María 35'")
+    expect(screen.getByRole('list', { name: 'Argentina goals and red cards' })).toHaveTextContent("Di María 35'")
   })
 
   it('shows stoppage time, the shootout, penalties, own goals and full time', () => {
@@ -54,8 +55,8 @@ describe('Scoreboard', () => {
     expect(board).toHaveTextContent('Match clock: 90+8:052nd half')
     expect(board).toHaveTextContent('4–2 on penalties')
     expect(board).toHaveTextContent('Full time')
-    expect(screen.getByRole('list', { name: 'Argentina goals and red cards' })).toHaveTextContent("Lionel Messi 23' (pen)")
-    expect(screen.getByRole('list', { name: 'France goals and red cards' })).toHaveTextContent("Enzo Fernández 77' (og)")
+    expect(screen.getByRole('list', { name: 'Argentina goals and red cards' })).toHaveTextContent("Messi 23' (pen)")
+    expect(screen.getByRole('list', { name: 'France goals and red cards' })).toHaveTextContent("Fernández 77' (og)")
   })
 
   it('strikes through a goal disallowed after a review, and takes it off the score', () => {
@@ -74,6 +75,6 @@ describe('Scoreboard', () => {
     expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('Score: Argentina 1, France 0')
     const line = screen.getByRole('list', { name: 'Argentina goals and red cards' })
     expect(line).toHaveTextContent('VAR')
-    expect(screen.getByText("Ángel Di María 35'")).toHaveClass('line-through')
+    expect(screen.getByText("Di María 35'")).toHaveClass('line-through')
   })
 })

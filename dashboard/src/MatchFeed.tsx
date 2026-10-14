@@ -4,12 +4,26 @@ import { ALERT_HORIZON_MIN, cancelledGoals, describe, goalAfter, INCIDENTS, isGo
 import { ALERT_NAMES } from './alerts'
 import type { Alert } from './schema/alert.schema'
 import type { Team } from './schema/engine_status.schema'
-import type { Incident } from './schema/incident.schema'
+import type { Incident, IncidentKind } from './schema/incident.schema'
 import { matchClock, type Timeline } from './timeline'
-import { segmentClass, segmentsClass } from './ui'
 
-const FILTERS = ['All', 'Events', 'Alerts'] as const
-type Filter = (typeof FILTERS)[number]
+/** What the feed can show; each can be switched on and off. */
+const CATEGORIES = ['Goals', 'Cards', 'Penalties', 'Alerts'] as const
+type Category = (typeof CATEGORIES)[number]
+
+const KINDS: Record<IncidentKind, Category> = {
+  goal: 'Goals',
+  own_goal: 'Goals',
+  penalty_goal: 'Goals',
+  goal_disallowed: 'Goals',
+  yellow_card: 'Cards',
+  second_yellow: 'Cards',
+  red_card: 'Cards',
+  penalty_awarded: 'Penalties',
+  penalty_missed: 'Penalties',
+  shootout_goal: 'Penalties',
+  shootout_miss: 'Penalties',
+}
 
 type Item = { kind: 'incident'; at: number; incident: Incident } | { kind: 'alert'; at: number; alert: Alert }
 
@@ -29,33 +43,47 @@ interface Props {
  * went on to score within 10 minutes. A filter shows just one or the other.
  */
 export function MatchFeed({ teams, alerts, incidents, axis, now }: Props) {
-  const [filter, setFilter] = useState<Filter>('All')
+  const [shown, setShown] = useState<ReadonlySet<Category>>(() => new Set(CATEGORIES))
+  const counts = useMemo(() => {
+    const n: Record<Category, number> = { Goals: 0, Cards: 0, Penalties: 0, Alerts: alerts.length }
+    for (const i of incidents) n[KINDS[i.kind]] += 1
+    return n
+  }, [alerts, incidents])
   const items = useMemo(() => {
     const list: Item[] = [
-      ...(filter !== 'Alerts' ? incidents.map((incident) => ({ kind: 'incident' as const, at: axis.x(incident), incident })) : []),
-      ...(filter !== 'Events' ? alerts.map((alert) => ({ kind: 'alert' as const, at: axis.x(alert), alert })) : []),
+      ...incidents.filter((i) => shown.has(KINDS[i.kind])).map((incident) => ({ kind: 'incident' as const, at: axis.x(incident), incident })),
+      ...(shown.has('Alerts') ? alerts.map((alert) => ({ kind: 'alert' as const, at: axis.x(alert), alert })) : []),
     ]
     // Latest first; at the same moment, events before the alerts they explain.
     return list.sort((a, b) => b.at - a.at || (a.kind === b.kind ? 0 : a.kind === 'incident' ? -1 : 1))
-  }, [alerts, incidents, axis, filter])
+  }, [alerts, incidents, axis, shown])
   const cancelled = useMemo(() => cancelledGoals(incidents), [incidents])
+  const toggle = (c: Category) =>
+    setShown((s) => {
+      const next = new Set(s)
+      if (!next.delete(c)) next.add(c)
+      return next
+    })
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="font-semibold">Match feed</h2>
-        <div role="group" aria-label="Show" className={segmentsClass}>
-          {FILTERS.map((f) => (
-            <button key={f} type="button" className={segmentClass} aria-pressed={filter === f} onClick={() => setFilter(f)}>
-              {f}
-            </button>
-          ))}
-        </div>
+      <h2 className="font-semibold">Match feed</h2>
+      <div role="group" aria-label="Show" className="flex flex-wrap gap-1.5">
+        {CATEGORIES.map((c) => (
+          <button
+            key={c}
+            type="button"
+            aria-pressed={shown.has(c)}
+            onClick={() => toggle(c)}
+            className="flex items-center gap-1.5 rounded-full border border-white/10 px-2.5 py-1 text-xs font-medium text-slate-500 transition hover:text-slate-200 aria-pressed:border-sky-400/30 aria-pressed:bg-sky-400/10 aria-pressed:text-sky-100"
+          >
+            {c}
+            <span className="font-mono text-[10px] tabular-nums opacity-70">{counts[c]}</span>
+          </button>
+        ))}
       </div>
       {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">
-          {filter === 'Alerts' ? 'No alerts yet.' : filter === 'Events' ? 'No events yet.' : 'Nothing yet.'}
-        </p>
+        <p className="py-8 text-center text-sm text-slate-400">{shown.size === 0 ? 'Choose what to show above.' : 'Nothing yet.'}</p>
       ) : (
         <ol className="-mr-2 flex max-h-[44rem] flex-col gap-2 overflow-y-auto pr-2">
           {items.map((item) =>
@@ -101,26 +129,35 @@ function IncidentItem({ incident: i, teams, disallowed }: { incident: Incident; 
 }
 
 function AlertItem({ alert: a, teams, incidents, axis, now }: { alert: Alert; teams: Team[] | null; incidents: Incident[]; axis: Timeline; now?: number }) {
+  // Worked out here, from the goals the viewer has seen so far: the alert itself never changes.
   const scored = goalAfter(a, incidents, axis)
-  const settled = now !== undefined && now - axis.x(a) > ALERT_HORIZON_MIN
+  const elapsed = now === undefined ? undefined : now - axis.x(a)
   return (
     <li className={`rounded-xl border-l-[3px] bg-white/[0.03] px-3 py-2.5 ${stripe(a.team_id, teams)}`}>
       <p className="flex items-center gap-2 text-xs text-slate-400">
         <AlertIcon type={a.type} className="size-4 shrink-0 text-sky-300" />
-        <span className="font-mono font-semibold tabular-nums text-slate-200">{matchClock(a)}</span>
+        <span className="font-mono font-semibold text-slate-200 tabular-nums">{matchClock(a)}</span>
         <span>· {ALERT_NAMES[a.type]}</span>
         {scored ? (
-          <span className="ml-auto flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-300">
+          <span title={OUTCOME_HINT} className="ml-auto flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-300">
             <BallIcon className="size-3" /> Scored {minutesLater(scored.minutes)}
           </span>
+        ) : elapsed === undefined ? null : elapsed > ALERT_HORIZON_MIN ? (
+          <span title={OUTCOME_HINT} className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-slate-500">
+            No goal in 10'
+          </span>
         ) : (
-          settled && <span className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-slate-500">No goal in 10'</span>
+          <span title={OUTCOME_HINT} className="ml-auto rounded-full border border-sky-400/20 px-2 py-0.5 text-sky-300/80">
+            Watching · {Math.min(ALERT_HORIZON_MIN, Math.max(1, Math.ceil(ALERT_HORIZON_MIN - elapsed)))}' left
+          </span>
         )}
       </p>
       <p className="mt-1 text-sm text-slate-200">{a.message}</p>
     </li>
   )
 }
+
+const OUTCOME_HINT = 'Checked as the match plays on: did this team score within 10 minutes of the alert?'
 
 /** How long after the alert, e.g. "22s later" or "4' later". */
 function minutesLater(minutes: number) {

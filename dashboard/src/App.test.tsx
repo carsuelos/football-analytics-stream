@@ -45,7 +45,6 @@ it('renders the layout', () => {
   expect(simulator).toHaveAccessibleDescription(/Stands in for the live feed/)
   expect(within(simulator).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
   expect(within(screen.getByRole('region', { name: 'Controls' })).getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
-  expect(screen.getByRole('region', { name: 'Scoreboard' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
   expect(screen.getByRole('complementary', { name: 'Match feed' })).toBeInTheDocument()
 })
@@ -126,7 +125,7 @@ it('shows the stream on the scoreboard, timeline, charts and match feed', async 
   })
   await applied()
   expect(screen.getByRole('status')).toHaveTextContent('Connected Live')
-  const board = screen.getByRole('region', { name: 'Scoreboard' })
+  const board = within(screen.getByRole('region', { name: 'Charts' })).getByRole('region', { name: 'Scoreboard' })
   expect(board).toHaveTextContent('Score: Argentina 2, France 1')
   expect(board).toHaveTextContent('82:072nd half')
   expect(screen.getAllByRole('figure').map((f) => f.getAttribute('aria-label'))).toEqual([
@@ -137,7 +136,7 @@ it('shows the stream on the scoreboard, timeline, charts and match feed', async 
   ])
   const feed = within(screen.getByRole('complementary', { name: 'Match feed' })).getAllByRole('listitem')
   expect(feed.map((li) => li.textContent)).toEqual([
-    "82:27· ControlFrance taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before",
+    "82:27· ControlWatching · 10' leftFrance taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before",
     '35:22· Argentina2–0Goal · Ángel Di María',
   ])
 })
