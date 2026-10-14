@@ -313,6 +313,73 @@ func (j *BroadcastStatus) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// On goal_disallowed: the goal it cancels.
+type DisallowedGoal struct {
+	// id of the shot or own_goal event of the goal.
+	EventID string `json:"event_id"`
+
+	// Reason corresponds to the JSON schema field "reason".
+	Reason DisallowedReason `json:"reason"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *DisallowedGoal) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["event_id"]; raw != nil && !ok {
+		return fmt.Errorf("field event_id in DisallowedGoal: required")
+	}
+	if _, ok := raw["reason"]; raw != nil && !ok {
+		return fmt.Errorf("field reason in DisallowedGoal: required")
+	}
+	type Plain DisallowedGoal
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.EventID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "event_id", 1)
+	}
+	*j = DisallowedGoal(plain)
+	return nil
+}
+
+type DisallowedReason string
+
+const DisallowedReasonFoul DisallowedReason = "foul"
+const DisallowedReasonHandball DisallowedReason = "handball"
+const DisallowedReasonOffside DisallowedReason = "offside"
+const DisallowedReasonOther DisallowedReason = "other"
+
+var enumValues_DisallowedReason = []interface{}{
+	"offside",
+	"foul",
+	"handball",
+	"other",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *DisallowedReason) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_DisallowedReason {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_DisallowedReason, v)
+	}
+	*j = DisallowedReason(v)
+	return nil
+}
+
 // Where the engine is in the match it is following.
 type EngineStatus struct {
 	// Seconds of play between the viewer and the live edge.
@@ -354,6 +421,9 @@ type EngineStatus struct {
 
 	// SchemaVersion corresponds to the JSON schema field "schema_version".
 	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// The score as of the latest event processed, in the order of teams.
+	Score []TeamScore `json:"score,omitempty,omitzero"`
 
 	// The viewer's playback speed while behind live.
 	Speed *float64 `json:"speed,omitempty,omitzero"`
@@ -458,6 +528,9 @@ func (j *EngineStatus) UnmarshalJSON(value []byte) error {
 	}
 	if 0 > plain.Released {
 		return fmt.Errorf("field %s: must be >= %v", "released", 0)
+	}
+	if len(plain.Score) > 2 {
+		return fmt.Errorf("field %s length: must be <= %d", "score", 2)
 	}
 	if plain.Speed != nil && 0 >= *plain.Speed {
 		return fmt.Errorf("field %s: must be > %v", "speed", 0)
@@ -587,6 +660,163 @@ func (j *FeedMessage) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// A key moment of the match (a goal, a card, a penalty), with the score after it.
+// Derived by the engine from the event feed.
+type Incident struct {
+	// On goal_disallowed: the id of the goal's incident.
+	Cancels *string `json:"cancels,omitempty,omitzero"`
+
+	// Stable id: the same incident gets the same id when the match is replayed.
+	ID string `json:"id"`
+
+	// What happened. penalty_goal and penalty_missed are penalties in play;
+	// shootout_goal and shootout_miss are kicks in the shootout, which do not count
+	// as goals.
+	Kind IncidentKind `json:"kind"`
+
+	// MatchClockS corresponds to the JSON schema field "match_clock_s".
+	MatchClockS MatchClockSeconds `json:"match_clock_s"`
+
+	// MatchID corresponds to the JSON schema field "match_id".
+	MatchID MatchID `json:"match_id"`
+
+	// Offset of the event the incident comes from.
+	Offset Offset `json:"offset"`
+
+	// Period corresponds to the JSON schema field "period".
+	Period Period `json:"period"`
+
+	// Seconds of play when it happened, continuous across periods.
+	PlayS float64 `json:"play_s"`
+
+	// The player who scored, took the penalty, gave it away (if the provider says) or
+	// was shown the card. For own_goal, the opponent who put the ball into his own
+	// net.
+	Player *Player `json:"player,omitempty,omitzero"`
+
+	// On goal_disallowed: why it was disallowed.
+	Reason *DisallowedReason `json:"reason,omitempty,omitzero"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// The score after it, in the order of the teams.
+	Score []TeamScore `json:"score"`
+
+	// The team it is for: the side that scored (for own_goal, the side the goal
+	// counts for), took the penalty, was awarded it, had the goal disallowed or was
+	// shown the card.
+	TeamID int `json:"team_id"`
+}
+
+type IncidentKind string
+
+const IncidentKindGoal IncidentKind = "goal"
+const IncidentKindGoalDisallowed IncidentKind = "goal_disallowed"
+const IncidentKindOwnGoal IncidentKind = "own_goal"
+const IncidentKindPenaltyAwarded IncidentKind = "penalty_awarded"
+const IncidentKindPenaltyGoal IncidentKind = "penalty_goal"
+const IncidentKindPenaltyMissed IncidentKind = "penalty_missed"
+const IncidentKindRedCard IncidentKind = "red_card"
+const IncidentKindSecondYellow IncidentKind = "second_yellow"
+const IncidentKindShootoutGoal IncidentKind = "shootout_goal"
+const IncidentKindShootoutMiss IncidentKind = "shootout_miss"
+const IncidentKindYellowCard IncidentKind = "yellow_card"
+
+var enumValues_IncidentKind = []interface{}{
+	"goal",
+	"own_goal",
+	"penalty_goal",
+	"penalty_missed",
+	"penalty_awarded",
+	"goal_disallowed",
+	"yellow_card",
+	"second_yellow",
+	"red_card",
+	"shootout_goal",
+	"shootout_miss",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *IncidentKind) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_IncidentKind {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_IncidentKind, v)
+	}
+	*j = IncidentKind(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Incident) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in Incident: required")
+	}
+	if _, ok := raw["kind"]; raw != nil && !ok {
+		return fmt.Errorf("field kind in Incident: required")
+	}
+	if _, ok := raw["match_clock_s"]; raw != nil && !ok {
+		return fmt.Errorf("field match_clock_s in Incident: required")
+	}
+	if _, ok := raw["match_id"]; raw != nil && !ok {
+		return fmt.Errorf("field match_id in Incident: required")
+	}
+	if _, ok := raw["offset"]; raw != nil && !ok {
+		return fmt.Errorf("field offset in Incident: required")
+	}
+	if _, ok := raw["period"]; raw != nil && !ok {
+		return fmt.Errorf("field period in Incident: required")
+	}
+	if _, ok := raw["play_s"]; raw != nil && !ok {
+		return fmt.Errorf("field play_s in Incident: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in Incident: required")
+	}
+	if _, ok := raw["score"]; raw != nil && !ok {
+		return fmt.Errorf("field score in Incident: required")
+	}
+	if _, ok := raw["team_id"]; raw != nil && !ok {
+		return fmt.Errorf("field team_id in Incident: required")
+	}
+	type Plain Incident
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Cancels != nil && utf8.RuneCountInString(string(*plain.Cancels)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "cancels", 1)
+	}
+	if utf8.RuneCountInString(string(plain.ID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "id", 1)
+	}
+	if 0 > plain.PlayS {
+		return fmt.Errorf("field %s: must be >= %v", "play_s", 0)
+	}
+	if plain.Score != nil && len(plain.Score) < 2 {
+		return fmt.Errorf("field %s length: must be >= %d", "score", 2)
+	}
+	if len(plain.Score) > 2 {
+		return fmt.Errorf("field %s length: must be <= %d", "score", 2)
+	}
+	*j = Incident(plain)
+	return nil
+}
+
 // The latest point of the broadcast received so far: the viewer can seek up to
 // here.
 type LiveEdge struct {
@@ -654,6 +884,13 @@ func (j *MatchClockSeconds) UnmarshalJSON(value []byte) error {
 // A single normalized match event. Raw provider data never crosses the simulator
 // boundary.
 type MatchEvent struct {
+	// A card shown to player with this event: on a foul_committed, or on other for
+	// misconduct away from a foul. second_yellow is a sending-off, like red.
+	Card *MatchEventCard `json:"card,omitempty,omitzero"`
+
+	// On goal_disallowed: the goal it cancels.
+	DisallowedGoal *DisallowedGoal `json:"disallowed_goal,omitempty,omitzero"`
+
 	// EndLocation corresponds to the JSON schema field "end_location".
 	EndLocation Point `json:"end_location,omitempty,omitzero"`
 
@@ -675,6 +912,10 @@ type MatchEvent struct {
 	// Success or failure for actions that have one (e.g. pass completion). Omitted
 	// otherwise.
 	Outcome *MatchEventOutcome `json:"outcome,omitempty,omitzero"`
+
+	// On foul_committed or foul_won: the foul gave away a penalty. A provider may
+	// flag both events of the same foul.
+	PenaltyAwarded *bool `json:"penalty_awarded,omitempty,omitzero"`
 
 	// Period corresponds to the JSON schema field "period".
 	Period Period `json:"period"`
@@ -698,8 +939,42 @@ type MatchEvent struct {
 	Team Team `json:"team"`
 
 	// What happened. For own_goal, team and player are the side that put the ball
-	// into its own net; the goal counts for the opponent.
+	// into its own net; the goal counts for the opponent. goal_disallowed cancels a
+	// goal already in the feed (e.g. after a VAR review): team is the side whose goal
+	// it was, and disallowed_goal says which and why.
 	Type MatchEventType `json:"type"`
+}
+
+type MatchEventCard string
+
+const MatchEventCardRed MatchEventCard = "red"
+const MatchEventCardSecondYellow MatchEventCard = "second_yellow"
+const MatchEventCardYellow MatchEventCard = "yellow"
+
+var enumValues_MatchEventCard = []interface{}{
+	"yellow",
+	"second_yellow",
+	"red",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchEventCard) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_MatchEventCard {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_MatchEventCard, v)
+	}
+	*j = MatchEventCard(v)
+	return nil
 }
 
 type MatchEventOutcome string
@@ -770,6 +1045,42 @@ func (j *MatchEventShotOutcome) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type MatchEventShotType string
+
+const MatchEventShotTypeCorner MatchEventShotType = "corner"
+const MatchEventShotTypeFreeKick MatchEventShotType = "free_kick"
+const MatchEventShotTypeKickOff MatchEventShotType = "kick_off"
+const MatchEventShotTypeOpenPlay MatchEventShotType = "open_play"
+const MatchEventShotTypePenalty MatchEventShotType = "penalty"
+
+var enumValues_MatchEventShotType = []interface{}{
+	"open_play",
+	"free_kick",
+	"corner",
+	"penalty",
+	"kick_off",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchEventShotType) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_MatchEventShotType {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_MatchEventShotType, v)
+	}
+	*j = MatchEventShotType(v)
+	return nil
+}
+
 type MatchEventType string
 
 const MatchEventTypeBallReceipt MatchEventType = "ball_receipt"
@@ -784,6 +1095,7 @@ const MatchEventTypeDuel MatchEventType = "duel"
 const MatchEventTypeFiftyFifty MatchEventType = "fifty_fifty"
 const MatchEventTypeFoulCommitted MatchEventType = "foul_committed"
 const MatchEventTypeFoulWon MatchEventType = "foul_won"
+const MatchEventTypeGoalDisallowed MatchEventType = "goal_disallowed"
 const MatchEventTypeGoalkeeper MatchEventType = "goalkeeper"
 const MatchEventTypeHalfEnd MatchEventType = "half_end"
 const MatchEventTypeHalfStart MatchEventType = "half_start"
@@ -821,6 +1133,7 @@ var enumValues_MatchEventType = []interface{}{
 	"half_start",
 	"half_end",
 	"own_goal",
+	"goal_disallowed",
 	"other",
 }
 
@@ -1249,6 +1562,9 @@ type ShotDetail struct {
 	// Outcome corresponds to the JSON schema field "outcome".
 	Outcome MatchEventShotOutcome `json:"outcome"`
 
+	// The situation the shot came from. Omitted if the provider does not say.
+	Type *MatchEventShotType `json:"type,omitempty,omitzero"`
+
 	// XG corresponds to the JSON schema field "xg".
 	XG float64 `json:"xg"`
 }
@@ -1341,6 +1657,45 @@ func (j *TeamMetrics) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be >= %v", "pressure_index", 0)
 	}
 	*j = TeamMetrics(plain)
+	return nil
+}
+
+// One team's score. Goals exclude the penalty shootout, which has its own count.
+type TeamScore struct {
+	// Goals corresponds to the JSON schema field "goals".
+	Goals int `json:"goals"`
+
+	// Penalties scored in the shootout, once it has started.
+	Shootout *int `json:"shootout,omitempty,omitzero"`
+
+	// TeamID corresponds to the JSON schema field "team_id".
+	TeamID int `json:"team_id"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *TeamScore) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["goals"]; raw != nil && !ok {
+		return fmt.Errorf("field goals in TeamScore: required")
+	}
+	if _, ok := raw["team_id"]; raw != nil && !ok {
+		return fmt.Errorf("field team_id in TeamScore: required")
+	}
+	type Plain TeamScore
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Goals {
+		return fmt.Errorf("field %s: must be >= %v", "goals", 0)
+	}
+	if plain.Shootout != nil && 0 > *plain.Shootout {
+		return fmt.Errorf("field %s: must be >= %v", "shootout", 0)
+	}
+	*j = TeamScore(plain)
 	return nil
 }
 

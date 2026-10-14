@@ -12,6 +12,7 @@ from engine.schema.alert_schema import Alert
 from engine.schema.engine_status_schema import EngineState, EngineStatus
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
+from engine.schema.incident_schema import Incident
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
 from engine.ticks import Ticker
@@ -160,6 +161,8 @@ def brief(u: Update) -> tuple[object, int]:
             return u.offset, u.window_s
         case Alert():
             return "Alert", u.offset
+        case Incident():
+            return u.kind, u.offset
 
 
 async def test_run_gives_the_hub_each_match_from_its_start() -> None:

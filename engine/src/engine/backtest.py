@@ -23,7 +23,7 @@ from pathlib import Path
 from engine.clock import TimedEvent
 from engine.detectors import DEFAULT_MODEL_PATH, Detectors, GoalModel, default_detectors
 from engine.detectors.goal_chance import add_goal_model_args
-from engine.features import goal_for
+from engine.features import disallowed, goal_for
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
@@ -77,6 +77,7 @@ class Goal:
     play_s: float
     offset: int
     own_goal: bool
+    event_id: str = field(default="", compare=False)
 
 
 @dataclass(frozen=True)
@@ -95,7 +96,8 @@ class Replay:
     snapshots: list[MetricSnapshot] = field(default_factory=list)
     alerts: list[TimedAlert] = field(default_factory=list)
     goals: list[Goal] = field(default_factory=list)
-    """Goals among the released events, not counting the shootout."""
+    """Goals among the released events, not counting the shootout or any
+    later disallowed."""
     end_play_s: float = 0.0
     """Play time of the last event released before any shootout."""
     ended: bool = False
@@ -124,11 +126,13 @@ def replay(
     for step in steps(messages, pipeline, ticker):
         if result is None:
             result = Replay(step.item.event.match_id, (0, 0), {})
-        if (team := goal_for(step.item.event, pipeline.team_ids)) is not None:
-            ev = step.item.event
+        ev = step.item.event
+        if (team := goal_for(ev, pipeline.team_ids)) is not None:
             result.goals.append(
-                Goal(team, step.item.play_s, ev.offset, ev.type == EventType.own_goal)
+                Goal(team, step.item.play_s, ev.offset, ev.type == EventType.own_goal, ev.id)
             )
+        if cancelled := disallowed(ev):
+            result.goals = [g for g in result.goals if g.event_id != cancelled]
         if step.item.event.period != SHOOTOUT_PERIOD:
             result.end_play_s = step.item.play_s
         if step.tick is not None:

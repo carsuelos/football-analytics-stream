@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "3857300-var-1-goal_disallowed",
+  "match_id": 3857300,
+  "offset": 420,
+  "period": 1,
+  "match_clock_s": 1340.5,
+  "play_s": 1340.5,
+  "kind": "goal_disallowed",
+  "team_id": 779,
+  "player": {
+    "id": 29560,
+    "name": "Lautaro Javier Martínez"
+  },
+  "score": [
+    {
+      "team_id": 779,
+      "goals": 1
+    },
+    {
+      "team_id": 7795,
+      "goals": 0
+    }
+  ],
+  "cancels": "3857300-shot-lautaro-22-goal",
+  "reason": "offside"
+}

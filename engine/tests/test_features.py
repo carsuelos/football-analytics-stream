@@ -2,8 +2,15 @@ from engine.backtest import Step, replay
 from engine.features import FEATURE_NAMES, FeatureTracker, goal_for
 from engine.metrics import MetricsConfig, XTGrid
 from engine.pipeline import Pipeline
-from engine.schema.common_schema import Team
-from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail, ShotOutcome
+from engine.schema.common_schema import DisallowedReason, Team
+from engine.schema.event_schema import (
+    DisallowedGoal,
+    EventOutcome,
+    EventType,
+    MatchEvent,
+    ShotDetail,
+    ShotOutcome,
+)
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
@@ -94,6 +101,20 @@ def test_game_state() -> None:
     assert seen[1500.0][HOME.id][F["since_goal_min"]] == 5
     assert seen[300.0][HOME.id][F["since_goal_min"]] == 5  # since kick-off
     assert home[F["extra_time"]] == 0
+
+
+def test_a_disallowed_goal_comes_off_the_score() -> None:
+    events = events_of(a_match())
+    goal = next(e for e in events if e.shot and e.shot.outcome is ShotOutcome.goal)
+    var = event(1, 660, type=EventType.goal_disallowed, team=HOME).model_copy(
+        update={
+            "disallowed_goal": DisallowedGoal(event_id=goal.id, reason=DisallowedReason.offside)
+        }
+    )
+    seen = features(feed(sorted([*events, var], key=lambda e: e.match_clock_s)))
+    assert seen[640.0][HOME.id][F["goals_for"]] == 1  # the original HOME goal at 10'
+    assert seen[700.0][HOME.id][F["goals_for"]] == 0
+    assert seen[1500.0][HOME.id][F["score_diff"]] == 1  # only the own goal
 
 
 def test_windows_and_totals() -> None:

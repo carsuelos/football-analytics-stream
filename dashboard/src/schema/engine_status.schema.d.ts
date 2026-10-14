@@ -26,6 +26,12 @@ export interface EngineStatus {
    */
   teams?: [] | [Team] | [Team, Team];
   /**
+   * The score as of the latest event processed, in the order of teams.
+   *
+   * @maxItems 2
+   */
+  score?: [] | [TeamScore] | [TeamScore, TeamScore];
+  /**
    * Period of the latest event processed: where the viewer is.
    */
   period?: number;
@@ -70,6 +76,17 @@ export interface EngineStatus {
 export interface Team {
   id: number;
   name: string;
+}
+/**
+ * One team's score. Goals exclude the penalty shootout, which has its own count.
+ */
+export interface TeamScore {
+  team_id: number;
+  goals: number;
+  /**
+   * Penalties scored in the shootout, once it has started.
+   */
+  shootout?: number;
 }
 /**
  * The latest point of the broadcast received so far: the viewer can seek up to here.

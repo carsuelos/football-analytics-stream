@@ -7,6 +7,7 @@ from collections.abc import Callable, Sequence
 from engine.detectors import Detectors
 from engine.dvr import Dvr
 from engine.hub import MatchHub
+from engine.incidents import IncidentTracker
 from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
 from engine.schema.engine_status_schema import EngineState, EngineStatus
@@ -25,6 +26,7 @@ async def run(
     metrics: MetricsConfig | None = None,
     ticker: Ticker | None = None,
     detectors: Detectors | None = None,
+    incidents: IncidentTracker | None = None,
     sinks: Sequence[AlertSink] = (),
     metric_sinks: Sequence[MetricSink] = (),
     hub: MatchHub | None = None,
@@ -41,8 +43,9 @@ async def run(
     apart.
 
     The hub, if given, gets everything: a reset whenever the pipeline starts
-    over, then on every tick the metric snapshots and all alerts, replayed or
-    not, so it holds the whole match.
+    over, then the incidents (goals, cards...) as they happen, and on every
+    tick the metric snapshots and all alerts, replayed or not, so it holds the
+    whole match. The incident tracker, if given, also keeps the status's score.
 
     At the start, then every status_every_s seconds of wall-clock time, report
     the status (with metrics, if a config is given; logged at DEBUG by default)
@@ -59,7 +62,7 @@ async def run(
             report(line)
             last = line
         if hub:
-            hub.set_status(engine_status(pipeline, dvr))
+            hub.set_status(engine_status(pipeline, dvr, incidents))
 
     async def report_every() -> None:
         while True:
@@ -73,8 +76,12 @@ async def run(
             items = pipeline.handle_each(msg)
             if hub and pipeline.generation != hub.generation:
                 hub.start(pipeline.generation, pipeline.match_id)
-                hub.set_status(engine_status(pipeline, dvr))
+                hub.set_status(engine_status(pipeline, dvr, incidents))
             for item in items:
+                if incidents:
+                    found = incidents.observe(pipeline, item)
+                    if hub and found:
+                        hub.add(*found)
                 tick = ticker.observe(pipeline, item) if ticker else None
                 if tick is None:
                     continue
@@ -122,9 +129,12 @@ def status_report(p: Pipeline, metrics: MetricsConfig | None = None) -> str:
     return "\n".join(lines)
 
 
-def engine_status(p: Pipeline, dvr: Dvr | None = None) -> EngineStatus:
-    """Where the pipeline is in the match, and the viewer relative to the
-    broadcast if there is a DVR, for the dashboard."""
+def engine_status(
+    p: Pipeline, dvr: Dvr | None = None, incidents: IncidentTracker | None = None
+) -> EngineStatus:
+    """Where the pipeline is in the match, the score if there is an incident
+    tracker, and the viewer relative to the broadcast if there is a DVR, for
+    the dashboard."""
     if p.match_id is None:
         state = EngineState.waiting
     elif p.ended:
@@ -145,6 +155,7 @@ def engine_status(p: Pipeline, dvr: Dvr | None = None) -> EngineStatus:
         generation=p.generation,
         match_id=p.match_id,
         teams=list(p.teams.values()) or None,
+        score=incidents.score(p) if incidents else None,
         period=now.period if now else None,
         match_clock_s=now.clock_s if now else None,
         play_s=p.clock.play_s if now else None,

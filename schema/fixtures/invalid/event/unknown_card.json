@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "c1a7d3b4-montiel-handball",
+  "match_id": 3869685,
+  "offset": 3600,
+  "period": 4,
+  "match_clock_s": 6939.2,
+  "type": "foul_committed",
+  "team": {
+    "id": 779,
+    "name": "Argentina"
+  },
+  "possession_id": 210,
+  "possession_team_id": 771,
+  "player": {
+    "id": 7024,
+    "name": "Gonzalo Ariel Montiel"
+  },
+  "location": [
+    11.5,
+    38.2
+  ],
+  "card": "orange",
+  "penalty_awarded": true
+}

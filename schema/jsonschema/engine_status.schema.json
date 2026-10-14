@@ -23,6 +23,12 @@
       "items": { "$ref": "common.schema.json#/definitions/Team" },
       "maxItems": 2
     },
+    "score": {
+      "description": "The score as of the latest event processed, in the order of teams.",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/definitions/TeamScore" },
+      "maxItems": 2
+    },
     "period": {
       "description": "Period of the latest event processed: where the viewer is.",
       "$ref": "common.schema.json#/definitions/Period"

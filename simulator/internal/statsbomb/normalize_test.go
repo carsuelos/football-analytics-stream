@@ -293,3 +293,83 @@ func deref[T any](p *T) any {
 	}
 	return *p
 }
+
+func TestNormalizeCardsAndPenalties(t *testing.T) {
+	yellow, second, red := schema.MatchEventCardYellow, schema.MatchEventCardSecondYellow, schema.MatchEventCardRed
+	penalty := schema.MatchEventShotTypePenalty
+	tests := []struct {
+		name        string
+		raw         string
+		wantType    schema.MatchEventType
+		wantCard    *schema.MatchEventCard
+		wantAwarded bool
+		wantShot    *schema.MatchEventShotType
+	}{
+		{
+			name:     "yellow card on a foul",
+			raw:      `"type": {"name": "Foul Committed"}, "foul_committed": {"card": {"name": "Yellow Card"}}`,
+			wantType: schema.MatchEventTypeFoulCommitted, wantCard: &yellow,
+		},
+		{
+			name:     "second yellow for misconduct",
+			raw:      `"type": {"name": "Bad Behaviour"}, "bad_behaviour": {"card": {"name": "Second Yellow"}}`,
+			wantType: schema.MatchEventTypeOther, wantCard: &second,
+		},
+		{
+			name:        "straight red that gives away a penalty",
+			raw:         `"type": {"name": "Foul Committed"}, "foul_committed": {"card": {"name": "Red Card"}, "penalty": true}`,
+			wantType:    schema.MatchEventTypeFoulCommitted,
+			wantCard:    &red,
+			wantAwarded: true,
+		},
+		{
+			name:        "penalty won",
+			raw:         `"type": {"name": "Foul Won"}, "foul_won": {"penalty": true}`,
+			wantType:    schema.MatchEventTypeFoulWon,
+			wantAwarded: true,
+		},
+		{
+			name:     "foul without card or penalty",
+			raw:      `"type": {"name": "Foul Committed"}, "foul_committed": {"offensive": true}`,
+			wantType: schema.MatchEventTypeFoulCommitted,
+		},
+		{
+			name:     "penalty kick",
+			raw:      `"type": {"name": "Shot"}, "shot": {"statsbomb_xg": 0.78, "outcome": {"name": "Goal"}, "type": {"name": "Penalty"}}`,
+			wantType: schema.MatchEventTypeShot, wantShot: &penalty,
+		},
+		{
+			name:     "unknown shot type is omitted",
+			raw:      `"type": {"name": "Shot"}, "shot": {"statsbomb_xg": 0.1, "outcome": {"name": "Goal"}, "type": {"name": "Something New"}}`,
+			wantType: schema.MatchEventTypeShot,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ev, err := normalizeEvent(42, 7, decodeRaw(t, `"period": 1, "timestamp": "00:10:00.000", `+tt.raw))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if ev.Type != tt.wantType {
+				t.Errorf("type = %q, want %q", ev.Type, tt.wantType)
+			}
+			if !reflect.DeepEqual(ev.Card, tt.wantCard) {
+				t.Errorf("card = %v, want %v", ev.Card, tt.wantCard)
+			}
+			if got := ev.PenaltyAwarded != nil && *ev.PenaltyAwarded; got != tt.wantAwarded {
+				t.Errorf("penalty_awarded = %v, want %v", got, tt.wantAwarded)
+			}
+			if ev.PenaltyAwarded != nil && !*ev.PenaltyAwarded {
+				t.Error("penalty_awarded should be omitted rather than false")
+			}
+			var shotType *schema.MatchEventShotType
+			if ev.Shot != nil {
+				shotType = ev.Shot.Type
+			}
+			if !reflect.DeepEqual(shotType, tt.wantShot) {
+				t.Errorf("shot type = %v, want %v", shotType, tt.wantShot)
+			}
+			assertSchemaValid(t, ev)
+		})
+	}
+}

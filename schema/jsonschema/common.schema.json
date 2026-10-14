@@ -44,6 +44,25 @@
       },
       "required": ["id", "name"]
     },
+    "TeamScore": {
+      "description": "One team's score. Goals exclude the penalty shootout, which has its own count.",
+      "type": "object",
+      "properties": {
+        "team_id": { "type": "integer" },
+        "goals": { "type": "integer", "minimum": 0 },
+        "shootout": {
+          "description": "Penalties scored in the shootout, once it has started.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["team_id", "goals"]
+    },
+    "DisallowedReason": {
+      "description": "Why a goal was disallowed.",
+      "type": "string",
+      "enum": ["offside", "foul", "handball", "other"]
+    },
     "Point": {
       "description": "Pitch coordinates [x, y] on a 120x80 pitch, oriented so the acting team attacks towards x = 120.",
       "type": "array",

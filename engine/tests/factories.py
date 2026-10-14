@@ -6,9 +6,10 @@ from engine.clock import MatchClock, TimedEvent
 from engine.metrics import MetricsConfig
 from engine.pipeline import Pipeline
 from engine.schema.alert_schema import Alert, AlertType
-from engine.schema.common_schema import Team
+from engine.schema.common_schema import Player, Team, TeamScore
 from engine.schema.event_schema import EventOutcome, EventType, MatchEvent, ShotDetail
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
+from engine.schema.incident_schema import Incident, IncidentKind
 from engine.ticks import Tick
 from engine.windows import InMemoryStateStore
 
@@ -112,4 +113,20 @@ def alert(n: int = 0) -> Alert:
         window_s=300,
         features={"balance": 0.6},
         message="France taking control",
+    )
+
+
+def incident(n: int = 0) -> Incident:
+    return Incident(
+        schema_version=1,
+        id=f"1-goal-{n}-goal",
+        match_id=1,
+        offset=n,
+        period=1,
+        match_clock_s=2122.0,
+        play_s=2122.0,
+        kind=IncidentKind.goal,
+        team_id=1,
+        player=Player(id=7, name="Ángel Di María"),
+        score=[TeamScore(team_id=1, goals=2), TeamScore(team_id=2, goals=0)],
     )

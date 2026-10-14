@@ -199,6 +199,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - match hub: the current match's history (metric snapshots every tick, all alerts) and live updates for the dashboard
   - SSE stream: a `MatchReset`, the latest `EngineStatus`, the history, then live updates
   - REST endpoints for status, snapshots and alerts
+  - match incidents (goals, cards, penalties, disallowed goals, the shootout) and the score, on the stream and at `/api/incidents`. StatsBomb's open data has no disallowed goals (no VAR or offside calls), so `goal_disallowed` is in the schema for a real feed and only exercised by tests
   - typed passthrough to the simulator (match list, playback status, controls); its errors keep their `{"error": ...}` shape
   - one process: uvicorn serves the API and runs the run loop alongside it; Ctrl+C ends open streams cleanly
 - [x] **Dashboard (lean):**

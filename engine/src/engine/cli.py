@@ -21,6 +21,7 @@ from engine.detectors import GoalModel, GoalModelError, default_detectors
 from engine.detectors.goal_chance import add_goal_model_args, grid_mismatch
 from engine.dvr import Dvr
 from engine.hub import MatchHub
+from engine.incidents import IncidentTracker
 from engine.metrics import MetricsConfig, XTGrid, XTGridError
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
@@ -191,10 +192,11 @@ def engine_app(
     metrics = MetricsConfig(grid)
     simulator = None if args.no_simulator else httpx.AsyncClient(base_url=args.simulator, timeout=5)
     dvr = Dvr(source)
+    incidents = IncidentTracker()
 
     def control(cmd: ViewerCommand) -> EngineStatus:
         dvr.execute(cmd)
-        status = engine_status(pipeline, dvr)
+        status = engine_status(pipeline, dvr, incidents)
         hub.set_status(status)
         return status
 
@@ -225,6 +227,7 @@ def engine_app(
                     metrics=metrics,
                     ticker=Ticker(metrics),
                     detectors=default_detectors(goal_model),
+                    incidents=incidents,
                     sinks=sinks,
                     metric_sinks=metric_sinks,
                     hub=hub,

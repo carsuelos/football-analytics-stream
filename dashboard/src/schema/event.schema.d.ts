@@ -1,7 +1,7 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
 /**
- * What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.
+ * What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent. goal_disallowed cancels a goal already in the feed (e.g. after a VAR review): team is the side whose goal it was, and disallowed_goal says which and why.
  */
 export type EventType =
   | "pass"
@@ -27,6 +27,7 @@ export type EventType =
   | "half_start"
   | "half_end"
   | "own_goal"
+  | "goal_disallowed"
   | "other";
 /**
  * Pitch coordinates [x, y] on a 120x80 pitch, oriented so the acting team attacks towards x = 120.
@@ -40,6 +41,14 @@ export type Point = [number, number];
  */
 export type EventOutcome = "success" | "failure";
 export type ShotOutcome = "goal" | "saved" | "blocked" | "off_target" | "post" | "other";
+/**
+ * The situation the shot came from. Omitted if the provider does not say.
+ */
+export type ShotType = "open_play" | "free_kick" | "corner" | "penalty" | "kick_off";
+/**
+ * A card shown to player with this event: on a foul_committed, or on other for misconduct away from a foul. second_yellow is a sending-off, like red.
+ */
+export type Card = "yellow" | "second_yellow" | "red";
 
 /**
  * A single normalized match event. Raw provider data never crosses the simulator boundary.
@@ -78,6 +87,12 @@ export interface MatchEvent {
   end_location?: Point;
   outcome?: EventOutcome;
   shot?: ShotDetail;
+  card?: Card;
+  /**
+   * On foul_committed or foul_won: the foul gave away a penalty. A provider may flag both events of the same foul.
+   */
+  penalty_awarded?: boolean;
+  disallowed_goal?: DisallowedGoal;
 }
 export interface Team {
   id: number;
@@ -90,4 +105,18 @@ export interface Player {
 export interface ShotDetail {
   xg: number;
   outcome: ShotOutcome;
+  type?: ShotType;
+}
+/**
+ * On goal_disallowed: the goal it cancels.
+ */
+export interface DisallowedGoal {
+  /**
+   * id of the shot or own_goal event of the goal.
+   */
+  event_id: string;
+  /**
+   * Why a goal was disallowed.
+   */
+  reason: "offside" | "foul" | "handball" | "other";
 }

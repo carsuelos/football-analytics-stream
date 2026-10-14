@@ -16,7 +16,7 @@
     "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
     "type": {
       "title": "EventType",
-      "description": "What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.",
+      "description": "What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent. goal_disallowed cancels a goal already in the feed (e.g. after a VAR review): team is the side whose goal it was, and disallowed_goal says which and why.",
       "type": "string",
       "enum": [
         "pass",
@@ -42,6 +42,7 @@
         "half_start",
         "half_end",
         "own_goal",
+        "goal_disallowed",
         "other"
       ]
     },
@@ -70,9 +71,39 @@
           "title": "ShotOutcome",
           "type": "string",
           "enum": ["goal", "saved", "blocked", "off_target", "post", "other"]
+        },
+        "type": {
+          "title": "ShotType",
+          "description": "The situation the shot came from. Omitted if the provider does not say.",
+          "type": "string",
+          "enum": ["open_play", "free_kick", "corner", "penalty", "kick_off"]
         }
       },
       "required": ["xg", "outcome"]
+    },
+    "card": {
+      "title": "Card",
+      "description": "A card shown to player with this event: on a foul_committed, or on other for misconduct away from a foul. second_yellow is a sending-off, like red.",
+      "type": "string",
+      "enum": ["yellow", "second_yellow", "red"]
+    },
+    "penalty_awarded": {
+      "description": "On foul_committed or foul_won: the foul gave away a penalty. A provider may flag both events of the same foul.",
+      "type": "boolean"
+    },
+    "disallowed_goal": {
+      "title": "DisallowedGoal",
+      "description": "On goal_disallowed: the goal it cancels.",
+      "type": "object",
+      "properties": {
+        "event_id": {
+          "description": "id of the shot or own_goal event of the goal.",
+          "type": "string",
+          "minLength": 1
+        },
+        "reason": { "$ref": "common.schema.json#/definitions/DisallowedReason" }
+      },
+      "required": ["event_id", "reason"]
     }
   },
   "required": [

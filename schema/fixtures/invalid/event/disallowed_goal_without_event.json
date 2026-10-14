@@ -1,0 +1,18 @@
+{
+  "schema_version": 1,
+  "id": "var-1",
+  "match_id": 3857300,
+  "offset": 420,
+  "period": 1,
+  "match_clock_s": 1340.5,
+  "type": "goal_disallowed",
+  "team": {
+    "id": 779,
+    "name": "Argentina"
+  },
+  "possession_id": 30,
+  "possession_team_id": 779,
+  "disallowed_goal": {
+    "reason": "offside"
+  }
+}

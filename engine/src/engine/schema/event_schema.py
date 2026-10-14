@@ -10,7 +10,7 @@ from . import common_schema
 
 class EventType(StrEnum):
     """
-    What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.
+    What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent. goal_disallowed cancels a goal already in the feed (e.g. after a VAR review): team is the side whose goal it was, and disallowed_goal says which and why.
     """
 
     pass_ = "pass"
@@ -36,6 +36,7 @@ class EventType(StrEnum):
     half_start = "half_start"
     half_end = "half_end"
     own_goal = "own_goal"
+    goal_disallowed = "goal_disallowed"
     other = "other"
 
 
@@ -57,9 +58,49 @@ class ShotOutcome(StrEnum):
     other = "other"
 
 
+class ShotType(StrEnum):
+    """
+    The situation the shot came from. Omitted if the provider does not say.
+    """
+
+    open_play = "open_play"
+    free_kick = "free_kick"
+    corner = "corner"
+    penalty = "penalty"
+    kick_off = "kick_off"
+
+
 class ShotDetail(BaseModel):
     xg: Annotated[float, Field(ge=0.0, le=1.0)]
     outcome: Annotated[ShotOutcome, Field(title="ShotOutcome")]
+    type: Annotated[
+        ShotType | None,
+        Field(
+            description="The situation the shot came from. Omitted if the provider does not say.",
+            title="ShotType",
+        ),
+    ] = None
+
+
+class Card(StrEnum):
+    """
+    A card shown to player with this event: on a foul_committed, or on other for misconduct away from a foul. second_yellow is a sending-off, like red.
+    """
+
+    yellow = "yellow"
+    second_yellow = "second_yellow"
+    red = "red"
+
+
+class DisallowedGoal(BaseModel):
+    """
+    On goal_disallowed: the goal it cancels.
+    """
+
+    event_id: Annotated[
+        str, Field(description="id of the shot or own_goal event of the goal.", min_length=1)
+    ]
+    reason: common_schema.DisallowedReason
 
 
 class MatchEvent(BaseModel):
@@ -94,7 +135,7 @@ class MatchEvent(BaseModel):
     type: Annotated[
         EventType,
         Field(
-            description="What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent.",
+            description="What happened. For own_goal, team and player are the side that put the ball into its own net; the goal counts for the opponent. goal_disallowed cancels a goal already in the feed (e.g. after a VAR review): team is the side whose goal it was, and disallowed_goal says which and why.",
             title="EventType",
         ),
     ]
@@ -128,3 +169,20 @@ class MatchEvent(BaseModel):
         ),
     ] = None
     shot: Annotated[ShotDetail | None, Field(title="ShotDetail")] = None
+    card: Annotated[
+        Card | None,
+        Field(
+            description="A card shown to player with this event: on a foul_committed, or on other for misconduct away from a foul. second_yellow is a sending-off, like red.",
+            title="Card",
+        ),
+    ] = None
+    penalty_awarded: Annotated[
+        bool | None,
+        Field(
+            description="On foul_committed or foul_won: the foul gave away a penalty. A provider may flag both events of the same foul."
+        ),
+    ] = None
+    disallowed_goal: Annotated[
+        DisallowedGoal | None,
+        Field(description="On goal_disallowed: the goal it cancels.", title="DisallowedGoal"),
+    ] = None

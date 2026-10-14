@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "id": "penalty-messi",
+  "match_id": 3869685,
+  "offset": 610,
+  "period": 1,
+  "match_clock_s": 1344.0,
+  "type": "shot",
+  "team": {
+    "id": 779,
+    "name": "Argentina"
+  },
+  "possession_id": 40,
+  "possession_team_id": 779,
+  "player": {
+    "id": 5503,
+    "name": "Lionel Andrés Messi Cuccittini"
+  },
+  "location": [
+    108,
+    40
+  ],
+  "shot": {
+    "xg": 0.7835,
+    "outcome": "goal",
+    "type": "penalty"
+  }
+}

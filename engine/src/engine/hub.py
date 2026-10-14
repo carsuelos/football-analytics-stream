@@ -6,21 +6,23 @@ from collections.abc import AsyncGenerator
 
 from engine.schema.alert_schema import Alert
 from engine.schema.engine_status_schema import EngineStatus
+from engine.schema.incident_schema import Incident
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
 
 log = logging.getLogger(__name__)
 
-type Update = MatchReset | EngineStatus | MetricSnapshot | Alert
+type Update = MatchReset | EngineStatus | MetricSnapshot | Alert | Incident
+type MatchUpdate = MetricSnapshot | Alert | Incident
 
 
 class MatchHub:
     """Keeps the current match's history and fans updates out to subscribers.
 
-    The history is everything since the last reset: metric snapshots and
-    alerts, in the order they happened. A new subscriber gets the reset, the
-    latest status and the history, then every update as it happens. So a
-    subscriber that (re)connects mid-match has the whole match.
+    The history is everything since the last reset: metric snapshots, alerts
+    and incidents, in the order they happened. A new subscriber gets the
+    reset, the latest status and the history, then every update as it
+    happens. So a subscriber that (re)connects mid-match has the whole match.
 
     Each subscriber has a queue of at most max_pending updates. One that falls
     that far behind is dropped rather than holding up the engine or memory: its
@@ -35,7 +37,8 @@ class MatchHub:
         self.status: EngineStatus | None = None
         self.snapshots: list[MetricSnapshot] = []
         self.alerts: list[Alert] = []
-        self._history: list[MetricSnapshot | Alert] = []
+        self.incidents: list[Incident] = []
+        self._history: list[MatchUpdate] = []
         self._subscribers: set[asyncio.Queue[Update]] = set()
         self._closed = False
 
@@ -51,7 +54,7 @@ class MatchHub:
         """Start the history over, and tell subscribers to do the same."""
         self.reset = MatchReset(schema_version=1, generation=generation, match_id=match_id)
         self.status = None
-        self.snapshots, self.alerts, self._history = [], [], []
+        self.snapshots, self.alerts, self.incidents, self._history = [], [], [], []
         self._publish(self.reset)
 
     def set_status(self, status: EngineStatus) -> None:
@@ -60,13 +63,16 @@ class MatchHub:
             self.status = status
             self._publish(status)
 
-    def add(self, *updates: MetricSnapshot | Alert) -> None:
-        """Add snapshots and alerts to the history, and publish them."""
+    def add(self, *updates: MatchUpdate) -> None:
+        """Add snapshots, alerts and incidents to the history, and publish them."""
         for update in updates:
-            if isinstance(update, MetricSnapshot):
-                self.snapshots.append(update)
-            else:
-                self.alerts.append(update)
+            match update:
+                case MetricSnapshot():
+                    self.snapshots.append(update)
+                case Alert():
+                    self.alerts.append(update)
+                case Incident():
+                    self.incidents.append(update)
             self._history.append(update)
             self._publish(update)
 
