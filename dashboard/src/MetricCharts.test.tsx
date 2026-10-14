@@ -9,13 +9,18 @@ const TEAMS = [ARGENTINA, FRANCE]
 describe('MetricCharts', () => {
   it('asks for a match until the teams are known', () => {
     render(<MetricCharts teams={null} snapshots={[]} alerts={[]} />)
-    expect(screen.getByText('No match yet. Choose one above and press Play.')).toBeInTheDocument()
+    expect(screen.getByText('No match yet. Choose one above.')).toBeInTheDocument()
     expect(screen.queryByRole('figure')).toBeNull()
+  })
+
+  it('says when the broadcast is paused before the first metrics', () => {
+    render(<MetricCharts teams={TEAMS} snapshots={[]} alerts={[]} broadcastState="paused" />)
+    expect(screen.getByText('The broadcast is paused. Press Play under Broadcast to start it.')).toBeInTheDocument()
   })
 
   it('waits for the first metrics in the chosen window', async () => {
     render(<MetricCharts teams={TEAMS} snapshots={[snapshot(1, 600, 600)]} alerts={[]} />)
-    expect(screen.getByText('Waiting for the first metrics…')).toBeInTheDocument()
+    expect(screen.getByText('Waiting for the first metrics (one every 30 seconds of play)…')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: "10'" }))
     expect(screen.getAllByRole('figure').map((f) => f.getAttribute('aria-label'))).toEqual([

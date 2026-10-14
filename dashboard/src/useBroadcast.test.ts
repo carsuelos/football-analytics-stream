@@ -42,7 +42,7 @@ describe('useBroadcast', () => {
     const { result } = renderBroadcast()
     await waitFor(() => expect(result.current.status).not.toBeNull())
 
-    let sent!: Promise<void>
+    let sent!: Promise<boolean>
     act(() => {
       sent = result.current.send({ command: 'play' })
     })
@@ -51,7 +51,7 @@ describe('useBroadcast', () => {
 
     await act(async () => {
       reply.resolve(broadcast({ state: 'playing' }))
-      await sent
+      expect(await sent).toBe(true)
     })
     expect(result.current.status?.state).toBe('playing')
     expect(result.current.pending).toBe(false)
@@ -62,7 +62,11 @@ describe('useBroadcast', () => {
     const { result } = renderBroadcast()
     await waitFor(() => expect(result.current.status).not.toBeNull())
 
-    await act(() => result.current.send({ command: 'play' }))
+    let ok = true
+    await act(async () => {
+      ok = await result.current.send({ command: 'play' })
+    })
+    expect(ok).toBe(false)
     expect(result.current.error).toBe('no match loaded')
     expect(result.current.status).toEqual(broadcast())
     expect(result.current.pending).toBe(false)

@@ -6,7 +6,7 @@ import { MetricCharts } from './MetricCharts'
 import { BroadcastControls } from './BroadcastControls'
 import { StatusBar } from './StatusBar'
 import { useMatchStream } from './useMatchStream'
-import { useBroadcast } from './useBroadcast'
+import { useBroadcast, type Broadcast } from './useBroadcast'
 import { useViewer } from './useViewer'
 import { ViewerControls } from './ViewerControls'
 
@@ -29,7 +29,7 @@ export default function App() {
             matches={broadcast.matches}
             matchId={broadcast.status?.match_id}
             disabled={broadcast.pending}
-            onLoad={(match_id) => broadcast.send({ command: 'load_match', match_id })}
+            onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
           />
           <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
           <ErrorMessage message={broadcast.error} />
@@ -42,7 +42,12 @@ export default function App() {
       </section>
       <main className="grid flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
         <section aria-label="Charts" className="rounded-lg bg-slate-900 p-4">
-          <MetricCharts teams={teams} snapshots={match.snapshots} alerts={match.alerts} />
+          <MetricCharts
+            teams={teams}
+            snapshots={match.snapshots}
+            alerts={match.alerts}
+            broadcastState={broadcast.status?.state}
+          />
         </section>
         <aside aria-label="Alerts" className="rounded-lg bg-slate-900 p-4">
           <AlertFeed teams={teams} alerts={match.alerts} />
@@ -50,6 +55,13 @@ export default function App() {
       </main>
     </div>
   )
+}
+
+/** Choosing a match puts it on air, as on a real feed; Pause stops it. */
+async function loadAndPlay(broadcast: Broadcast, match_id: number) {
+  if (await broadcast.send({ command: 'load_match', match_id })) {
+    await broadcast.send({ command: 'play' })
+  }
 }
 
 const groupHeading = 'w-20 text-xs font-semibold tracking-wide text-slate-400 uppercase'

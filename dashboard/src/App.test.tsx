@@ -44,15 +44,35 @@ it('renders the layout', () => {
   expect(screen.getByRole('complementary', { name: 'Alerts' })).toBeInTheDocument()
 })
 
-it('loads a match through the engine, which enables the controls', async () => {
+const broadcastCommands = () =>
+  fetch.mock.calls
+    .filter(([url, init]) => url === '/api/broadcast' && init?.method === 'POST')
+    .map(([, init]) => JSON.parse(init?.body as string) as unknown)
+
+it('loads a match through the engine and starts its broadcast, which enables the controls', async () => {
   render(<App />)
   const broadcastBar = screen.getByRole('group', { name: 'Broadcast' })
   expect(within(broadcastBar).getByRole('button', { name: 'Play' })).toBeDisabled()
 
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Match' }), '3869685')
   expect(await within(broadcastBar).findByRole('button', { name: 'Play' })).toBeEnabled()
-  const [, init] = fetch.mock.calls.find(([url, init]) => url === '/api/broadcast' && init?.method === 'POST')!
-  expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'load_match', match_id: 3869685 })
+  await vi.waitFor(() =>
+    expect(broadcastCommands()).toEqual([
+      { schema_version: 1, command: 'load_match', match_id: 3869685 },
+      { schema_version: 1, command: 'play' },
+    ]),
+  )
+})
+
+it('does not start the broadcast if the match fails to load', async () => {
+  const ok = fetch.getMockImplementation()!
+  fetch.mockImplementation((url, init) =>
+    url === '/api/broadcast' && init?.method === 'POST' ? json({ error: 'no such match' }, 404) : ok(url, init),
+  )
+  render(<App />)
+  await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Match' }), '3869685')
+  expect(await screen.findByRole('alert')).toHaveTextContent('no such match')
+  expect(broadcastCommands()).toEqual([{ schema_version: 1, command: 'load_match', match_id: 3869685 }])
 })
 
 it('shows the error when the engine is down', async () => {
