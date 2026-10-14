@@ -90,7 +90,10 @@ def test_match_rows(tmp_path: Path) -> None:
     assert not d.label(5)[away & (d.play_s < 1200.5)].any()
     after = away & (d.play_s > 1500.5)
     assert (d.column("score_diff")[after] == 1).all()
-    assert (d.column("score_diff")[away & (d.play_s < 1500)] == 0).all()
+    # The tick at 1500 comes out of the reorder buffer together with the goal
+    # half a second later, and must not see it.
+    assert (d.column("score_diff")[away & (d.play_s <= 1500)] == 0).all()
+    assert (d.column("since_goal_min") >= 0).all()
 
 
 def test_save_and_load(tmp_path: Path) -> None:

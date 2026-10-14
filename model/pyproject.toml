@@ -11,6 +11,7 @@ dependencies = [
     "engine",
     "numpy>=2.3",
     "scikit-learn>=1.9.1",
+    "scipy>=1.18.1",
 ]
 
 [tool.uv.sources]
@@ -44,5 +45,5 @@ testpaths = ["tests"]
 addopts = ["--strict-markers"]
 
 [[tool.mypy.overrides]]
-module = ["sklearn.*"]
+module = ["sklearn.*", "scipy.*"]
 ignore_missing_imports = true

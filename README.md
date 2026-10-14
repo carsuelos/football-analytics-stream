@@ -14,7 +14,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `schema/fixtures/` | Example messages (`valid/`, `invalid/`) tested in every language |
 | `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka; `cmd/export` writes them to files for offline replay |
 | `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
-| `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid, the goal model's dataset); see [docs/MODEL.md](docs/MODEL.md) |
+| `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid, the goal model's dataset and models); see [docs/MODEL.md](docs/MODEL.md) |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
@@ -51,6 +51,7 @@ make test                                     # all tests, including schema cont
 | `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
 | `make xt` | Fit our own xT grid on the training data and compare it with the published one on the World Cup (needs `make fetch-training`) |
 | `make dataset` | Build the goal model's features and labels (each team every 30 seconds) from the training and World Cup feeds into `data/model/` (about 2 minutes) |
+| `make train` | Train and compare the goal models (base rate, logistic regression, gradient-boosted trees) and score them on the World Cup (about 2 minutes) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 | `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
 | `make logs` | Follow the Docker stack's logs |
