@@ -1,0 +1,80 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Incident",
+  "description": "A key moment of the match (a goal, a card, a penalty), with the score after it. Derived by the engine from the event feed.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "id": {
+      "description": "Stable id: the same incident gets the same id when the match is replayed.",
+      "type": "string",
+      "minLength": 1
+    },
+    "match_id": { "$ref": "common.schema.json#/definitions/MatchId" },
+    "offset": {
+      "description": "Offset of the event the incident comes from.",
+      "$ref": "common.schema.json#/definitions/Offset"
+    },
+    "period": { "$ref": "common.schema.json#/definitions/Period" },
+    "match_clock_s": { "$ref": "common.schema.json#/definitions/MatchClockSeconds" },
+    "play_s": {
+      "description": "Seconds of play when it happened, continuous across periods.",
+      "type": "number",
+      "minimum": 0
+    },
+    "kind": {
+      "title": "IncidentKind",
+      "description": "What happened. penalty_goal and penalty_missed are penalties in play; shootout_goal and shootout_miss are kicks in the shootout, which do not count as goals.",
+      "type": "string",
+      "enum": [
+        "goal",
+        "own_goal",
+        "penalty_goal",
+        "penalty_missed",
+        "penalty_awarded",
+        "goal_disallowed",
+        "yellow_card",
+        "second_yellow",
+        "red_card",
+        "shootout_goal",
+        "shootout_miss"
+      ]
+    },
+    "team_id": {
+      "description": "The team it is for: the side that scored (for own_goal, the side the goal counts for), took the penalty, was awarded it, had the goal disallowed or was shown the card.",
+      "type": "integer"
+    },
+    "player": {
+      "description": "The player who scored, took the penalty, gave it away (if the provider says) or was shown the card. For own_goal, the opponent who put the ball into his own net.",
+      "$ref": "common.schema.json#/definitions/Player"
+    },
+    "score": {
+      "description": "The score after it, in the order of the teams.",
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/definitions/TeamScore" },
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "cancels": {
+      "description": "On goal_disallowed: the id of the goal's incident.",
+      "type": "string",
+      "minLength": 1
+    },
+    "reason": {
+      "description": "On goal_disallowed: why it was disallowed.",
+      "$ref": "common.schema.json#/definitions/DisallowedReason"
+    }
+  },
+  "required": [
+    "schema_version",
+    "id",
+    "match_id",
+    "offset",
+    "period",
+    "match_clock_s",
+    "play_s",
+    "kind",
+    "team_id",
+    "score"
+  ]
+}

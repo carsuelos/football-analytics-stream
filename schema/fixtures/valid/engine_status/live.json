@@ -4,14 +4,35 @@
   "generation": 1,
   "match_id": 3869685,
   "teams": [
-    { "id": 779, "name": "Argentina" },
-    { "id": 771, "name": "France" }
+    {
+      "id": 779,
+      "name": "Argentina"
+    },
+    {
+      "id": 771,
+      "name": "France"
+    }
+  ],
+  "score": [
+    {
+      "team_id": 779,
+      "goals": 2
+    },
+    {
+      "team_id": 771,
+      "goals": 2
+    }
   ],
   "period": 2,
   "match_clock_s": 4859.025,
   "play_s": 4614.5,
   "speed": 1,
-  "live_edge": { "offset": 2987, "period": 2, "match_clock_s": 4859.025, "play_s": 4614.5 },
+  "live_edge": {
+    "offset": 2987,
+    "period": 2,
+    "match_clock_s": 4859.025,
+    "play_s": 4614.5
+  },
   "behind_live_s": 0,
   "released": 2984,
   "buffered": 2,

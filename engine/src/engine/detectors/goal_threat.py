@@ -4,6 +4,7 @@ import math
 from dataclasses import dataclass
 
 from engine.detectors.core import Signal
+from engine.features import disallowed
 from engine.metrics import pressure, xt_added, xt_velocity
 from engine.schema.alert_schema import AlertType
 from engine.schema.event_schema import EventType, MatchEvent, ShotOutcome
@@ -91,7 +92,10 @@ def since_last_goal(tick: Tick, window_s: float) -> tuple[list[MatchEvent], floa
     """The events of the last window_s of play after any goal in it, and how
     much play they cover."""
     items = tick.windows.events(window_s)
-    goals = [i for i, item in enumerate(items) if _is_goal(item.event)]
+    cancelled = {d for item in items if (d := disallowed(item.event))}
+    goals = [
+        i for i, item in enumerate(items) if _is_goal(item.event) and item.event.id not in cancelled
+    ]
     if not goals:
         return [i.event for i in items], tick.windows.covered_s(window_s)
     last_goal = goals[-1]

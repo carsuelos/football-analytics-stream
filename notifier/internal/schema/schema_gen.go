@@ -147,6 +147,40 @@ func (j *Alert) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type DisallowedReason string
+
+const DisallowedReasonFoul DisallowedReason = "foul"
+const DisallowedReasonHandball DisallowedReason = "handball"
+const DisallowedReasonOffside DisallowedReason = "offside"
+const DisallowedReasonOther DisallowedReason = "other"
+
+var enumValues_DisallowedReason = []interface{}{
+	"offside",
+	"foul",
+	"handball",
+	"other",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *DisallowedReason) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_DisallowedReason {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_DisallowedReason, v)
+	}
+	*j = DisallowedReason(v)
+	return nil
+}
+
 // Game clock in seconds (e.g. the second half starts at 2700). Clocks overlap
 // across periods because of stoppage time, so always pair with period.
 type MatchClockSeconds float64
@@ -274,6 +308,45 @@ type Team struct {
 
 	// Name corresponds to the JSON schema field "name".
 	Name string `json:"name"`
+}
+
+// One team's score. Goals exclude the penalty shootout, which has its own count.
+type TeamScore struct {
+	// Goals corresponds to the JSON schema field "goals".
+	Goals int `json:"goals"`
+
+	// Penalties scored in the shootout, once it has started.
+	Shootout *int `json:"shootout,omitempty,omitzero"`
+
+	// TeamID corresponds to the JSON schema field "team_id".
+	TeamID int `json:"team_id"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *TeamScore) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["goals"]; raw != nil && !ok {
+		return fmt.Errorf("field goals in TeamScore: required")
+	}
+	if _, ok := raw["team_id"]; raw != nil && !ok {
+		return fmt.Errorf("field team_id in TeamScore: required")
+	}
+	type Plain TeamScore
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Goals {
+		return fmt.Errorf("field %s: must be >= %v", "goals", 0)
+	}
+	if plain.Shootout != nil && 0 > *plain.Shootout {
+		return fmt.Errorf("field %s: must be >= %v", "shootout", 0)
+	}
+	*j = TeamScore(plain)
+	return nil
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

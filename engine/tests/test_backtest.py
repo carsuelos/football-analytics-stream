@@ -9,8 +9,14 @@ from engine.detectors import Detectors
 from engine.hub import MatchHub
 from engine.pipeline import Pipeline
 from engine.runner import run
-from engine.schema.common_schema import Team
-from engine.schema.event_schema import EventType, MatchEvent, ShotDetail, ShotOutcome
+from engine.schema.common_schema import DisallowedReason, Team
+from engine.schema.event_schema import (
+    DisallowedGoal,
+    EventType,
+    MatchEvent,
+    ShotDetail,
+    ShotOutcome,
+)
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.feed_schema import FeedMessageKind as K
 from engine.ticks import Ticker
@@ -66,6 +72,17 @@ def test_replay_finds_goals_and_the_end() -> None:
     assert (r.match_id, r.team_ids, r.end_play_s, r.ended) == (1, (HOME.id, AWAY.id), 2430, True)
     assert r.team_names == {HOME.id: HOME.name, AWAY.id: AWAY.name}
     assert (r.released, r.late_dropped, r.alerts, r.snapshots) == (124, 0, [], [])
+
+
+def test_replay_drops_a_disallowed_goal() -> None:
+    msgs = a_match()
+    goal = next(m.event for m in msgs if m.event and m.event.offset == 120)
+    var = event(1, 2440, offset=124, type=EventType.goal_disallowed, team=HOME).model_copy(
+        update={"disallowed_goal": DisallowedGoal(event_id=goal.id, reason=DisallowedReason.foul)}
+    )
+    shootout = msgs[-2]
+    r = replay([*msgs[:-2], feed_event(var), shootout, msgs[-1]], METRICS)
+    assert [(g.team_id, g.own_goal) for g in r.goals] == [(AWAY.id, True)]
 
 
 async def test_replay_matches_the_live_engine() -> None:

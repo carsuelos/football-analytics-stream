@@ -38,6 +38,7 @@ type rawEvent struct {
 		XG          float64   `json:"statsbomb_xg"`
 		EndLocation []float64 `json:"end_location"` // [x, y] or [x, y, z]
 		Outcome     *named    `json:"outcome"`
+		Type        *named    `json:"type"`
 	} `json:"shot"`
 	Duel *struct {
 		Type    *named `json:"type"`
@@ -50,6 +51,18 @@ type rawEvent struct {
 	Dribble      *withOutcome `json:"dribble"`
 	Interception *withOutcome `json:"interception"`
 	FiftyFifty   *withOutcome `json:"50_50"`
+	// Cards are on fouls, or on Bad Behaviour for misconduct away from one.
+	// A penalty is flagged on both the Foul Committed and the Foul Won.
+	FoulCommitted *struct {
+		Card    *named `json:"card"`
+		Penalty bool   `json:"penalty"`
+	} `json:"foul_committed"`
+	FoulWon *struct {
+		Penalty bool `json:"penalty"`
+	} `json:"foul_won"`
+	BadBehaviour *struct {
+		Card *named `json:"card"`
+	} `json:"bad_behaviour"`
 }
 
 type rawMatch struct {

@@ -4,6 +4,7 @@
 from __future__ import annotations
 from typing import Annotated, Any
 from pydantic import BaseModel, Field, RootModel
+from enum import StrEnum
 
 
 class Common(RootModel[Any]):
@@ -21,3 +22,27 @@ class Team(BaseModel):
 class Player(BaseModel):
     id: int
     name: str
+
+
+class TeamScore(BaseModel):
+    """
+    One team's score. Goals exclude the penalty shootout, which has its own count.
+    """
+
+    team_id: int
+    goals: Annotated[int, Field(ge=0)]
+    shootout: Annotated[
+        int | None,
+        Field(description="Penalties scored in the shootout, once it has started.", ge=0),
+    ] = None
+
+
+class DisallowedReason(StrEnum):
+    """
+    Why a goal was disallowed.
+    """
+
+    offside = "offside"
+    foul = "foul"
+    handball = "handball"
+    other = "other"

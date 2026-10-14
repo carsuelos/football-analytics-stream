@@ -16,6 +16,7 @@ from engine.schema.broadcast_status_schema import BroadcastStatus
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
+from engine.schema.incident_schema import Incident
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
@@ -32,6 +33,7 @@ MODELS: dict[str, type[BaseModel]] = {
     "engine_status": EngineStatus,
     "event": MatchEvent,
     "feed": FeedMessage,
+    "incident": Incident,
     "match_list": MatchList,
     "match_reset": MatchReset,
     "metric": MetricSnapshot,

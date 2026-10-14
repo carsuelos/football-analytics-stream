@@ -40,6 +40,7 @@ import tempfile
 import time
 import urllib.error
 import urllib.request
+from collections import Counter
 from collections.abc import Callable, Iterator
 from contextlib import AbstractContextManager, contextmanager, nullcontext
 from dataclasses import dataclass
@@ -200,6 +201,7 @@ class Replay:
     status: Json
     metrics: list[Json]
     alerts: list[Json]
+    incidents: list[Json]
     seconds: float
 
 
@@ -240,7 +242,12 @@ def until_ended(api: Api, processes: list[Process], match: Json, generation: int
             )
         time.sleep(0.2)
     return Replay(
-        match, status, api.get("/api/metrics"), api.get("/api/alerts"), time.monotonic() - started
+        match,
+        status,
+        api.get("/api/metrics"),
+        api.get("/api/alerts"),
+        api.get("/api/incidents"),
+        time.monotonic() - started,
     )
 
 
@@ -323,6 +330,13 @@ def final_checks(r: Replay) -> list[str]:
         )
     if r.status["period"] != 5:
         problems.append(f"the match ended in period {r.status['period']}, not in the shootout")
+    score = [(s["team_id"], s["goals"], s.get("shootout")) for s in r.status.get("score", [])]
+    if score != [(ARGENTINA, 3, 4), (FRANCE, 3, 2)]:
+        problems.append(f"the final score is {score}, not 3-3 and 4-2 on penalties")
+    kinds = Counter(i["kind"] for i in r.incidents)
+    expected = {"goal": 3, "penalty_goal": 3, "penalty_awarded": 3, "yellow_card": 8}
+    if any(kinds[k] != n for k, n in expected.items()):
+        problems.append(f"the incidents are {dict(kinds)}, not {expected} and the shootout")
 
     first_half = [s for s in r.metrics if s["window_s"] == 600 and s["period"] == 1]
     tilts = [t["field_tilt"] for s in first_half for t in s["teams"] if t["team_id"] == ARGENTINA]
@@ -352,6 +366,7 @@ def rewatch_checks(live: Replay, again: Replay) -> list[str]:
     for what, before, after in (
         ("snapshots", live.metrics, again.metrics),
         ("alerts", live.alerts, again.alerts),
+        ("incidents", live.incidents, again.incidents),
     ):
         if after != before:
             first = next(

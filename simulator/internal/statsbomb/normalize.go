@@ -79,6 +79,20 @@ var shotOutcomes = map[string]schema.MatchEventShotOutcome{
 	"Post":             schema.MatchEventShotOutcomePost,
 }
 
+var shotTypes = map[string]schema.MatchEventShotType{
+	"Open Play": schema.MatchEventShotTypeOpenPlay,
+	"Free Kick": schema.MatchEventShotTypeFreeKick,
+	"Corner":    schema.MatchEventShotTypeCorner,
+	"Penalty":   schema.MatchEventShotTypePenalty,
+	"Kick Off":  schema.MatchEventShotTypeKickOff,
+}
+
+var cards = map[string]schema.MatchEventCard{
+	"Yellow Card":   schema.MatchEventCardYellow,
+	"Second Yellow": schema.MatchEventCardSecondYellow,
+	"Red Card":      schema.MatchEventCardRed,
+}
+
 // Normalize converts raw StatsBomb events into feed events.
 //
 // Feed order is StatsBomb's own `index` order, not a re-sort by timestamp: the
@@ -147,8 +161,37 @@ func normalizeEvent(matchID, offset int, r rawEvent) (schema.MatchEvent, error) 
 	case r.Shot != nil:
 		ev.EndLocation = point(r.Shot.EndLocation)
 		ev.Shot = &schema.ShotDetail{XG: r.Shot.XG, Outcome: shotOutcome(r.Shot.Outcome)}
+		if r.Shot.Type != nil {
+			if t, ok := shotTypes[r.Shot.Type.Name]; ok {
+				ev.Shot.Type = &t
+			}
+		}
+	}
+	ev.Card = card(r)
+	if (r.FoulCommitted != nil && r.FoulCommitted.Penalty) || (r.FoulWon != nil && r.FoulWon.Penalty) {
+		awarded := true
+		ev.PenaltyAwarded = &awarded
 	}
 	return ev, nil
+}
+
+// card returns the card shown with the event, if any. StatsBomb has no record
+// of disallowed goals, so the feed never contains goal_disallowed.
+func card(r rawEvent) *schema.MatchEventCard {
+	var n *named
+	switch {
+	case r.FoulCommitted != nil:
+		n = r.FoulCommitted.Card
+	case r.BadBehaviour != nil:
+		n = r.BadBehaviour.Card
+	}
+	if n == nil {
+		return nil
+	}
+	if c, ok := cards[n.Name]; ok {
+		return &c
+	}
+	return nil
 }
 
 func eventType(name string) schema.MatchEventType {

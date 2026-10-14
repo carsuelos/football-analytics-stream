@@ -5,6 +5,7 @@ GET  /api/stream     the match as server-sent events (see stream below)
 GET  /api/status     where the engine is in the match
 GET  /api/metrics    the match's metric snapshots so far
 GET  /api/alerts     the match's alerts so far
+GET  /api/incidents  the match's goals, cards and penalties so far
 POST /api/control    a viewer command for the engine's DVR: play, pause, seek...
 GET  /api/matches    the simulator's matches
 GET  /api/broadcast  the simulator's broadcast status
@@ -36,6 +37,7 @@ from engine.schema.alert_schema import Alert
 from engine.schema.broadcast_command_schema import BroadcastCommand
 from engine.schema.broadcast_status_schema import BroadcastStatus
 from engine.schema.engine_status_schema import EngineStatus
+from engine.schema.incident_schema import Incident
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
@@ -69,6 +71,8 @@ def event_name(update: Update) -> str:
             return "snapshot"
         case Alert():
             return "alert"
+        case Incident():
+            return "incident"
         case _:
             assert_never(update)
 
@@ -117,7 +121,7 @@ def create_app(
 
     @app.get("/api/stream", response_class=EventSourceResponse)
     async def stream() -> AsyncIterable[ServerSentEvent]:
-        """The match as server-sent events, named reset, status, snapshot and alert.
+        """The match as server-sent events, named reset, status, snapshot, alert and incident.
 
         First the latest reset, status and the match so far, then each update as
         it happens. On a reset, start the match over. If the stream ends, the
@@ -146,6 +150,10 @@ def create_app(
     @app.get("/api/alerts", response_model_exclude_none=True)
     async def alerts() -> list[Alert]:
         return hub.alerts
+
+    @app.get("/api/incidents", response_model_exclude_none=True)
+    async def incidents() -> list[Incident]:
+        return hub.incidents
 
     async def call_simulator[M: BaseModel](
         reply: type[M], method: str, path: str, body: BaseModel | None = None

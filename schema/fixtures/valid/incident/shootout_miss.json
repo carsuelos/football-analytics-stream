@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "id": "3869685-coman-shootout_miss",
+  "match_id": 3869685,
+  "offset": 4380,
+  "period": 5,
+  "match_clock_s": 7302.0,
+  "play_s": 7980.0,
+  "kind": "shootout_miss",
+  "team_id": 771,
+  "player": {
+    "id": 3604,
+    "name": "Kingsley Coman"
+  },
+  "score": [
+    {
+      "team_id": 779,
+      "goals": 3,
+      "shootout": 1
+    },
+    {
+      "team_id": 771,
+      "goals": 3,
+      "shootout": 1
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "id": "3869685-penalty-messi-penalty_goal",
+  "match_id": 3869685,
+  "offset": 610,
+  "period": 1,
+  "match_clock_s": 1344.0,
+  "play_s": 1344.0,
+  "kind": "penalty_goal",
+  "team_id": 779,
+  "player": {
+    "id": 5503,
+    "name": "Lionel Andrés Messi Cuccittini"
+  },
+  "score": [
+    {
+      "team_id": 779,
+      "goals": 1
+    },
+    {
+      "team_id": 771,
+      "goals": 0
+    }
+  ]
+}

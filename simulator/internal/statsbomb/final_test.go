@@ -101,3 +101,29 @@ func TestFinalMatchesShotGoalFixture(t *testing.T) {
 func mmss(seconds int) string {
 	return fmt.Sprintf("%02d:%02d", seconds/60, seconds%60)
 }
+
+func TestFinalCardsAndPenalties(t *testing.T) {
+	var cards, awarded, penalties, shootout int
+	for _, ev := range loadFinal(t) {
+		if ev.Card != nil {
+			cards++
+		}
+		if ev.PenaltyAwarded != nil && *ev.PenaltyAwarded {
+			awarded++
+		}
+		if ev.Shot != nil && ev.Shot.Type != nil && *ev.Shot.Type == schema.MatchEventShotTypePenalty {
+			if ev.Period == 5 {
+				shootout++
+			} else {
+				penalties++
+			}
+		}
+	}
+	// Eight yellows, one of them in the shootout. Three penalties in play: the
+	// first two fouls are flagged on both the Foul Committed and the Foul Won,
+	// Montiel's handball only on the Foul Committed. Eight shootout kicks.
+	if cards != 8 || awarded != 5 || penalties != 3 || shootout != 8 {
+		t.Errorf("cards %d, penalty flags %d, penalties %d, shootout kicks %d; want 8, 5, 3, 8",
+			cards, awarded, penalties, shootout)
+	}
+}

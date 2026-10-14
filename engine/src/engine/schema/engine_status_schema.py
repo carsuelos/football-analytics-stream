@@ -67,6 +67,13 @@ class EngineStatus(BaseModel):
         list[common_schema.Team] | None,
         Field(description="The teams seen so far, in order of first appearance.", max_length=2),
     ] = None
+    score: Annotated[
+        list[common_schema.TeamScore] | None,
+        Field(
+            description="The score as of the latest event processed, in the order of teams.",
+            max_length=2,
+        ),
+    ] = None
     period: Annotated[
         int | None,
         Field(description="Period of the latest event processed: where the viewer is.", ge=1, le=5),

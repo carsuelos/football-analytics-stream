@@ -1,7 +1,7 @@
 import pytest
 
 from engine.detectors import GoalThreat, GoalThreatConfig, Signal
-from engine.schema.event_schema import EventType, MatchEvent, ShotOutcome
+from engine.schema.event_schema import DisallowedGoal, EventType, MatchEvent, ShotOutcome
 from tests.detector_specs import METRICS, build, progression, recoveries, shot, touch
 from tests.factories import AWAY, HOME, tick_after
 
@@ -74,6 +74,24 @@ def test_an_own_goal_also_starts_the_count_again() -> None:
         touch(110),
     )
     assert features(e)[HOME.id] == {"pressure_index": 2.0, "xt_velocity": 0.0, "covered_s": 60.0}
+
+
+def test_a_disallowed_goal_does_not_start_the_count_again() -> None:
+    var = {"type": EventType.goal_disallowed, "id": "var"}
+    e = build(
+        touch(0),
+        recoveries(HOME, 10, 10),
+        (50, HOME, {**shot(50, HOME, ShotOutcome.goal)[2], "id": "goal"}),
+        (55, HOME, var),
+        touch(60),
+    )
+    e = [
+        x.model_copy(update={"disallowed_goal": DisallowedGoal(event_id="goal", reason="offside")})
+        if x.id == "var"
+        else x
+        for x in e
+    ]
+    assert features(e)[HOME.id]["covered_s"] == 60.0
 
 
 def test_a_goal_before_the_window_does_not_matter() -> None:

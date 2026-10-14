@@ -16,7 +16,7 @@ from engine.dvr import InvalidCommandError, NoMatchError
 from engine.hub import MatchHub
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.viewer_command_schema import ViewerCommand
-from tests.factories import alert
+from tests.factories import alert, incident
 from tests.test_hub import reset, snap, status, take
 from tests.test_schema_contract import FIXTURES_DIR, _validator
 
@@ -102,16 +102,18 @@ async def test_status_is_unavailable_until_the_engine_has_one(
     assert (r.status_code, r.json()) == (200, dump(status(5)))  # no nulls
 
 
-async def test_metrics_and_alerts_are_the_match_so_far(
+async def test_metrics_alerts_and_incidents_are_the_match_so_far(
     client: httpx.AsyncClient, hub: MatchHub
 ) -> None:
     hub.start(1, 1)
-    hub.add(snap(1), alert(1), snap(2))
+    hub.add(snap(1), alert(1), incident(1), snap(2))
     assert (await client.get("/api/metrics")).json() == [dump(snap(1)), dump(snap(2))]
     assert (await client.get("/api/alerts")).json() == [dump(alert(1))]
+    assert (await client.get("/api/incidents")).json() == [dump(incident(1))]
     hub.start(2, 1)
     assert (await client.get("/api/metrics")).json() == []
     assert (await client.get("/api/alerts")).json() == []
+    assert (await client.get("/api/incidents")).json() == []
 
 
 @pytest.mark.parametrize(
@@ -308,13 +310,14 @@ SCHEMA_KINDS = {
     "status": "engine_status",
     "snapshot": "metric",
     "alert": "alert",
+    "incident": "incident",
 }
 
 
 async def test_stream_sends_the_match_so_far_then_each_update(app: FastAPI, hub: MatchHub) -> None:
     hub.start(1, 1)
     hub.set_status(status(3))
-    hub.add(snap(1), alert(1))
+    hub.add(snap(1), alert(1), incident(1))
     async with (
         serving(local(app, hub)) as url,
         httpx.AsyncClient(base_url=url) as client,
@@ -323,12 +326,13 @@ async def test_stream_sends_the_match_so_far_then_each_update(app: FastAPI, hub:
     ):
         assert r.status_code == 200
         assert r.headers["content-type"].startswith("text/event-stream")
-        backlog = await take(events, 4)
+        backlog = await take(events, 5)
         assert backlog == [
             ("reset", dump(reset(1))),
             ("status", dump(status(3))),
             ("snapshot", dump(snap(1))),
             ("alert", dump(alert(1))),
+            ("incident", dump(incident(1))),
         ]
         hub.add(snap(2))
         hub.start(2, 1)
@@ -368,8 +372,8 @@ async def test_the_stream_ends_when_the_client_falls_too_far_behind(
 def test_the_api_is_documented(app: FastAPI) -> None:
     paths = app.openapi()["paths"]
     assert sorted(paths) == [
-        "/api/alerts", "/api/broadcast", "/api/control", "/api/matches", "/api/metrics",
-        "/api/status", "/api/stream",
+        "/api/alerts", "/api/broadcast", "/api/control", "/api/incidents", "/api/matches",
+        "/api/metrics", "/api/status", "/api/stream",
     ]  # fmt: skip
     broadcast = paths["/api/broadcast"]["post"]
     assert broadcast["requestBody"]["content"]["application/json"]["schema"] == {

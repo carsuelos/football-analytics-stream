@@ -64,6 +64,13 @@ def goal_for(event: MatchEvent, team_ids: tuple[int, int] | None) -> int | None:
     return None
 
 
+def disallowed(event: MatchEvent) -> str | None:
+    """The id of the goal event this event disallows, if it is a goal_disallowed."""
+    if event.type == EventType.goal_disallowed and event.disallowed_goal:
+        return event.disallowed_goal.event_id
+    return None
+
+
 @dataclass
 class _Totals:
     """One team's running totals over the match so far."""
@@ -89,11 +96,14 @@ class FeatureTracker:
     _seen: set[str] = field(default_factory=set)
     _totals: dict[int, _Totals] = field(default_factory=dict)
     _last_goal_s: float = 0.0
+    _goals: dict[str, int] = field(default_factory=dict)
+    """The team each goal so far counts for, by the id of its event."""
 
     def reset(self) -> None:
         self._seen = set()
         self._totals = {}
         self._last_goal_s = 0.0
+        self._goals = {}
 
     def observe(self, tick: Tick) -> dict[int, list[float]]:
         """Each team's features (in FEATURE_NAMES order) as of tick."""
@@ -118,7 +128,12 @@ class FeatureTracker:
             self._seen.add(e.id)
             if (scorer := goal_for(e, tick.team_ids)) is not None:
                 self._totals[scorer].goals += 1
+                self._goals[e.id] = scorer
                 self._last_goal_s = max(self._last_goal_s, item.play_s)
+            if (cancelled := disallowed(e)) and (scorer := self._goals.pop(cancelled, None)):
+                # The score goes back; since_goal_min still counts from the
+                # goal, as play stopped and restarted for it all the same.
+                self._totals[scorer].goals -= 1
             totals = self._totals.get(e.team.id)
             if totals is None:
                 continue

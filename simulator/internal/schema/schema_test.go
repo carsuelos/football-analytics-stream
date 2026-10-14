@@ -28,6 +28,8 @@ func newTarget(t *testing.T, kind string) any {
 		return &MatchEvent{}
 	case "feed":
 		return &FeedMessage{}
+	case "incident":
+		return &Incident{}
 	case "match_list":
 		return &MatchList{}
 	case "match_reset":
