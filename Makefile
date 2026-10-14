@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard smoke export backtest evaluate webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -74,6 +74,10 @@ ci: check-gen lint test ## Run what CI runs, except the Compose smoke test (make
 fetch-data: ## Download StatsBomb open data (default: 2022 FIFA World Cup) and the xT grid. Extra StatsBomb flags via ARGS="..."
 	uv run scripts/fetch_statsbomb.py $(ARGS)
 	uv run scripts/fetch_xt_grid.py
+
+fetch-training: ## Download the model's training data (every men's senior season since 2003 except the 2022 World Cup; about 10 GB with the export) into data/training, and export it
+	uv run scripts/fetch_statsbomb.py --training --workers 16 $(ARGS)
+	cd simulator && go run ./cmd/export -data ../data/training/statsbomb -out ../data/training/feeds
 
 sim: ## Run the simulator on :8080. Pass flags via ARGS="..." (e.g. ARGS="-jitter 3s")
 	cd simulator && go run ./cmd/simulator -data ../data/statsbomb $(ARGS)
