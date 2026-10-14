@@ -126,7 +126,9 @@ def test_cli_prints_a_line_per_match(tmp_path: Path, capsys: pytest.CaptureFixtu
         (tmp_path / f"{id}.jsonl").write_text(
             "".join(m.model_dump_json() + "\n" for m in a_match())
         )
-    backtest.main([str(tmp_path), "--workers", "1"])
+    grid = tmp_path / "grid.json"
+    grid.write_text(json.dumps([[0.0] * 12] * 8))
+    backtest.main([str(tmp_path), "--workers", "1", "--xt-grid", str(grid)])
     lines = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
     assert len(lines) == 2
     assert lines[0]["score"] == [1, 1]
