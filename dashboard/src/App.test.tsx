@@ -2,8 +2,9 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import App from './App'
+import { FLUSH_MS } from './useMatchStream'
 import { FakeEventSource } from './test/fakeEventSource'
-import { alert, matchInfo, broadcast, reset, snapshot, status } from './test/factories'
+import { alert, ARGENTINA, FRANCE, incident, matchInfo, broadcast, reset, snapshot, status } from './test/factories'
 
 const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
@@ -34,6 +35,9 @@ afterEach(() => {
   vi.unstubAllGlobals()
 })
 
+/** Waits for the stream's messages to be applied. */
+const applied = () => act(() => new Promise((resolve) => setTimeout(resolve, FLUSH_MS * 2)))
+
 it('renders the layout', () => {
   render(<App />)
   expect(screen.getByRole('heading', { name: 'Live Football Analytics' })).toBeInTheDocument()
@@ -41,8 +45,9 @@ it('renders the layout', () => {
   expect(simulator).toHaveAccessibleDescription(/Stands in for the live feed/)
   expect(within(simulator).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
   expect(within(screen.getByRole('region', { name: 'Controls' })).getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
+  expect(screen.getByRole('region', { name: 'Scoreboard' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
-  expect(screen.getByRole('complementary', { name: 'Alerts' })).toBeInTheDocument()
+  expect(screen.getByRole('complementary', { name: 'Match feed' })).toBeInTheDocument()
 })
 
 const broadcastCommands = () =>
@@ -95,7 +100,7 @@ it('shows the error when the engine is down', async () => {
   expect(await screen.findByRole('alert')).toHaveTextContent('engine unavailable')
 })
 
-it('shows the stream in the status bar, charts and alert feed', async () => {
+it('shows the stream on the scoreboard, timeline, charts and match feed', async () => {
   render(<App />)
   await screen.findByRole('combobox', { name: 'Match' })
   const stream = FakeEventSource.instances[0]
@@ -103,16 +108,38 @@ it('shows the stream in the status bar, charts and alert feed', async () => {
   act(() => {
     stream.open()
     stream.send('reset', reset())
-    stream.send('status', status({ state: 'live', period: 2, match_clock_s: 82 * 60 }))
+    stream.send(
+      'status',
+      status({
+        state: 'live',
+        period: 2,
+        match_clock_s: 82 * 60 + 7,
+        score: [
+          { team_id: ARGENTINA.id, goals: 2 },
+          { team_id: FRANCE.id, goals: 1 },
+        ],
+      }),
+    )
     stream.send('snapshot', snapshot(2, 82 * 60))
+    stream.send('incident', incident())
     stream.send('alert', alert())
   })
+  await applied()
   expect(screen.getByRole('status')).toHaveTextContent('Connected Live')
-  expect(screen.getByRole('banner')).toHaveTextContent("82' · 2nd half")
-  expect(screen.getAllByRole('figure')).toHaveLength(3)
-  expect(within(screen.getByRole('complementary', { name: 'Alerts' })).getByRole('listitem')).toHaveTextContent(
-    "82' · Control shiftFrance taking control",
-  )
+  const board = screen.getByRole('region', { name: 'Scoreboard' })
+  expect(board).toHaveTextContent('Score: Argentina 2, France 1')
+  expect(board).toHaveTextContent('82:072nd half')
+  expect(screen.getAllByRole('figure').map((f) => f.getAttribute('aria-label'))).toEqual([
+    'Match timeline',
+    'Field tilt',
+    'xT added',
+    'Pressure index',
+  ])
+  const feed = within(screen.getByRole('complementary', { name: 'Match feed' })).getAllByRole('listitem')
+  expect(feed.map((li) => li.textContent)).toEqual([
+    "82:27· ControlFrance taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before",
+    '35:22· Argentina2–0Goal · Ángel Di María',
+  ])
 })
 
 it('drives the viewer through the engine, which shows on the stream', async () => {
@@ -125,12 +152,14 @@ it('drives the viewer through the engine, which shows on the stream', async () =
     stream.open()
     stream.send('status', status({ state: 'live', live_edge: edge, behind_live_s: 0, speed: 1 }))
   })
+  await applied()
   expect(viewerBar).toHaveTextContent('LIVE')
 
   await userEvent.click(within(viewerBar).getByRole('button', { name: 'Pause' }))
   const [, init] = fetch.mock.calls.find(([url]) => url === '/api/control')!
   expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'pause' })
   act(() => stream.send('status', status({ state: 'paused', live_edge: edge, behind_live_s: 65, speed: 1 })))
+  await applied()
   expect(viewerBar).toHaveTextContent('1:05 behind live')
   expect(within(viewerBar).getByRole('button', { name: 'Go live' })).toBeEnabled()
 })

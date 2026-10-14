@@ -88,3 +88,10 @@ type rawMatch struct {
 		Name string `json:"away_team_name"`
 	} `json:"away_team"`
 }
+
+type rawLineup struct {
+	Lineup []struct {
+		ID       int     `json:"player_id"`
+		Nickname *string `json:"player_nickname"`
+	} `json:"lineup"`
+}

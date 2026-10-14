@@ -127,3 +127,20 @@ func TestFinalCardsAndPenalties(t *testing.T) {
 			cards, awarded, penalties, shootout)
 	}
 }
+
+func TestFinalUsesThePlayersShortNames(t *testing.T) {
+	names := map[string]bool{}
+	for _, ev := range loadFinal(t) {
+		if ev.Player != nil {
+			names[ev.Player.Name] = true
+		}
+	}
+	for _, want := range []string{"Lionel Messi", "Ángel Di María", "Kylian Mbappé", "Hugo Lloris"} {
+		if !names[want] {
+			t.Errorf("no player named %q", want)
+		}
+	}
+	if names["Lionel Andrés Messi Cuccittini"] {
+		t.Error("Messi still has his full name")
+	}
+}

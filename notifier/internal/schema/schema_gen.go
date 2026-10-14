@@ -256,7 +256,7 @@ type Player struct {
 	// ID corresponds to the JSON schema field "id".
 	ID int `json:"id"`
 
-	// Name corresponds to the JSON schema field "name".
+	// The name to show: the provider's short name (e.g. Lionel Messi) if it has one.
 	Name string `json:"name"`
 }
 

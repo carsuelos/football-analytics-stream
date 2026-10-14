@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { RETRY_MS, useMatchStream } from './useMatchStream'
-import { alert, reset, snapshot, status } from './test/factories'
+import { FLUSH_MS, RETRY_MS, useMatchStream } from './useMatchStream'
+import { alert, incident, reset, snapshot, status } from './test/factories'
 import { FakeEventSource } from './test/fakeEventSource'
 
 const latest = () => FakeEventSource.instances.at(-1)!
@@ -25,14 +25,19 @@ describe('useMatchStream', () => {
 
     const s = snapshot(1, 30)
     const a = alert()
+    const i = incident()
     act(() => {
       latest().open()
       latest().send('reset', reset())
       latest().send('status', status())
       latest().send('snapshot', s)
       latest().send('alert', a)
+      latest().send('incident', i)
     })
-    expect(result.current).toEqual({ connection: 'open', reset: reset(), status: status(), snapshots: [s], alerts: [a] })
+    // Messages are applied together, a moment later.
+    expect(result.current.snapshots).toEqual([])
+    act(() => vi.advanceTimersByTime(FLUSH_MS))
+    expect(result.current).toEqual({ connection: 'open', reset: reset(), status: status(), snapshots: [s], alerts: [a], incidents: [i] })
   })
 
   it('lets the browser reconnect after a dropped connection', () => {
@@ -60,7 +65,18 @@ describe('useMatchStream', () => {
       latest().open()
       latest().send('reset', reset(2))
     })
+    act(() => vi.advanceTimersByTime(FLUSH_MS))
     expect(result.current).toMatchObject({ connection: 'open', reset: reset(2) })
+  })
+
+  it('applies what arrived before the connection dropped first', () => {
+    const { result } = renderHook(() => useMatchStream())
+    act(() => {
+      latest().open()
+      latest().send('reset', reset(3))
+      latest().fail(false)
+    })
+    expect(result.current).toMatchObject({ connection: 'lost', reset: reset(3) })
   })
 
   it('closes the stream and cancels a pending retry on unmount', () => {

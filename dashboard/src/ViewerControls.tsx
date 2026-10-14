@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react'
 import type { ViewerAction } from './api'
 import type { EngineStatus, LiveEdge } from './schema/engine_status.schema'
 import { duration, matchMinute, periodName } from './timeline'
-import { buttonClass } from './ui'
+import { PauseIcon, PlayIcon } from './Icons'
+import { buttonClass, segmentClass, segmentsClass, selectClass } from './ui'
 
 const SPEEDS = [1, 10, 30, 60]
 
@@ -38,17 +39,18 @@ export function ViewerControls({ status, disabled, onCommand }: Props) {
         disabled={off || state === 'ended'}
         onClick={() => onCommand({ command: playing ? 'pause' : 'play' })}
       >
+        {playing ? <PauseIcon /> : <PlayIcon />}
         {playing ? 'Pause' : 'Play'}
       </button>
       <button type="button" className={buttonClass} disabled={off || !canGoLive} onClick={() => onCommand({ command: 'go_live' })}>
         Go live
       </button>
-      <div role="group" aria-label="Speed" className="flex gap-1">
+      <div role="group" aria-label="Speed" className={segmentsClass}>
         {SPEEDS.map((speed) => (
           <button
             key={speed}
             type="button"
-            className={buttonClass}
+            className={segmentClass}
             aria-pressed={status?.speed === speed}
             disabled={off}
             onClick={() => onCommand({ command: 'set_speed', speed })}
@@ -65,13 +67,13 @@ export function ViewerControls({ status, disabled, onCommand }: Props) {
 function LiveIndicator({ state, behind }: { state?: EngineStatus['state']; behind: number }) {
   if (state === 'live') {
     return (
-      <span className="flex items-center gap-1.5 text-sm font-semibold text-red-400">
-        <span className="size-2 rounded-full bg-red-500" /> LIVE
+      <span className="flex items-center gap-1.5 text-xs font-bold tracking-wider text-red-300">
+        <span className="size-2 animate-live rounded-full bg-red-500" /> LIVE
       </span>
     )
   }
   if (behind > 0) {
-    return <span className="text-sm tabular-nums text-amber-300">{duration(behind)} behind live</span>
+    return <span className="font-mono text-xs tabular-nums text-amber-300">{duration(behind)} behind live</span>
   }
   return null
 }
@@ -115,7 +117,7 @@ function SeekForm({ edge, disabled, onSeek }: SeekProps) {
           setChosen(p)
           setMinute(String(PERIOD_STARTS[p]))
         }}
-        className="rounded-md bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+        className={selectClass}
       >
         {periods.map((p) => (
           <option key={p} value={p}>
@@ -132,10 +134,10 @@ function SeekForm({ edge, disabled, onSeek }: SeekProps) {
         value={minute}
         disabled={disabled}
         onChange={(e) => setMinute(e.target.value)}
-        className="w-16 rounded-md bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+        className={`w-16 ${selectClass}`}
       />
       <button type="submit" className={buttonClass} disabled={disabled}>
-        Go
+        Seek
       </button>
       {edge && <span className="text-xs text-slate-400">Live: {matchMinute(edge)}</span>}
     </form>
