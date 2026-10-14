@@ -24,10 +24,12 @@ interface Props {
   alerts: Alert[]
   /** The simulator's broadcast, to explain why there are no metrics yet. */
   broadcastState?: BroadcastState
+  /** Whether there is a simulator to choose a match with; otherwise the feed starts one. */
+  simulator?: boolean
 }
 
 /** Field tilt, xT added and pressure over the match, for a 5' or 10' window, with alerts marked. */
-export function MetricCharts({ teams, snapshots, alerts, broadcastState }: Props) {
+export function MetricCharts({ teams, snapshots, alerts, broadcastState, simulator = true }: Props) {
   const [window_s, setWindow] = useState(300)
   const axis = useMemo(() => timeline([...snapshots, ...alerts]), [snapshots, alerts])
   const points = useMemo(
@@ -66,9 +68,11 @@ export function MetricCharts({ teams, snapshots, alerts, broadcastState }: Props
       {teams === null || points.length === 0 ? (
         <p className="py-16 text-center text-slate-400">
           {teams === null
-            ? 'No match yet. Choose one above.'
-            : broadcastState === 'paused'
-              ? 'The broadcast is paused. Press Play under Broadcast to start it.'
+            ? simulator
+              ? 'No match yet. Choose one in the Simulator panel.'
+              : 'No match yet. Waiting for the feed to start one…'
+            : simulator && broadcastState === 'paused'
+              ? 'The broadcast is paused. Press Play in the Simulator panel to start it.'
               : 'Waiting for the first metrics (one every 30 seconds of play)…'}
         </p>
       ) : (

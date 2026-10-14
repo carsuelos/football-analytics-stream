@@ -34,6 +34,27 @@ describe('useBroadcast', () => {
     await waitFor(() => expect(result.current.status).toEqual(broadcast()))
     expect(result.current.matches).toEqual(MATCHES.matches)
     expect(result.current.error).toBeNull()
+    expect(result.current.controllable).toBe(true)
+  })
+
+  it('is not controllable, without an error, when the engine has no simulator', async () => {
+    const noSimulator = new ApiError("no simulator: this feed can't be controlled from here", 404)
+    vi.mocked(getMatches).mockRejectedValue(noSimulator)
+    vi.mocked(getBroadcast).mockRejectedValue(noSimulator)
+    const { result } = renderBroadcast()
+    expect(result.current.controllable).toBeNull()
+    await waitFor(() => expect(result.current.controllable).toBe(false))
+    expect(result.current.error).toBeNull()
+    expect(result.current.status).toBeNull()
+  })
+
+  it('takes a command\'s 404 as an error, not as no simulator', async () => {
+    vi.mocked(sendBroadcast).mockRejectedValue(new ApiError('no such match', 404))
+    const { result } = renderBroadcast()
+    await waitFor(() => expect(result.current.controllable).toBe(true))
+    await act(() => result.current.send({ command: 'load_match', match_id: 1 }))
+    expect(result.current.error).toBe('no such match')
+    expect(result.current.controllable).toBe(true)
   })
 
   it('takes the status from the command reply, and is pending meanwhile', async () => {

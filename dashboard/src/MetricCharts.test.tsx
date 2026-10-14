@@ -9,13 +9,20 @@ const TEAMS = [ARGENTINA, FRANCE]
 describe('MetricCharts', () => {
   it('asks for a match until the teams are known', () => {
     render(<MetricCharts teams={null} snapshots={[]} alerts={[]} />)
-    expect(screen.getByText('No match yet. Choose one above.')).toBeInTheDocument()
+    expect(screen.getByText('No match yet. Choose one in the Simulator panel.')).toBeInTheDocument()
     expect(screen.queryByRole('figure')).toBeNull()
   })
 
   it('says when the broadcast is paused before the first metrics', () => {
     render(<MetricCharts teams={TEAMS} snapshots={[]} alerts={[]} broadcastState="paused" />)
-    expect(screen.getByText('The broadcast is paused. Press Play under Broadcast to start it.')).toBeInTheDocument()
+    expect(screen.getByText('The broadcast is paused. Press Play in the Simulator panel to start it.')).toBeInTheDocument()
+  })
+
+  it('waits for the feed instead when there is no simulator', () => {
+    const { rerender } = render(<MetricCharts teams={null} snapshots={[]} alerts={[]} simulator={false} />)
+    expect(screen.getByText('No match yet. Waiting for the feed to start one…')).toBeInTheDocument()
+    rerender(<MetricCharts teams={TEAMS} snapshots={[]} alerts={[]} broadcastState="paused" simulator={false} />)
+    expect(screen.getByText('Waiting for the first metrics (one every 30 seconds of play)…')).toBeInTheDocument()
   })
 
   it('waits for the first metrics in the chosen window', async () => {

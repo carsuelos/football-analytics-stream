@@ -10,6 +10,10 @@ GET  /api/matches    the simulator's matches
 GET  /api/broadcast  the simulator's broadcast status
 POST /api/broadcast  send the simulator a broadcast command
 
+Without a simulator (a feed nobody here controls, like a real one), the last
+three are 404 {"error": "no simulator: ..."}; that is how the dashboard knows
+to hide its simulator controls.
+
 Every error has the simulator's shape: {"error": "..."}.
 """
 
@@ -48,7 +52,7 @@ class ApiError(BaseModel):
 
 SIMULATOR_ERRORS: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiError, "description": "The simulator rejected the request"},
-    404: {"model": ApiError, "description": "No such match"},
+    404: {"model": ApiError, "description": "No such match, or no simulator"},
     409: {"model": ApiError, "description": "No match is loaded"},
     502: {"model": ApiError, "description": "The simulator is down or failed"},
 }
@@ -69,6 +73,8 @@ def event_name(update: Update) -> str:
             assert_never(update)
 
 
+NO_SIMULATOR = "no simulator: this feed can't be controlled from here"
+
 CONTROL_ERRORS: dict[int | str, dict[str, Any]] = {
     400: {"model": ApiError, "description": "Invalid command"},
     409: {"model": ApiError, "description": "No match has started"},
@@ -77,12 +83,13 @@ CONTROL_ERRORS: dict[int | str, dict[str, Any]] = {
 
 def create_app(
     hub: MatchHub,
-    simulator: httpx.AsyncClient,
+    simulator: httpx.AsyncClient | None,
     *,
     control: Callable[[ViewerCommand], EngineStatus],
     lifespan: Callable[[FastAPI], AbstractAsyncContextManager[None]] | None = None,
 ) -> FastAPI:
-    """The API over hub. simulator is a client whose base_url is the simulator's.
+    """The API over hub. simulator is a client whose base_url is the simulator's,
+    or None if the feed has no simulator behind it to control.
 
     control applies a viewer command and returns the engine's status; it may
     raise InvalidCommandError or NoMatchError. It is called on the event loop.
@@ -148,6 +155,8 @@ def create_app(
         Its 4xx errors pass through, since the request was at fault; anything
         else that goes wrong is a 502.
         """
+        if simulator is None:
+            raise HTTPException(404, NO_SIMULATOR)
         try:
             if body is None:
                 r = await simulator.request(method, path)

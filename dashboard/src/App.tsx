@@ -14,6 +14,8 @@ export default function App() {
   const match = useMatchStream()
   const broadcast = useBroadcast(match.status?.state)
   const viewer = useViewer()
+  // Hidden only once the engine says there is no simulator, so its errors still show.
+  const simulator = broadcast.controllable !== false
   const teams = useMemo(() => matchTeams(match.status, broadcast.matches), [match.status, broadcast.matches])
 
   return (
@@ -22,18 +24,31 @@ export default function App() {
         <h1 className="text-xl font-semibold">Live Football Analytics</h1>
         <StatusBar connection={match.connection} status={match.status} />
       </header>
-      <section aria-label="Controls" className="flex flex-col gap-3 rounded-lg bg-slate-900 p-3">
-        <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
-          <h2 className={groupHeading}>Broadcast</h2>
-          <MatchPicker
-            matches={broadcast.matches}
-            matchId={broadcast.status?.match_id}
-            disabled={broadcast.pending}
-            onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
-          />
-          <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
-          <ErrorMessage message={broadcast.error} />
-        </div>
+      {simulator && (
+        <section
+          aria-label="Simulator"
+          aria-describedby="simulator-note"
+          className="flex flex-col gap-2 rounded-lg border border-dashed border-slate-700 p-3"
+        >
+          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <h2 className={groupHeading}>Simulator</h2>
+            <p id="simulator-note" className="text-xs text-slate-500">
+              Stands in for the live feed: picks the match and plays its broadcast. A real feed has none of this.
+            </p>
+          </div>
+          <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
+            <MatchPicker
+              matches={broadcast.matches}
+              matchId={broadcast.status?.match_id}
+              disabled={broadcast.pending}
+              onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
+            />
+            <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
+            <ErrorMessage message={broadcast.error} />
+          </div>
+        </section>
+      )}
+      <section aria-label="Controls" className="rounded-lg bg-slate-900 p-3">
         <div role="group" aria-label="Viewer" className="flex flex-wrap items-center gap-3">
           <h2 className={groupHeading}>Viewer</h2>
           <ViewerControls status={match.status} disabled={viewer.pending} onCommand={viewer.send} />
@@ -47,6 +62,7 @@ export default function App() {
             snapshots={match.snapshots}
             alerts={match.alerts}
             broadcastState={broadcast.status?.state}
+            simulator={simulator}
           />
         </section>
         <aside aria-label="Alerts" className="rounded-lg bg-slate-900 p-4">
