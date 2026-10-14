@@ -8,7 +8,7 @@ import type { Incident, IncidentKind } from './schema/incident.schema'
 import { matchClock, type Timeline } from './timeline'
 
 /** What the feed can show; each can be switched on and off. */
-const CATEGORIES = ['Goals', 'Cards', 'Penalties', 'Alerts'] as const
+const CATEGORIES = ['Alerts', 'Goals', 'Cards', 'Penalties'] as const
 type Category = (typeof CATEGORIES)[number]
 
 const KINDS: Record<IncidentKind, Category> = {
@@ -143,7 +143,7 @@ function AlertItem({ alert: a, teams, incidents, axis, now }: { alert: Alert; te
             <BallIcon className="size-3" /> Scored {minutesLater(scored.minutes)}
           </span>
         ) : elapsed === undefined ? null : elapsed > ALERT_HORIZON_MIN ? (
-          <span title={OUTCOME_HINT} className="ml-auto rounded-full bg-white/5 px-2 py-0.5 text-slate-500">
+          <span title={OUTCOME_HINT} className="ml-auto rounded-full bg-rose-400/10 px-2 py-0.5 text-rose-300/80">
             No goal in 10'
           </span>
         ) : (

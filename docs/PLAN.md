@@ -216,7 +216,7 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
 - [x] **Dashboard, product pass** (after Phase 3):
   - scoreboard (compact, at the head of the match timeline): score and shootout, the clock to the second with stoppage time, goals (disallowed ones struck through) and red cards per team
   - match timeline: every event and alert along the match, with hover details
-  - match feed: events (goals, cards, penalties, disallowed goals, the shootout) and alerts together, with Goals / Cards / Penalties / Alerts toggles; each alert says whether its team scored in the next 10' (watching while the window is open, judged only on goals the viewer has seen)
+  - match feed: events (goals, cards, penalties, disallowed goals, the shootout) and alerts together, with Alerts / Goals / Cards / Penalties toggles; each alert says whether its team scored in the next 10' (watching while the window is open, judged only on goals the viewer has seen)
   - charts: goals, red cards and alerts marked with hover details, a tooltip listing what happened near the hovered minute, the latest values head to head
   - stream messages applied in 50 ms batches; a dark theme with Inter
 - [x] **End-to-end smoke test** (`make smoke`, local only until Phase 2): replays the 2022 World Cup final (Argentina vs France) through the real simulator (with 3 s jitter) and engine at 1000×.
