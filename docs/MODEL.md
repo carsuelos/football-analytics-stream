@@ -341,7 +341,7 @@ Three details matter:
 
 ### The detector
 
-`GoalChance` (`engine/src/engine/detectors/goal_chance.py`) keeps its own `FeatureTracker`, fed every tick (every 30s of play), and from 15' it predicts each team's chance of scoring in the next 10'. Above the threshold it raises an alert, which goes through the same 5' cooldown per team as the rules (the cooldown the threshold was picked with). The alert carries:
+`GoalChance` (`engine/src/engine/detectors/goal_chance.py`) keeps its own `FeatureTracker`, fed every tick (every 5s of play live; it was trained on 30s ticks), and from 15' it predicts each team's chance of scoring in the next 10'. Above the threshold it raises an alert, which goes through the same 5' cooldown per team as the rules (the cooldown the threshold was picked with). The alert carries:
 
 - `value`: the probability, and `threshold`: 0.195; `window_s`: 600 (the horizon);
 - `features`: the base rate and the raw values of up to 3 **drivers**, the terms that pushed this prediction up the most (coefficient × standardized value, positive). The minute, its hinges and the score are left out, since "it's the 30th minute" isn't a reason anyone can act on;
@@ -499,6 +499,21 @@ Against the start of Phase 3 (step 4's table: 1,163 alerts, 10' lift 1.3, 69% of
 - **Overlap.** The rules and the model often flag the same team at the same moment. One alert per team per 5' across detectors (whichever is strongest) would cut volume further; it's a product decision more than a modeling one.
 - **Real data.** Everything here works on the canonical schema, so a new provider means exporting its matches as feeds, `make dataset` and `make rules` on them, and comparing with these numbers.
 - **Speed.** Most of the 20 minutes is momentum's EWMA loop in Python (16 settings × 907k rows) and the parity replay. Numba or a vectorized EWMA would make it a few minutes.
+
+### Ticking every 5 seconds
+
+After Phase 3 the live engine went from a tick every 30s of play to every 5s, so an alert can fire within seconds of the play that raised it rather than up to 30s later, and the charts move more often. Nothing was retrained, because nothing depends on the tick:
+
+- The **features** are functions of play time (windows of the last 5' and 10', totals since kick-off), so they are the same at a tick whichever grid it is on. Training keeps 30s rows (`model.dataset.TICK_S`): rows 5s apart are near-copies, so 6 times the rows would make training slower, not better.
+- The **rules' baselines** (momentum's EWMA) weigh samples by play time, not by count, and every **cooldown** is in play time.
+- What changes is only that a threshold can be crossed between two 30s ticks and be caught. `make evaluate` on the World Cup:
+
+| Tick | Alerts | 10' lift (all) | Goals covered | goal_chance alerts, lift | the 3 rules, lift |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 30s | 615 | 1.7 | 42.0% | 257, 1.8 | 358, 1.6 |
+| **5s** | 662 | 1.7 | 42.7% | 268, 1.9 | 394, 1.6 |
+
+About 8% more alerts at the same lift, a few seconds sooner. Momentum moves the most (1.5 → 1.3, on about 140 alerts), as its baseline now takes 6 times the samples; goal threat improves (1.6 → 1.8), as it can catch a dangerous spell at its peak. These are within the intervals of Step 5. Retuning the thresholds on 5s ticks (`model.rules` with `TICK_S = 5`) would bring the volume back to 2 a rule a match, at about 6 times the recording time; it isn't worth it yet. `make evaluate` replays at the live engine's tick (about 15 s instead of 5).
 
 ## Next steps
 

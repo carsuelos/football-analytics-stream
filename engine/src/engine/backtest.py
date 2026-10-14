@@ -31,7 +31,7 @@ from engine.schema.alert_schema import Alert
 from engine.schema.event_schema import EventType
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.metric_schema import MetricSnapshot
-from engine.ticks import SHOOTOUT_PERIOD, Tick, Ticker
+from engine.ticks import SHOOTOUT_PERIOD, TICK_S, Tick, Ticker
 from engine.windows import InMemoryStateStore
 
 
@@ -113,15 +113,17 @@ def replay(
     detectors: Detectors | None = None,
     snapshots: bool = False,
     on_step: Callable[[Pipeline, Step], None] | None = None,
+    tick_s: float = TICK_S,
 ) -> Replay:
     """Replay one match's feed through a fresh pipeline.
 
     Alerts come from detectors (none if not given); snapshots says whether to
     keep every tick's metric snapshots, which the evaluation does not need.
-    on_step, if given, sees every step, e.g. to compute features.
+    on_step, if given, sees every step, e.g. to compute features. The ticks
+    are the live engine's unless tick_s says otherwise.
     """
     pipeline = Pipeline(InMemoryStateStore())
-    ticker = Ticker(metrics)
+    ticker = Ticker(metrics, tick_s)
     result: Replay | None = None
     for step in steps(messages, pipeline, ticker):
         if result is None:

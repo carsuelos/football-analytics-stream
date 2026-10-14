@@ -58,7 +58,7 @@ from engine.pipeline import Pipeline
 from scipy.optimize import minimize
 from sklearn.metrics import roc_auc_score
 
-from model.dataset import OUT, WARMUP_S, file_digest, labels, quiet, test_paths, train_paths
+from model.dataset import OUT, TICK_S, WARMUP_S, file_digest, labels, quiet, test_paths, train_paths
 
 COMPONENTS = tuple(f.name for f in fields(PressureComponents))
 WINDOW_S = 300.0
@@ -192,7 +192,9 @@ def match_inputs(path: Path, grid_path: Path = DEFAULT_GRID_PATH) -> RuleInputs:
             ]
             rows.append((tick.play_s, team, values))
 
-    r = replay(read_feed(path), MetricsConfig(XTGrid.load(grid_path)), on_step=on_step)
+    r = replay(
+        read_feed(path), MetricsConfig(XTGrid.load(grid_path)), on_step=on_step, tick_s=TICK_S
+    )
     k = len(COMPONENTS)
     v = np.array([values for _, _, values in rows], dtype=np.float64).reshape(len(rows), 5 * k + 2)
     play_s = np.array([t for t, _, _ in rows], dtype=np.float64)
@@ -531,6 +533,7 @@ class Rules:
             read_feed(path),
             MetricsConfig(XTGrid.load(grid_path), self.weights),
             detectors=detectors,
+            tick_s=TICK_S,
         )
         return {(a.alert.type.value, r.match_id, a.alert.team_id, a.play_s) for a in r.alerts}
 

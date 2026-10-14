@@ -12,7 +12,7 @@ uv run engine --help    # or `make engine` from the repo root
 | `clock/` | `ReorderBuffer` (watermark, late drops, dedupe) and `MatchClock` (continuous play time) |
 | `windows/` | `StateStore` protocol, `InMemoryStateStore`, and 5/10-minute `SlidingWindows` |
 | `metrics/` | Pure per-window metrics: `field_tilt`, `xt_added`/`xt_velocity` (`XTGrid`), `pressure` (`PressureWeights`), and `snapshot`, which builds a schema `MetricSnapshot` |
-| `ticks.py` | `Ticker`: picks a `Tick` (the match as of one event) every 30s of play, marked live or replayed |
+| `ticks.py` | `Ticker`: picks a `Tick` (the match as of one event) every 5s of play (`--tick`), marked live or replayed |
 | `incidents.py` | `IncidentTracker`: the match's goals, own goals, penalties (awarded, scored, missed), cards, disallowed goals and shootout kicks as `Incident`s, and the score (with the shootout's), which a disallowed goal takes back |
 | `hub.py` | `MatchHub`: the current match's history (snapshots, alerts and incidents since the last `MatchReset`) and live updates to subscribers, dropping any that fall too far behind; `close` ends every stream on shutdown |
 | `detectors/` | `Detectors` (runs on each tick, cooldowns), the `Momentum`, `GoalThreat` and `ControlShift` rules, and `GoalChance`: the trained goal model (`GoalModel`, loaded from `goal_model.json`, written by `make export-model`), alerting when a team's chance of scoring in the next 10' passes its threshold, with the features that pushed it up |

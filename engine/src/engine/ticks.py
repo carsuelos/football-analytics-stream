@@ -16,6 +16,13 @@ from engine.windows import SlidingWindows
 
 SHOOTOUT_PERIOD = 5
 
+TICK_S = 5.0
+"""The live engine's tick. The detectors and features are functions of play
+time, not of how often they run, so a finer tick only lets an alert fire
+sooner after the play that raised it (and the charts move more often). The
+goal model is trained on 30s ticks (see model.dataset): a subset of these, as
+each tick is the first event at or past a multiple of the tick."""
+
 
 @dataclass(frozen=True)
 class Tick:
@@ -62,7 +69,7 @@ class Ticker:
     play, so it has no ticks. When the pipeline starts over, so do the ticks.
     """
 
-    def __init__(self, metrics: MetricsConfig, tick_s: float = 30.0) -> None:
+    def __init__(self, metrics: MetricsConfig, tick_s: float = TICK_S) -> None:
         self.metrics = metrics
         self.tick_s = tick_s
         self._generation = -1
