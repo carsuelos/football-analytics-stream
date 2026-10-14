@@ -1,5 +1,5 @@
 import { describe as group, expect, it } from 'vitest'
-import { cancelledGoals, describe, goalAfter, scoreboardLines, scoreline } from './incidents'
+import { cancelledGoals, describe, goalAfter, scoreboardLines, scoreline, surname } from './incidents'
 import { alert, ARGENTINA, FRANCE, incident } from './test/factories'
 import { timeline } from './timeline'
 
@@ -58,5 +58,12 @@ group('incidents', () => {
     expect(goalAfter(a, [incident({ team_id: FRANCE.id })], axis)).toBeNull() // the other team
     const var_ = incident({ id: 'v', kind: 'goal_disallowed', cancels: goal.id })
     expect(goalAfter(a, [goal, var_], axis)).toBeNull()
+  })
+
+  it('shortens a name to what a scoreboard shows', () => {
+    expect(surname('Ángel Di María')).toBe('Di María')
+    expect(surname('Kylian Mbappé')).toBe('Mbappé')
+    expect(surname('Pedri')).toBe('Pedri')
+    expect(surname(undefined)).toBeUndefined()
   })
 })

@@ -45,7 +45,6 @@ export default function App() {
         </div>
       </header>
       <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
-        <Scoreboard teams={teams} status={match.status} incidents={match.incidents} connection={match.connection} info={info} />
         <div className={`grid gap-4 ${simulator ? 'xl:grid-cols-2' : ''}`}>
           <section aria-label="Controls" className="card min-w-0 px-4 py-3">
             <div role="group" aria-label="Viewer" className="flex flex-wrap items-center gap-3">
@@ -74,8 +73,16 @@ export default function App() {
           )}
         </div>
         <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
-          <section aria-label="Charts" className="card flex flex-col gap-6 p-5">
-            {teams && <EventStrip teams={teams} incidents={match.incidents} alerts={match.alerts} axis={axis} now={now} />}
+          <section aria-label="Charts" className="card flex flex-col gap-6 p-4 sm:p-5">
+            {teams && (
+              <div className="flex flex-col gap-3">
+                {/* Stays in view while scrolling down the charts. */}
+                <div className="sticky top-[4.5rem] z-20 -mx-1 rounded-xl bg-ink-900/85 px-1 py-1 backdrop-blur">
+                  <Scoreboard teams={teams} status={match.status} incidents={match.incidents} connection={match.connection} info={info} />
+                </div>
+                <EventStrip teams={teams} incidents={match.incidents} alerts={match.alerts} axis={axis} now={now} />
+              </div>
+            )}
             <MetricCharts
               teams={teams}
               snapshots={match.snapshots}

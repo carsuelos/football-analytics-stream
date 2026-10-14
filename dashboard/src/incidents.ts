@@ -78,3 +78,10 @@ export function goalAfter(alert: Alert, incidents: Incident[], axis: Timeline): 
   }
   return null
 }
+
+/** The name without the first name, as on a scoreboard: "Di María", "Mbappé". */
+export function surname(name: string | undefined) {
+  if (!name) return undefined
+  const parts = name.split(' ')
+  return parts.length > 1 ? parts.slice(1).join(' ') : name
+}
