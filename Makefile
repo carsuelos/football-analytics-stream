@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -103,6 +103,9 @@ evaluate: export ## Replay the 2022 World Cup offline and measure whether the al
 
 xt: export ## Compute our own xT grid from the training data (make fetch-training), compare it with the published grid on the World Cup, and write model/artifacts/
 	cd model && uv run python -m model.xt $(ARGS)
+
+dataset: export ## Build the goal model's features and labels from the training (make fetch-training) and World Cup feeds into data/model/
+	cd model && uv run python -m model.dataset $(ARGS)
 
 dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
 	cd dashboard && pnpm dev $(ARGS)

@@ -10,6 +10,7 @@ requires-python = ">=3.13"
 dependencies = [
     "engine",
     "numpy>=2.3",
+    "scikit-learn>=1.9.1",
 ]
 
 [tool.uv.sources]
@@ -41,3 +42,7 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = ["--strict-markers"]
+
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true

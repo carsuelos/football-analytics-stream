@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 
 from engine import backtest
-from engine.backtest import Goal, feed_paths, goal_for, read_feed, replay
+from engine.backtest import Goal, feed_paths, read_feed, replay
 from engine.detectors import Detectors
 from engine.hub import MatchHub
 from engine.pipeline import Pipeline
@@ -55,15 +55,6 @@ def a_match() -> list[FeedMessage]:
         *map(feed_event, events),
         feed_marker(K.match_end, len(events)),
     ]
-
-
-def test_goal_for() -> None:
-    teams = (HOME.id, AWAY.id)
-    assert goal_for(shot(1, 0, 0, ShotOutcome.goal), teams) == HOME.id
-    assert goal_for(shot(1, 0, 0, ShotOutcome.post), teams) is None
-    assert goal_for(event(1, 0, type=EventType.own_goal, team=AWAY), teams) == HOME.id
-    assert goal_for(shot(5, 0, 0, ShotOutcome.goal), teams) is None
-    assert goal_for(event(1, 0), teams) is None
 
 
 def test_replay_finds_goals_and_the_end() -> None:
