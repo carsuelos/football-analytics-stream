@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard smoke evaluate webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data sim engine dashboard smoke export backtest evaluate webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -84,8 +84,14 @@ engine: ## Run the engine against the simulator and serve its API on :8000. Pass
 smoke: ## Replay the 2022 final through the simulator and engine, and check the metrics and alerts. Flags via ARGS="..." (see ARGS="--help")
 	uv run scripts/smoke_test.py $(ARGS)
 
-evaluate: ## Replay 20 matches and measure whether the alerts predict goals (lift over chance). Flags via ARGS="..." (see ARGS="--help")
-	uv run scripts/evaluate_alerts.py $(ARGS)
+export: ## Write every downloaded match as the simulator broadcasts it to data/feeds, for offline replay. Flags via ARGS="..." (see ARGS="--help")
+	cd simulator && go run ./cmd/export -data ../data/statsbomb -out ../data/feeds $(ARGS)
+
+backtest: export ## Replay every exported match through the engine offline: one line per match with the score and alerts
+	cd engine && uv run python -m engine.backtest ../data/feeds $(ARGS)
+
+evaluate: export ## Replay the 2022 World Cup offline and measure whether the alerts predict goals (lift over chance). Flags via ARGS="..." (see ARGS="--help")
+	cd engine && uv run python ../scripts/evaluate_alerts.py $(ARGS)
 
 dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
 	cd dashboard && pnpm dev $(ARGS)

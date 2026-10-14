@@ -161,3 +161,29 @@ func positionBefore(events []schema.MatchEvent, offset int) position {
 	}
 	return eventPos(events[offset-1])
 }
+
+// Messages is the whole broadcast of m, as a subscriber there from the start
+// receives it: a match_start with head 0, every event in feed order, then a
+// match_end. An offline replay of these runs through the engine exactly as
+// the live broadcast does (see cmd/export).
+func Messages(m *match.Match) []schema.FeedMessage {
+	f := newFeed()
+	sub := f.subscribe(0)
+	f.load(m)
+	var msgs []schema.FeedMessage
+	drain := func() {
+		f.mu.Lock()
+		defer f.mu.Unlock()
+		for {
+			msg, ok := sub.next()
+			if !ok {
+				return
+			}
+			msgs = append(msgs, msg)
+		}
+	}
+	drain()
+	f.publish(len(m.Events))
+	drain()
+	return msgs
+}

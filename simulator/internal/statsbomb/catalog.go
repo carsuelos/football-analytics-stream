@@ -79,7 +79,13 @@ func (c *Catalog) Load(id int) (*match.Match, error) {
 	if idx < 0 {
 		return nil, fmt.Errorf("match %d: %w", id, match.ErrNotFound)
 	}
+	return c.LoadInfo(infos[idx])
+}
 
+// LoadInfo reads and normalizes the events of a match from List, without
+// listing again: for loading many matches at once.
+func (c *Catalog) LoadInfo(info match.Info) (*match.Match, error) {
+	id := int(info.MatchID)
 	var raws []rawEvent
 	if err := readJSON(c.eventsPath(id), &raws); err != nil {
 		return nil, err
@@ -88,7 +94,7 @@ func (c *Catalog) Load(id int) (*match.Match, error) {
 	if err != nil {
 		return nil, fmt.Errorf("match %d: %w", id, err)
 	}
-	return &match.Match{Info: infos[idx], Events: events}, nil
+	return &match.Match{Info: info, Events: events}, nil
 }
 
 func (c *Catalog) eventsPath(id int) string {

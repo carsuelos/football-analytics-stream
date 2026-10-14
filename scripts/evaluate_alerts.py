@@ -1,13 +1,11 @@
-# /// script
-# requires-python = ">=3.13"
-# ///
 """Measures whether the alerts predict goals.
 
-    uv run scripts/evaluate_alerts.py                     # 20 matches, the same ones every run
-    uv run scripts/evaluate_alerts.py --sample 5 --seed 7
+    make evaluate                                          # every 2022 World Cup match
+    cd engine && uv run python ../scripts/evaluate_alerts.py --sample 20 --seed 7
 
-Replays matches through the simulator and engine as the smoke test does, then
-compares each alert with the goals in StatsBomb's events:
+Replays exported feeds (make export) through the engine offline, exactly as it
+runs live (see engine.backtest), then compares each alert with the goals that
+followed:
 
 - how often the alerted team scores in the next 5 or 10 minutes, against how
   often a team scores in any 5 or 10 minutes of play (the lift: 1.0 is no
@@ -18,35 +16,32 @@ compares each alert with the goals in StatsBomb's events:
 - how many goals the scorer had an alert for in the 10 minutes before.
 
 Only play after 15 minutes counts (the momentum detector's warm-up), and not
-the penalty shootout. Twenty matches give about 50 goals, enough to compare
-runs but not to tune against; Phase 3 evaluates every match.
+the penalty shootout. The 64 World Cup matches replay in a few seconds; they
+have 172 goals, about 150 after the warm-up.
+
+Runs in the engine's environment, which it imports.
 """
 
 import argparse
 import json
 import random
-import shutil
 import sys
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
-from smoke_test import ROOT, Api, Json, SmokeError, replay, stack, wait_ready
+from engine.backtest import Replay, replay_files
 
-DEFAULT_SAMPLE = 20
+ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_FEEDS = ROOT / "data" / "feeds"
+DEFAULT_COMPETITION = "FIFA World Cup"
+DEFAULT_SEASON = "2022"
 DEFAULT_SEED = 2022
 HORIZONS_MIN = (5, 10)
 REACTIVE_MIN = 5
 WARMUP_S = 15 * 60
 STEP_S = 30  # the detectors' tick, for sampling the base rate
-PERIOD_START_S = {1: 0, 2: 45 * 60, 3: 90 * 60, 4: 105 * 60}  # as the simulator's match clock
 TYPES = ("momentum_shift", "goal_threat", "control_shift")
-
-
-@dataclass(frozen=True)
-class Goal:
-    team_id: int
-    play_s: float
 
 
 @dataclass(frozen=True)
@@ -54,56 +49,22 @@ class Match:
     """What happened in a match, in seconds of play since kick-off."""
 
     teams: tuple[int, int]
-    goals: list[Goal]
-    period_play_s: dict[int, float]
-    """Play before each period started."""
+    goals: list[tuple[int, float]]
+    """(team_id, play_s) of each goal, for the team it counts for."""
     end_s: float
 
     @classmethod
-    def load(cls, info: Json) -> "Match":
-        path = ROOT / "data" / "statsbomb" / "events" / f"{info['match_id']}.json"
-        events = [e for e in json.loads(path.read_text()) if e["period"] in PERIOD_START_S]
-        length = {
-            p: max(seconds(e) for e in events if e["period"] == p)
-            for p in sorted({e["period"] for e in events})
-        }
-        before, total = {}, 0.0
-        for period, s in length.items():
-            before[period] = total
-            total += s
-        goals = [
-            Goal(e["team"]["id"], before[e["period"]] + seconds(e))
-            for e in events
-            if (e["type"]["name"] == "Shot" and e["shot"]["outcome"]["name"] == "Goal")
-            or e["type"]["name"] == "Own Goal For"
-        ]
-        teams = (info["home_team"]["id"], info["away_team"]["id"])
-        return cls(teams, goals, before, total)
-
-    def play_s(self, alert: Json) -> float:
-        period: int = alert["period"]
-        clock_s: float = alert["match_clock_s"]
-        return self.period_play_s[period] + clock_s - PERIOD_START_S[period]
+    def of(cls, r: Replay) -> "Match":
+        return cls(r.team_ids, [(g.team_id, g.play_s) for g in r.goals], r.end_play_s)
 
     def opponent(self, team_id: int) -> int:
         return self.teams[1] if team_id == self.teams[0] else self.teams[0]
 
     def scores(self, team_id: int, after_s: float, minutes: int) -> bool:
-        return any(
-            g.team_id == team_id and after_s < g.play_s <= after_s + minutes * 60
-            for g in self.goals
-        )
+        return any(t == team_id and after_s < s <= after_s + minutes * 60 for t, s in self.goals)
 
     def scored(self, team_id: int, before_s: float, minutes: int) -> bool:
-        return any(
-            g.team_id == team_id and before_s - minutes * 60 <= g.play_s <= before_s
-            for g in self.goals
-        )
-
-
-def seconds(event: Json) -> float:
-    h, m, s = event["timestamp"].split(":")
-    return int(h) * 3600 + int(m) * 60 + float(s)
+        return any(t == team_id and before_s - minutes * 60 <= s <= before_s for t, s in self.goals)
 
 
 @dataclass(frozen=True)
@@ -123,12 +84,9 @@ class Evaluation:
     goals: int
     warned: dict[str, int]  # goals with an alert of a type (or "any") for the scorer before
 
-    def add(self, match: Match, alerts: list[Json]) -> None:
-        timed = [
-            (a["type"], a["team_id"], match.play_s(a))
-            for a in alerts
-            if a["period"] in PERIOD_START_S
-        ]
+    def add(self, r: Replay) -> None:
+        match = Match.of(r)
+        timed = [(a.alert.type.value, a.alert.team_id, a.play_s) for a in r.alerts]
         longest = max(HORIZONS_MIN)
         for type, team, at in timed:
             self.outcomes.append(
@@ -144,14 +102,14 @@ class Evaluation:
             for team in match.teams:
                 self.base.append(tuple(match.scores(team, t, h) for h in HORIZONS_MIN))
             t += STEP_S
-        for goal in match.goals:
-            if goal.play_s < WARMUP_S:
+        for scorer, scored_s in match.goals:
+            if scored_s < WARMUP_S:
                 continue
             self.goals += 1
             before = {
                 type
                 for type, team, at in timed
-                if team == goal.team_id and goal.play_s - longest * 60 <= at < goal.play_s
+                if team == scorer and scored_s - longest * 60 <= at < scored_s
             }
             for type in before | ({"any"} if before else set()):
                 self.warned[type] = self.warned.get(type, 0) + 1
@@ -198,57 +156,54 @@ def ratio(r: float | None, base: float | None) -> str:
     return "-" if r is None or not base else f"{r / base:.1f}"
 
 
+def choose(feeds: Path, competition: str, season: str) -> list[dict[str, Any]]:
+    """The exported matches of a competition's season, by match id."""
+    listing = feeds / "matches.json"
+    if not listing.exists():
+        raise SystemExit(f"evaluate alerts: no {listing}; run: make export")
+    infos: list[dict[str, Any]] = json.loads(listing.read_text())["matches"]
+    return sorted(
+        (
+            m
+            for m in infos
+            if (not competition or m["competition"] == competition)
+            and (not season or m["season"] == season)
+        ),
+        key=lambda m: int(m["match_id"]),
+    )
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n")[0])
     parser.add_argument(
-        "--sample",
-        type=int,
-        default=DEFAULT_SAMPLE,
-        metavar="N",
-        help=f"how many downloaded matches to replay (default {DEFAULT_SAMPLE})",
+        "--feeds", type=Path, default=DEFAULT_FEEDS, metavar="DIR", help="exported feeds"
     )
     parser.add_argument(
-        "--seed",
-        type=int,
-        default=DEFAULT_SEED,
-        help=f"which matches (default {DEFAULT_SEED}, the same every run)",
+        "--competition",
+        default=DEFAULT_COMPETITION,
+        help=f"which matches (default {DEFAULT_COMPETITION!r}; '' for any)",
     )
-    parser.add_argument("--sim-port", type=int, default=18080)
-    parser.add_argument("--engine-port", type=int, default=18000)
+    parser.add_argument(
+        "--season", default=DEFAULT_SEASON, help=f"default {DEFAULT_SEASON!r}; '' for any"
+    )
+    parser.add_argument(
+        "--sample", type=int, metavar="N", help="replay only N of them, picked by --seed"
+    )
+    parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="for --sample")
+    parser.add_argument("--workers", type=int, help="processes (default: one per CPU)")
     args = parser.parse_args()
 
-    logs = Path(tempfile.mkdtemp(prefix="evaluate-"))
-    failed = True
-    try:
-        with stack(args.sim_port, args.engine_port, logs) as processes:
-            api = Api(f"http://127.0.0.1:{args.engine_port}")
-            downloaded = sorted(wait_ready(api, processes), key=lambda m: m["match_id"])
-            n = min(args.sample, len(downloaded))
-            chosen = random.Random(args.seed).sample(downloaded, n)
-            print(f"Replaying {n} of {len(downloaded)} matches (--seed {args.seed})", flush=True)
-            evaluation = Evaluation([], [], 0, {})
-            for i, info in enumerate(chosen, 1):
-                r = replay(api, processes, info)
-                evaluation.add(Match.load(info), r.alerts)
-                print(
-                    f"  {i}/{n} {info['home_team']['name']} v {info['away_team']['name']}:"
-                    f" {len(r.alerts)} alerts",
-                    flush=True,
-                )
-        print()
-        print(evaluation.report())
-        failed = False
-    except SmokeError as e:
-        print(f"evaluate alerts: {e}", file=sys.stderr)
-    except KeyboardInterrupt:
-        print("evaluate alerts: interrupted", file=sys.stderr)
-        sys.exit(130)
-    finally:
-        if failed and any(logs.glob("*.log")):
-            print(f"Logs: {logs}", file=sys.stderr)
-        else:
-            shutil.rmtree(logs)
-    sys.exit(1 if failed else 0)
+    chosen = choose(args.feeds, args.competition, args.season)
+    if not chosen:
+        raise SystemExit("evaluate alerts: no matches chosen; run: make fetch-data export")
+    if args.sample is not None and args.sample < len(chosen):
+        chosen = random.Random(args.seed).sample(chosen, args.sample)
+    print(f"Replaying {len(chosen)} matches", file=sys.stderr, flush=True)
+    paths = [args.feeds / f"{m['match_id']}.jsonl" for m in chosen]
+    evaluation = Evaluation([], [], 0, {})
+    for r in replay_files(paths, workers=args.workers):
+        evaluation.add(r)
+    print(evaluation.report())
 
 
 if __name__ == "__main__":

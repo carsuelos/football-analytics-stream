@@ -11,8 +11,8 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | --- | --- |
 | `schema/jsonschema/` | JSON Schemas: the contract between all components (single source of truth) |
 | `schema/fixtures/` | Example messages (`valid/`, `invalid/`) tested in every language |
-| `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka |
-| `engine/` | Python (uv): metrics, windows, alerts |
+| `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka; `cmd/export` writes them to files for offline replay |
+| `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
@@ -43,7 +43,9 @@ make test                                     # all tests, including schema cont
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
 | `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--sample"` adds 10 random matches; `ARGS="--match ID"` for another match) |
-| `make evaluate` | Replay 20 matches and measure whether the alerts predict goals (about 3 minutes; `ARGS="--sample N --seed S"` for others) |
+| `make export` | Write every downloaded match as the simulator broadcasts it to `data/feeds/`, one JSON message per line, for offline replay (under a second for 64 matches) |
+| `make backtest` | Replay every exported match through the engine offline (no simulator, clock or network) and print each one's score and alerts |
+| `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 | `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
 | `make logs` | Follow the Docker stack's logs |
@@ -170,7 +172,9 @@ A failure prints what went wrong and where the processes' logs are.
 
 ### Do the alerts predict goals?
 
-Not yet. `make evaluate` replays 20 matches the same way and compares every alert with the goals that followed. The lift is how much more often the alerted team scores in the next 5 or 10 minutes than a team does in any 5 or 10 minutes: 1.0 means no better than chance. The Phase 1 alerts score about 0.7–1.2, so for now they describe a shift in the game rather than forecast a goal. A trained model that beats chance is the Phase 3 goal (see [the plan](docs/PLAN.md)).
+Not yet. `make evaluate` replays all 64 World Cup matches through the engine and compares every alert with the goals that followed. The lift is how much more often the alerted team scores in the next 5 or 10 minutes than a team does in any 5 or 10 minutes: 1.0 means no better than chance. The Phase 1 alerts score about 0.9–1.2, so for now they describe a shift in the game rather than forecast a goal. A trained model that beats chance is the Phase 3 goal (see [the plan](docs/PLAN.md)).
+
+The replay is offline: `make export` has the simulator write each match exactly as it would broadcast it (`simulator/cmd/export`), and the engine's `engine.backtest` feeds those messages through the same pipeline, ticker and detectors it runs live, as fast as the CPU allows. The alerts are the ones the engine raises live (a test checks this), so the whole tournament takes seconds instead of hours, and the same replay produces the model's training data.
 
 ## Data attribution
 

@@ -253,7 +253,8 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 ### Phase 3: Modeling
 **Goal: alerts that predict goals.** Beat chance on matches the model wasn't trained on: a 10' lift clearly above 1 and a better Brier score than the base rate, measured by `make evaluate` over all 64 World Cup matches, with training data from other StatsBomb competitions (Phase 1 baseline: lift 0.7–1.2).
 - [ ] Compute our own xT grid from StatsBomb data and compare it with the published grid.
-- [ ] Backtest harness that runs many matches offline through the engine.
+- [x] **Offline replay** (`make export`, `make backtest`): the simulator's `cmd/export` writes each match as it broadcasts it (`broadcast.Messages`: a `match_start` with head 0, every event, a `match_end`) to `data/feeds/<match_id>.jsonl`; `engine.backtest` feeds them through a fresh pipeline, ticker and detectors per match, across a process pool. One conversion from StatsBomb (the simulator's), and the engine's live code path, so offline results are what the engine raises live (a parity test against `runner.run` checks this). Goals come from the canonical events (a shot with outcome `goal`, or an `own_goal` for the other side), not the shootout.
+  - `make evaluate` now replays all 64 World Cup matches in about 3 s (from about 3 minutes for 20 through the live stack). Over all 64 (157 goals after 15'), the 911 heuristic alerts have a 10' lift of 1.2 (momentum 1.1, goal threat 1.2, control shift 1.2) and a 5' lift of 1.0; 57% of goals had an alert for the scorer in the 10' before. This is the baseline the model has to beat.
 - [ ] Training data: windows labelled by whether a goal follows within X minutes.
 - [ ] Train logistic regression or gradient-boosted (GBM) models; evaluate with Brier score and calibration plots.
 - [ ] Swap the trained model in behind the existing detector interface, and tune heuristic thresholds against the data.

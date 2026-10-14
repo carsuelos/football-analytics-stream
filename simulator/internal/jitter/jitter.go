@@ -35,10 +35,16 @@ func (c Catalog) Load(id int) (*match.Match, error) {
 	if err != nil {
 		return nil, err
 	}
-	rng := rand.New(rand.NewPCG(c.Seed, uint64(id)))
+	return Match(m, c.MaxDelay, c.Seed), nil
+}
+
+// Match returns a copy of m with its events jittered, the same way for the
+// same seed and match every time.
+func Match(m *match.Match, maxDelay float64, seed uint64) *match.Match {
+	rng := rand.New(rand.NewPCG(seed, uint64(m.MatchID)))
 	out := *m // copy, so a catalog that caches matches never sees them reordered
-	out.Events = Apply(m.Events, c.MaxDelay, rng)
-	return &out, nil
+	out.Events = Apply(m.Events, maxDelay, rng)
+	return &out
 }
 
 // Apply returns a copy of events, in feed order, with each event delayed by up
