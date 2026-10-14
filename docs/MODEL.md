@@ -11,7 +11,7 @@ Two numbers answer it, both measured on matches the model never trained on:
 - **Lift**: how often the alerted team scores in the next 5 or 10 minutes, divided by how often a team scores in any 5 or 10 minutes. 1.0 is no better than chance.
 - **Brier score**: the mean squared error of a probability, `mean((p - y)^2)` with `y` 1 for a goal and 0 otherwise. Lower is better. The **Brier skill score** is `1 - brier / brier_of_base_rate`: 0 is no better than always predicting the average, 1 is perfect, below 0 is worse than the average. With goals as rare as they are, a skill score of a few percent is already real information.
 
-Also used: **log loss** (`-mean(y log p + (1 - y) log(1 - p))`, which punishes confident mistakes harder), **calibration** (the sum of the predictions over the number of goals: 1.0 means it predicts as many goals as happen) and, from PR 5 on, **AUC** (how often a random positive is ranked above a random negative: 0.5 is chance).
+Also used: **log loss** (`-mean(y log p + (1 - y) log(1 - p))`, which punishes confident mistakes harder), **calibration** (the sum of the predictions over the number of goals: 1.0 means it predicts as many goals as happen) and **AUC** (how often a random positive is ranked above a random negative: 0.5 is chance).
 
 ## Data
 
@@ -156,7 +156,7 @@ At each 30-second tick from 15' on, for each team: **will this team score in the
 
 All of them come from the canonical events the engine already has, through the engine's own metric functions: the live detector will call the same `FeatureTracker` at each tick. A live provider would need to send the same event types, with locations and an xG per shot.
 
-**No peeking.** A test changes everything after 20' of a match and checks that no feature before 20' changes. The windows only hold events the engine has released, and the reorder buffer releases them in match-time order, so a feature can't see an event from after its tick.
+**No peeking.** A test changes everything after 20' of a match and checks that no feature before 20' changes. The windows only hold events the engine has released, in match-time order. That turned out not to be enough: the reorder buffer releases events in batches, and the whole batch used to reach the windows before the tick at its first event was taken, so a tick could see a few seconds ahead. Step 3 found it (a goal leaked into the features); since the fix, events reach the windows one at a time, and a dataset test checks that the tick just before a goal doesn't see it.
 
 ### The data
 
@@ -202,8 +202,120 @@ What this says:
 
 Combining weak, partly independent signals is what the models in the next step are for.
 
+## Step 3: models
+
+**Status: done (PR 5).** Code: [`model/src/model/train.py`](../model/src/model/train.py), run with `make train` (about 2.5 minutes). It prints everything below and writes it to `data/model/results.json`. `make train ARGS="--horizon 5"` runs the 5' version.
+
+### The setup
+
+Every model gets the same 43 features and predicts the same thing: the probability that this team scores in the next 10 minutes. Within 10', a team scores in 13.5% of the training rows (766,134 rows) and 12.1% of the test rows (20,592).
+
+Five models, from simplest to most flexible. Each one has to beat the one before it to be worth its complexity.
+
+| Model | What it is | Settings tried |
+| --- | --- | --- |
+| **base rate** | Always predicts the training average (13.5%). The floor: the skill score is measured against it | none |
+| **game state** | Logistic regression on just `minute`, `extra_time`, `score_diff`, `goals_for`, `goals_against`, `since_goal_min`. Answers "how much do the events add on top of the clock and the score?" | C = 1 |
+| **logistic** | Logistic regression on all 43 features | C = 0.001, 0.01, 1 |
+| **curved** | The logistic regression, plus a bent line for the minute (see below) | C = 0.001, 0.01 |
+| **boosted** | Gradient-boosted trees on all 43 features | 100 trees × 4 leaves, 150 × 8, 300 × 8 |
+
+### Techniques
+
+**Logistic regression.** The model adds up the features, each times a weight, and squashes the sum into a probability: `p = 1 / (1 + exp(-(b + w1·x1 + w2·x2 + …)))`. The sum is the **log-odds** (`log(p / (1 - p))`); a weight says how much one unit of a feature moves it. Training picks the weights that make the observed goals most likely (it minimizes log loss). It can only learn straight-line effects: each feature pushes the log-odds the same amount per unit everywhere.
+
+- **Standardization.** Before fitting, each feature has its training mean subtracted and is divided by its standard deviation (scikit-learn's `StandardScaler`). Then all features are on the same scale and the weights are comparable: a weight is "log-odds per standard deviation". It also makes the fit converge.
+- **L2 regularization.** The fit is penalized for large weights (`C` is the inverse strength: small C, strong penalty). With correlated features (`xt_5`, `xt_10`, `xt_match`), it stops the model from giving one a large positive weight and another a large negative one to cancel out. Here C made no difference (0.001 to 1 all scored 0.1140): 766,000 rows are plenty for 43 weights.
+
+**Hinges (a linear spline).** The chance of scoring isn't a straight line in the minute: flat for most of the match, then it collapses at full time because the 10 minutes run past the end. A straight line can't do that. The curved model adds, for each **knot** `k` (60, 80, 85, 90, 95, 100), a feature `max(0, minute - k)`: zero before the knot, then rising. Each gets its own weight, so the slope can change at each knot, and the minute's effect becomes a line with bends. It is still a logistic regression (the hinges are just more columns), so it stays simple to run in the engine: no library, a few lines of Python. A smooth spline (`SplineTransformer`) scored the same (CV AUC 0.628 vs 0.629).
+
+**Gradient-boosted trees** (scikit-learn's `HistGradientBoostingClassifier`). A sequence of small decision trees, each fitting what the trees before it got wrong. Trees find curves and interactions (a feature mattering more late in the match) by themselves, which logistic regression can't. The cost is that they overfit easily and are harder to read and to ship. Settings: learning rate 0.05, at least 500 rows per leaf (so a leaf is never a handful of near-identical ticks from one match), and small trees.
+
+**Cross-validation by match** (`GroupKFold`, 5 folds). The training matches are split into 5 groups; each model is fit on 4 and scored on the 5th, five times, so every training row gets an **out-of-fold** prediction from a model that didn't see its match. Splitting by match matters: consecutive ticks are near-copies (they share 9.5 of 10 minutes), so a random row split would score the model on copies of its training rows. The settings with the best out-of-fold log loss are picked, refit on all 2,552 matches, and only then scored on the World Cup, once.
+
+**Bootstrap intervals.** 64 test matches is not much. To see how much a number could move by chance, the test matches are resampled with replacement 1,000 times (a resample might have Argentina–France twice and no Japan–Spain), the number is recomputed on each, and the middle 95% is the interval. If an interval for "better than X" includes 0, the test can't tell the two apart.
+
+**Alerts from probabilities.** A model gives a probability for every team at every tick; an alert is when it crosses a threshold. The threshold is set for a number of **alerts a match**, on the out-of-fold training predictions (never on the test set), with the rules' 5' cooldown per team: 14.2 a match (the rules' volume), 5 and 2. The test set then gets the same lift measure as the rules.
+
+### Results
+
+Cross-validation on the 2,552 training matches, and the 64 World Cup matches:
+
+| Model | CV skill | CV log loss | CV AUC | Test skill | Test log loss | Test AUC | Test calibration |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| base rate | 0 | 0.3951 | 0.50 | −0.002 | 0.3697 | 0.50 | 1.11 |
+| game state | 0.005 | 0.3925 | 0.555 | 0.003 | 0.3680 | 0.541 | 1.08 |
+| logistic | 0.021 | 0.3849 | 0.618 | 0.015 | 0.3626 | 0.599 | 1.04 |
+| **curved** | **0.026** | **0.3824** | **0.629** | **0.021** | 0.3622 | **0.616** | **0.99** |
+| boosted (100 × 4) | 0.025 | 0.3829 | 0.627 | 0.019 | **0.3611** | 0.611 | 1.03 |
+
+95% bootstrap intervals on the test set: curved skill −0.002 to 0.042 and AUC 0.565 to 0.668; boosted AUC 0.562 to 0.662. Against plain logistic, the curved model's Brier gain is −0.004 to +0.015: on 64 matches, the test alone can't separate them. The cross-validation, on 40 times as many matches, can, and every model ranks the same on both.
+
+What it says:
+
+- **The events add real information.** The clock and the score alone (game state) barely beat the average (skill 0.005). Adding the events quadruples it (0.021).
+- **It's weak information.** A skill of 2–3% and an AUC of 0.62 mean the model is right about *which* moments are more dangerous a bit more often than not, not that it sees goals coming. That is the nature of football: most goals come from moments that look like many others that didn't produce one. Pre-match strength (odds, ratings) would likely add the most, and the data doesn't have it.
+- **Bigger trees did worse** (CV skill 0.025 → 0.024 → 0.023 as the trees grow). There isn't enough signal for complex interactions; they fit noise.
+- **The trees' edge over logistic was the minute.** Their permutation importance (how much the test log loss rises when one feature is shuffled) puts `tilt_match` (0.0068) and `minute` (0.0066) far ahead of everything else (`xt_match` 0.0007, `xt_10` 0.0006, `score_diff` 0.0005). Once logistic regression gets a bent line for the minute, it matches the trees: the curved model is a little better on CV, AUC and calibration, the trees a little better on test log loss, all within noise.
+- **Calibration is good.** Reliability (test rows grouped by predicted probability) for the curved model: predicted 9.5% → 9.2% scored, 12.5% → 10.8%, 15.9% → 15.2%, 19.7% → 18.2%, 24.0% → 22.0%, 29.9% → 35.0%. The exception is the lowest group: predicted 3.0%, 6.7% scored. Those are the last minutes of matches, and the 2022 World Cup added unusually long stoppage time, so more of its goals came after the point where club matches would be over.
+
+**What the curved model learned** (log-odds per standard deviation, largest first): `tilt_match` +0.25, `xt_match` +0.14, `opp_pressure_10` −0.10, `xg_match` +0.08, `pressure_10` +0.07, `extra_time` +0.07, and the minute through the hinges. The minute's own effect, from 15': flat to 60' (−0.08), −0.25 at 80', −0.76 at 90', −1.77 at 95', −2.2 from 100'. "Minute" is continuous play time, including first-half stoppage time, so the second half ends at about 95.
+
+So: **the team that has had the ball in the final third and moved it into dangerous zones all match is more likely to score next**, recent pressure adds a bit on top, and the opponent's recent pressure counts against. Recent shots and xG add little once the match-long numbers are in.
+
+### Alerts: does it beat the rules?
+
+Test set, thresholds set on the training data, 5' cooldown:
+
+| Model | Alerts a match | Threshold | Alerts | Scores in 5' | Lift 5' | Scores in 10' | Lift 10' | 95% |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| rules (baseline) | 14.2 | | 906 | 6.5% | 1.0 | 13.8% | 1.1 | |
+| game state | 14.2 | 0.137 | 916 | 7.2% | 1.1 | 13.1% | 1.08 | 0.89–1.27 |
+| logistic | 14.2 | 0.137 | 862 | 8.9% | 1.37 | 16.4% | 1.35 | 1.15–1.55 |
+| curved | 14.2 | 0.138 | 811 | 8.9% | 1.36 | 16.6% | 1.38 | 1.19–1.57 |
+| boosted | 14.2 | 0.136 | 856 | 9.2% | 1.42 | 16.8% | 1.39 | 1.21–1.57 |
+| logistic | 5 | 0.191 | 262 | 11.1% | 1.70 | 20.2% | 1.67 | 1.19–2.21 |
+| **curved** | **5** | **0.195** | **257** | **12.5%** | **1.91** | **22.2%** | **1.83** | **1.39–2.35** |
+| boosted | 5 | 0.191 | 266 | 10.9% | 1.68 | 21.4% | 1.77 | 1.23–2.34 |
+| logistic | 2 | 0.231 | 107 | 13.1% | 2.01 | 24.3% | 2.01 | 1.20–2.89 |
+| curved | 2 | 0.237 | 87 | 11.5% | 1.77 | 26.4% | 2.19 | 1.21–3.18 |
+| boosted | 2 | 0.227 | 99 | 11.1% | 1.71 | 22.2% | 1.84 | 0.96–2.75 |
+
+- **At the rules' volume, every model beats them**: 10' lift 1.38 for the curved model, and the bottom of its interval (1.19) is above the rules' 1.1.
+- **Fewer alerts, stronger alerts.** At 5 a match, the alerted team scores within 10' 22% of the time, 1.8 times the usual rate. At 2 a match the lift rises again, but on fewer than 100 alerts the interval is wide.
+- **Game state alone doesn't beat the rules**: the events are what make the alerts work.
+
+### The 5-minute horizon
+
+The same models predicting the next 5' (`--horizon 5`; base rate 7.2% train, 6.5% test) rank the same way (CV skill: curved 0.013, boosted 0.0125, logistic 0.012; test: curved 0.012, AUC 0.607, calibration 1.00), and their alerts are no better: curved at 5 a match has a 10' lift of 1.72 (vs 1.83) and a 5' lift of 1.76 (vs 1.91). Shorter horizons have half as many goals to learn from. The 10' model is the one to use.
+
+### The leak, and how it was found
+
+The first run had the boosted trees far ahead: a top group predicted at 72% that scored 84% of the time, and alerts with a lift of 6.5. Football isn't that predictable, so the rows behind it were inspected: `since_goal_min` was negative (−0.03 to −0.07 minutes), so features at a tick already counted a goal scored a few seconds later. The trees had learned "a goal was just scored by this team, and the score hasn't caught up", which predicts the label perfectly.
+
+The cause was in the engine, not the model: the reorder buffer released events in batches, and the whole batch went into the windows before the ticks inside it were taken (see the note in the baseline). The fix (PR #25) applies to the live engine, the replay and the dataset alike, and tests in the engine and the dataset check it. Every number in this document is after the fix.
+
+The lesson for iterating: **when a model is much better than it should be, look for a leak before celebrating.** Trees are good at finding them; it's worth training them even when the plan is to ship logistic regression, as a check.
+
+### Decision
+
+The engine will use the **curved logistic regression**: the best cross-validated model on every measure, well calibrated, and the simplest to run. What it needs at run time fits in a small JSON file (the feature names, knots, means, scales, weights and intercept), and running it is a dot product. No scikit-learn in the engine, no pickled model, and anyone can read the weights. The default operating point will be about **5 alerts a match** (threshold about 0.195, against a base rate of 13%), set in step 4.
+
+### Iterating
+
+Ideas, roughly by expected value:
+
+- **A clock relative to the period.** `minute` mixes "how far into the match" with "how much is left", and stoppage time varies (the 2022 World Cup's was unusually long, which is where calibration is worst). Minutes since the period started and an indicator for stoppage time, or the announced added time from a live provider, would separate them.
+- **Team strength.** Pre-match odds or Elo ratings say who the better team is before a ball is kicked. `tilt_match` and `xt_match` are standing in for them now. Club Elo or international Elo ratings by date could be joined on team names.
+- **Red cards.** A sending-off changes everything, and the canonical schema has no card events yet. Adding them (schema, simulator, engine) would let the model use them.
+- **Train closer to the test.** The training set is mostly club football with a higher goal rate (13.5% vs 12.1%). Weighting the 250 international tournament matches more, or recalibrating on them, could fix the overall calibration (1.11 for the base rate on the test).
+- **Our xT grid.** The features use the published grid. Switching to ours (`--xt-grid`) means `make dataset` then `make train` again.
+- **Interactions.** Hinges on the minute fixed the main curve. Products like `pressure_10 × minute>80` would let the model weigh late pressure differently; the trees don't suggest they matter much.
+- **Sequence models** (an RNN or transformer over the raw events) only make sense if they beat the curved model on the same CV by more than noise; the trees not beating it is a hint they won't, at much higher cost.
+
+To compare an idea: change the features or the model, run `make dataset` (if features changed) and `make train`, and compare the CV log loss and skill first (most data), then test AUC and the alert lift at 5 a match. A change worth keeping should improve CV by more than the gap between the settings tried (about 0.0005 in skill).
+
 ## Next steps
 
-3. Models: base rate, logistic regression, gradient boosting.
-4. A `goal_chance` alert from the model.
-5. Retune the rule thresholds on the training data.
+4. A `goal_chance` alert from the curved model, in the engine.
+5. Retune the rule thresholds on the training data, and the final scorecard.

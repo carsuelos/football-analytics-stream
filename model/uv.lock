@@ -376,6 +376,7 @@ dependencies = [
     { name = "engine" },
     { name = "numpy" },
     { name = "scikit-learn" },
+    { name = "scipy" },
 ]
 
 [package.dev-dependencies]
@@ -390,6 +391,7 @@ requires-dist = [
     { name = "engine", editable = "../engine" },
     { name = "numpy", specifier = ">=2.3" },
     { name = "scikit-learn", specifier = ">=1.9.1" },
+    { name = "scipy", specifier = ">=1.18.1" },
 ]
 
 [package.metadata.requires-dev]
