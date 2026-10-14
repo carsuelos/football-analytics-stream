@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -20,6 +20,7 @@ help: ## Show available targets
 setup: ## Install dependencies for all components
 	for m in $(GO_MODULES); do (cd $$m && go mod download) || exit 1; done
 	cd engine && uv sync
+	cd model && uv sync
 	cd dashboard && pnpm install --frozen-lockfile
 
 gen: gen-go gen-py gen-ts ## Generate Go, Python and TS types from the JSON Schemas
@@ -58,16 +59,19 @@ lint: ## Lint and type-check all components
 	@unformatted=$$(gofmt -l $(GO_MODULES)) && if [ -n "$$unformatted" ]; then echo "gofmt needed:"; echo "$$unformatted"; exit 1; fi
 	for m in $(GO_MODULES); do (cd $$m && go vet ./...) || exit 1; done
 	cd engine && uv run ruff check . ../scripts && uv run ruff format --check . ../scripts && uv run mypy
+	cd model && uv run ruff check . && uv run ruff format --check . && uv run mypy
 	cd dashboard && pnpm lint && pnpm typecheck
 
 test: ## Run all tests (including schema contract tests)
 	for m in $(GO_MODULES); do (cd $$m && go test ./...) || exit 1; done
 	cd engine && uv run pytest
+	cd model && uv run pytest
 	cd dashboard && pnpm test
 
 fmt: ## Auto-format Go and Python code
 	gofmt -w $(GO_MODULES)
 	cd engine && uv run ruff check --fix . ../scripts && uv run ruff format . ../scripts
+	cd model && uv run ruff check --fix . && uv run ruff format .
 
 ci: check-gen lint test ## Run what CI runs, except the Compose smoke test (make smoke-compose)
 
@@ -96,6 +100,9 @@ backtest: export ## Replay every exported match through the engine offline: one 
 
 evaluate: export ## Replay the 2022 World Cup offline and measure whether the alerts predict goals (lift over chance). Flags via ARGS="..." (see ARGS="--help")
 	cd engine && uv run python ../scripts/evaluate_alerts.py $(ARGS)
+
+xt: export ## Compute our own xT grid from the training data (make fetch-training), compare it with the published grid on the World Cup, and write model/artifacts/
+	cd model && uv run python -m model.xt $(ARGS)
 
 dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
 	cd dashboard && pnpm dev $(ARGS)

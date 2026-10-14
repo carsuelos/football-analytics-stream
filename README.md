@@ -4,6 +4,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 
 - Plan and roadmap: [docs/PLAN.md](docs/PLAN.md)
 - Vision and decisions: [docs/copilot_context.md](docs/copilot_context.md)
+- Modeling: techniques and results in [docs/MODEL.md](docs/MODEL.md)
 
 ## Layout
 
@@ -13,6 +14,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `schema/fixtures/` | Example messages (`valid/`, `invalid/`) tested in every language |
 | `simulator/` | Go: replays StatsBomb events as a live broadcast, over WebSocket and Kafka; `cmd/export` writes them to files for offline replay |
 | `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
+| `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid); see [docs/MODEL.md](docs/MODEL.md) |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
@@ -47,6 +49,7 @@ make test                                     # all tests, including schema cont
 | `make export` | Write every downloaded match as the simulator broadcasts it to `data/feeds/`, one JSON message per line, for offline replay (under a second for 64 matches) |
 | `make backtest` | Replay every exported match through the engine offline (no simulator, clock or network) and print each one's score and alerts |
 | `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
+| `make xt` | Fit our own xT grid on the training data and compare it with the published one on the World Cup (needs `make fetch-training`) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 | `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
 | `make logs` | Follow the Docker stack's logs |
@@ -181,4 +184,4 @@ The replay is offline: `make export` has the simulator write each match exactly 
 
 Match data comes from [StatsBomb Open Data](https://github.com/statsbomb/open-data) and is used under their non-commercial terms. Data files are downloaded locally and never committed. The model is trained on StatsBomb's other men's competitions (`make fetch-training`) and tested on the 2022 World Cup, which it never sees in training.
 
-The expected-threat (xT) grid is Karun Singh's, from [Introducing Expected Threat (xT)](https://karun.in/blog/expected-threat.html). It is downloaded by `make fetch-data` and not redistributed here.
+The expected-threat (xT) grid is Karun Singh's, from [Introducing Expected Threat (xT)](https://karun.in/blog/expected-threat.html). It is downloaded by `make fetch-data` and not redistributed here. Our own grid, `model/artifacts/xt_statsbomb_12x8.json`, is fitted on StatsBomb Open Data with the same method (see [docs/MODEL.md](docs/MODEL.md)).
