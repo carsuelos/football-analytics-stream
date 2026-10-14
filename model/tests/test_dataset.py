@@ -109,5 +109,6 @@ def test_save_and_load(tmp_path: Path) -> None:
     back = Dataset.load(tmp_path / "d.npz")
     assert np.array_equal(back.x, d.x) and np.array_equal(back.y, d.y)
     assert back.names == FEATURE_NAMES
+    assert back.meta == {"xt_grid": "g.json"}
     both = Dataset.concat([d, back])
     assert len(both) == 2 * n

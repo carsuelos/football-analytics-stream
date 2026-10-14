@@ -9,6 +9,7 @@ The techniques, the results of each step and how to iterate on them are in [docs
 | `model.xt` | Our own expected-threat (xT) grid: Karun Singh's Markov model, fitted on the training matches and compared with the published grid on the World Cup (`make xt`) |
 | `model.dataset` | The goal model's rows: each team every 30 seconds from 15', with the engine's features (`engine.features`) and whether it scores in the next 5 and 10 minutes, into `data/model/{train,test}.npz` (`make dataset`) |
 | `model.train` | The goal models, from a base rate to logistic regression (straight, and with a bent minute) and gradient-boosted trees: cross-validated by match on the training set, then scored once on the World Cup, with bootstrap intervals, reliability and alert lift (`make train`) |
+| `model.export` | The shipped goal model: the curved logistic regression at 10', fitted on all the training data, its alert threshold picked out of fold, written as plain JSON into the engine (`engine/src/engine/detectors/goal_model.json`) after checking the engine's arithmetic matches scikit-learn's (`make export-model`) |
 
 | Artifact | What |
 | --- | --- |
@@ -21,6 +22,7 @@ make fetch-data fetch-training   # the World Cup (test) and everything else (tra
 make xt                          # about 10 s
 make dataset                     # about 2 minutes
 make train                       # about 2 minutes; ARGS="--horizon 5" for 5'
+make export-model                # about 15 s; then `make evaluate` to see its alerts
 ```
 
 Checks: `uv run ruff check . && uv run ruff format --check . && uv run mypy && uv run pytest` (or `make lint test` from the root).

@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model webhook up down logs smoke-compose
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -109,6 +109,9 @@ dataset: export ## Build the goal model's features and labels from the training 
 
 train: ## Train and compare the goal models on data/model/ (make dataset), scoring them on the World Cup; writes data/model/results.json. Flags via ARGS="..." (e.g. --horizon 5)
 	cd model && uv run python -m model.train $(ARGS)
+
+export-model: ## Fit the shipped goal model on all of data/model/train.npz and write it into the engine (engine/src/engine/detectors/goal_model.json), checking the engine computes what scikit-learn fitted
+	cd model && uv run python -m model.export $(ARGS)
 
 dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
 	cd dashboard && pnpm dev $(ARGS)

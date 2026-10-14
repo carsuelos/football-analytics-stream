@@ -7,6 +7,7 @@ const TYPE_NAMES: Record<AlertType, string> = {
   momentum_shift: 'Momentum',
   goal_threat: 'Goal threat',
   control_shift: 'Control shift',
+  goal_chance: 'Goal chance (model)',
 }
 
 function teamBorder(team_id: number, teams: Team[] | null) {

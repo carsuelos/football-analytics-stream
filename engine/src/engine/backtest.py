@@ -21,7 +21,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from engine.clock import TimedEvent
-from engine.detectors import ControlShift, Detectors, GoalThreat, Momentum
+from engine.detectors import DEFAULT_MODEL_PATH, Detectors, GoalModel, default_detectors
+from engine.detectors.goal_chance import add_goal_model_args
 from engine.features import goal_for
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
@@ -103,11 +104,6 @@ class Replay:
     duplicates: int = 0
 
 
-def default_detectors() -> Detectors:
-    """The live engine's detectors (see cli)."""
-    return Detectors([Momentum(), GoalThreat(), ControlShift()])
-
-
 def replay(
     messages: Iterable[FeedMessage],
     metrics: MetricsConfig,
@@ -155,10 +151,18 @@ def replay(
     return result
 
 
-def replay_file(path: Path, grid_path: Path = DEFAULT_GRID_PATH, snapshots: bool = False) -> Replay:
-    """Replay a feed file with the live engine's detectors."""
+def replay_file(
+    path: Path,
+    grid_path: Path = DEFAULT_GRID_PATH,
+    snapshots: bool = False,
+    goal_model: Path | None = DEFAULT_MODEL_PATH,
+) -> Replay:
+    """Replay a feed file with the live engine's detectors (goal chance only
+    with a goal_model)."""
     metrics = MetricsConfig(XTGrid.load(grid_path))
-    return replay(read_feed(path), metrics, detectors=default_detectors(), snapshots=snapshots)
+    model = GoalModel.load(goal_model) if goal_model else None
+    detectors = default_detectors(model)
+    return replay(read_feed(path), metrics, detectors=detectors, snapshots=snapshots)
 
 
 def replay_files(
@@ -166,12 +170,13 @@ def replay_files(
     grid_path: Path = DEFAULT_GRID_PATH,
     snapshots: bool = False,
     workers: int | None = None,
+    goal_model: Path | None = DEFAULT_MODEL_PATH,
 ) -> Iterator[Replay]:
     """Replay many feed files in parallel, yielding results in the given order."""
     workers = workers or os.cpu_count() or 1
     if workers == 1 or len(paths) <= 1:
         for path in paths:
-            yield replay_file(path, grid_path, snapshots)
+            yield replay_file(path, grid_path, snapshots, goal_model)
         return
     with ProcessPoolExecutor(max_workers=min(workers, len(paths))) as pool:
         yield from pool.map(
@@ -179,6 +184,7 @@ def replay_files(
             paths,
             [grid_path] * len(paths),
             [snapshots] * len(paths),
+            [goal_model] * len(paths),
         )
 
 
@@ -212,6 +218,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "paths", nargs="+", type=Path, metavar="PATH", help="feed files or directories of them"
     )
     parser.add_argument("--xt-grid", type=Path, default=DEFAULT_GRID_PATH, metavar="PATH")
+    add_goal_model_args(parser)
     parser.add_argument(
         "--workers", type=int, default=None, help="processes (default: one per CPU)"
     )
@@ -219,7 +226,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     paths = feed_paths(args.paths)
     if not paths:
         parser.error("no feed files found (run make export)")
-    for r in replay_files(paths, args.xt_grid, workers=args.workers):
+    for r in replay_files(paths, args.xt_grid, workers=args.workers, goal_model=args.goal_model):
         print(json.dumps(summary(r)), flush=True)
 
 

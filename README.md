@@ -48,10 +48,11 @@ make test                                     # all tests, including schema cont
 | `make fetch-training` | Download and export the model's training data into `data/training/` (2,552 matches from every men's senior season since 2003 except the 2022 World Cup; about 10 GB, a few minutes) |
 | `make export` | Write every downloaded match as the simulator broadcasts it to `data/feeds/`, one JSON message per line, for offline replay (under a second for 64 matches) |
 | `make backtest` | Replay every exported match through the engine offline (no simulator, clock or network) and print each one's score and alerts |
-| `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
+| `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts (the rules and the goal model) predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
 | `make xt` | Fit our own xT grid on the training data and compare it with the published one on the World Cup (needs `make fetch-training`) |
 | `make dataset` | Build the goal model's features and labels (each team every 30 seconds) from the training and World Cup feeds into `data/model/` (about 2 minutes) |
 | `make train` | Train and compare the goal models (base rate, logistic regression, gradient-boosted trees) and score them on the World Cup (about 2 minutes) |
+| `make export-model` | Fit the shipped goal model on all the training data and write it into the engine (`engine/src/engine/detectors/goal_model.json`), checking the engine computes what scikit-learn fitted (about 15 seconds) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 | `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
 | `make logs` | Follow the Docker stack's logs |

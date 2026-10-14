@@ -11,6 +11,7 @@ class AlertType(StrEnum):
     momentum_shift = "momentum_shift"
     goal_threat = "goal_threat"
     control_shift = "control_shift"
+    goal_chance = "goal_chance"
 
 
 class Alert(BaseModel):
@@ -38,7 +39,10 @@ class Alert(BaseModel):
     type: Annotated[AlertType, Field(title="AlertType")]
     team_id: int
     value: Annotated[
-        float, Field(description="Detector output (e.g. z-score or heuristic goal score).")
+        float,
+        Field(
+            description="Detector output (e.g. z-score, heuristic goal score, or for goal_chance the probability of scoring within window_s)."
+        ),
     ]
     threshold: float
     window_s: Annotated[int, Field(gt=0)]

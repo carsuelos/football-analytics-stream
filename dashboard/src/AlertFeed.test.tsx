@@ -20,16 +20,18 @@ describe('AlertFeed', () => {
           alert({ id: 'a', period: 2, match_clock_s: 82 * 60, message: 'France taking control' }),
           alert({ id: 'b', period: 1, match_clock_s: 47 * 60, type: 'goal_threat', team_id: ARGENTINA.id, message: 'Argentina goal threat' }),
           alert({ id: 'c', period: 2, match_clock_s: 46 * 60, type: 'momentum_shift', message: 'France momentum' }),
+          alert({ id: 'd', period: 2, match_clock_s: 70 * 60, type: 'goal_chance', team_id: ARGENTINA.id, message: 'Argentina: 24% chance' }),
         ]}
       />,
     )
     const items = screen.getAllByRole('listitem')
     expect(items.map((li) => li.textContent)).toEqual([
       "82' · Control shiftFrance taking control",
+      "70' · Goal chance (model)Argentina: 24% chance",
       "46' · MomentumFrance momentum",
       "45+2' · Goal threatArgentina goal threat",
     ])
-    expect(items.map((li) => li.className.match(/border-(home|away)/)?.[1])).toEqual(['away', 'away', 'home'])
+    expect(items.map((li) => li.className.match(/border-(home|away)/)?.[1])).toEqual(['away', 'home', 'away', 'home'])
   })
 
   it('leaves alerts uncoloured until the teams are known', () => {

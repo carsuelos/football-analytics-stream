@@ -1,6 +1,6 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
-export type AlertType = "momentum_shift" | "goal_threat" | "control_shift";
+export type AlertType = "momentum_shift" | "goal_threat" | "control_shift" | "goal_chance";
 
 /**
  * A tactical alert raised by a detector.
@@ -27,7 +27,7 @@ export interface Alert {
   type: AlertType;
   team_id: number;
   /**
-   * Detector output (e.g. z-score or heuristic goal score).
+   * Detector output (e.g. z-score, heuristic goal score, or for goal_chance the probability of scoring within window_s).
    */
   value: number;
   threshold: number;
