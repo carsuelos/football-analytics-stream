@@ -43,6 +43,7 @@ make test                                     # all tests, including schema cont
 | `make engine` | Run the engine against the simulator and serve its API on `:8000` (`ARGS="--help"` lists options) |
 | `make dashboard` | Run the dashboard on `:5173`, proxying `/api` to the engine on `:8000` |
 | `make smoke` | End-to-end smoke test: replay the 2022 final through the simulator and engine at 1000× and check the metrics and alerts (`ARGS="--sample"` adds 10 random matches; `ARGS="--match ID"` for another match) |
+| `make fetch-training` | Download and export the model's training data into `data/training/` (2,552 matches from every men's senior season since 2003 except the 2022 World Cup; about 10 GB, a few minutes) |
 | `make export` | Write every downloaded match as the simulator broadcasts it to `data/feeds/`, one JSON message per line, for offline replay (under a second for 64 matches) |
 | `make backtest` | Replay every exported match through the engine offline (no simulator, clock or network) and print each one's score and alerts |
 | `make evaluate` | Replay the 64 2022 World Cup matches offline and measure whether the alerts predict goals (a few seconds; `ARGS="--sample N --seed S"` for a subset) |
@@ -178,6 +179,6 @@ The replay is offline: `make export` has the simulator write each match exactly 
 
 ## Data attribution
 
-Match data comes from [StatsBomb Open Data](https://github.com/statsbomb/open-data) and is used under their non-commercial terms. Data files are downloaded locally and never committed.
+Match data comes from [StatsBomb Open Data](https://github.com/statsbomb/open-data) and is used under their non-commercial terms. Data files are downloaded locally and never committed. The model is trained on StatsBomb's other men's competitions (`make fetch-training`) and tested on the 2022 World Cup, which it never sees in training.
 
 The expected-threat (xT) grid is Karun Singh's, from [Introducing Expected Threat (xT)](https://karun.in/blog/expected-threat.html). It is downloaded by `make fetch-data` and not redistributed here.

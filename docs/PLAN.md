@@ -255,7 +255,14 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 - [ ] Compute our own xT grid from StatsBomb data and compare it with the published grid.
 - [x] **Offline replay** (`make export`, `make backtest`): the simulator's `cmd/export` writes each match as it broadcasts it (`broadcast.Messages`: a `match_start` with head 0, every event, a `match_end`) to `data/feeds/<match_id>.jsonl`; `engine.backtest` feeds them through a fresh pipeline, ticker and detectors per match, across a process pool. One conversion from StatsBomb (the simulator's), and the engine's live code path, so offline results are what the engine raises live (a parity test against `runner.run` checks this). Goals come from the canonical events (a shot with outcome `goal`, or an `own_goal` for the other side), not the shootout.
   - `make evaluate` now replays all 64 World Cup matches in about 3 s (from about 3 minutes for 20 through the live stack). Over all 64 (157 goals after 15'), the 911 heuristic alerts have a 10' lift of 1.2 (momentum 1.1, goal threat 1.2, control shift 1.2) and a 5' lift of 1.0; 57% of goals had an alert for the scorer in the 10' before. This is the baseline the model has to beat.
-- [ ] Training data: windows labelled by whether a goal follows within X minutes.
+- [x] **Training and test data** (`make fetch-training`): the model is tested on the 64 2022 World Cup matches and trained on everything else StatsBomb publishes for men's senior football since 2003/04, in `data/training/` so the simulator's match list stays the World Cup. 2,552 matches, 7,214 goals (2.8 a match):
+  - 1,517 from the 2015/16 Premier League, La Liga, Serie A and Ligue 1 (complete seasons); 115 Indian Super League 2021/22
+  - about 520 Barcelona matches (La Liga 2004/05–2020/21, the Messi data set), which over-represent one dominant team
+  - 250 international tournament matches (World Cup 2018, Euro 2020 and 2024, Copa América 2024, AFCON 2023), the closest to the test set
+  - a few dozen others (Bundesliga 2015/16 and 2023/24 Leverkusen, Ligue 1 PSG, Champions League finals, MLS)
+  - older seasons (1958–2000) are left out: a handful of famous matches each, from a different game
+  - all 2,552 replay through the engine offline in about 70 s on 10 cores
+- [ ] Features and labels: each team at each tick, labelled by whether it scores within the next 5' or 10'.
 - [ ] Train logistic regression or gradient-boosted (GBM) models; evaluate with Brier score and calibration plots.
 - [ ] Swap the trained model in behind the existing detector interface, and tune heuristic thresholds against the data.
 - [ ] *(Optional)* A Streamlit app for exploring backtest results.
