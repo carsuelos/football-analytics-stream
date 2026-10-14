@@ -19,8 +19,11 @@ def features(events: list[MatchEvent]) -> dict[int, dict[str, float]]:
 
 def test_a_team_at_both_scales_is_exactly_at_the_threshold() -> None:
     # -3 + 1.5 * 18 / 18 + 1.5 * 0.05 / 0.05 = 0, and sigmoid(0) = 0.5.
+    config = GoalThreatConfig(
+        bias=-3, pressure_weight=1.5, pressure_scale=18, xt_weight=1.5, xt_scale=0.05, threshold=0.5
+    )
     e = build(touch(0), progression(1, HOME, 5), recoveries(HOME, 18, 10), touch(60))
-    [s] = signals(e)
+    [s] = signals(e, config)
     assert (s.team_id, s.threshold, s.window_s) == (HOME.id, 0.5, 300)
     assert s.value == pytest.approx(0.5)
     assert s.features == {"pressure_index": 18.0, "xt_velocity": 0.05, "covered_s": 60.0}

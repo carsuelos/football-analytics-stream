@@ -1,3 +1,5 @@
+from dataclasses import replace
+
 import pytest
 
 from engine.detectors import ControlShift, ControlShiftConfig, Signal
@@ -5,6 +7,9 @@ from engine.schema.common_schema import Team
 from engine.schema.event_schema import MatchEvent
 from tests.detector_specs import METRICS, build, recoveries, touch
 from tests.factories import AWAY, HOME, tick_after
+
+SWING = ControlShiftConfig(threshold=0.5, previous_max=-0.2)
+"""Signals only on a swing, as before Phase 3 tuning turned the swing condition off."""
 
 
 def swing(
@@ -28,7 +33,7 @@ def swing(
 
 
 def signals(events: list[MatchEvent], config: ControlShiftConfig | None = None) -> list[Signal]:
-    return ControlShift(config).evaluate(tick_after(events, METRICS))
+    return ControlShift(config or SWING).evaluate(tick_after(events, METRICS))
 
 
 @pytest.mark.parametrize(("team", "other"), [(HOME, AWAY), (AWAY, HOME)])
@@ -43,8 +48,7 @@ def test_signals_when_a_pinned_back_team_takes_control(team: Team, other: Team) 
         "opponent_pressure_index": 0.0,
     }
     assert s.message == (
-        f"{team.name} taking control: pressure balance +0.67 over the last 5',"
-        " from -0.50 the 5' before"
+        f"{team.name} in control: pressure balance +0.67 over the last 5', from -0.50 the 5' before"
     )
 
 
@@ -53,7 +57,7 @@ def test_signals_when_a_pinned_back_team_takes_control(team: Team, other: Team) 
 )
 def test_both_windows_must_reach_their_thresholds(before: int, last: int, fires: bool) -> None:
     # With smoothing 16, 4 against make -4 / 20 = -0.2 and 16 for make 16 / 32 = 0.5.
-    config = ControlShiftConfig(smoothing=16)
+    config = replace(SWING, smoothing=16)
     assert [s.value for s in signals(swing(before, last), config)] == ([0.5] if fires else [])
 
 
@@ -74,6 +78,21 @@ def test_needs_two_full_windows_of_play(until_s: int, fires: bool) -> None:
 
 
 def test_the_window_is_configurable() -> None:
-    [s] = signals(swing(5, 10, window_s=120), ControlShiftConfig(window_s=120))
+    [s] = signals(swing(5, 10, window_s=120), replace(SWING, window_s=120))
     assert s.window_s == 120
     assert "over the last 2', from -0.50 the 2' before" in s.message
+
+
+def test_by_default_dominance_is_enough_without_a_swing() -> None:
+    # Home is on top in both windows: 20 / 25 = 0.8 before, 30 / 35 = 0.86 now.
+    e = build(
+        touch(0, HOME),
+        touch(5, AWAY),
+        recoveries(HOME, 20, 100),
+        recoveries(HOME, 30, 400),
+        touch(600),
+    )
+    [s] = ControlShift().evaluate(tick_after(e, METRICS))
+    assert (s.team_id, s.threshold) == (HOME.id, 0.805)
+    assert s.value == pytest.approx(30 / 35)
+    assert s.features["previous_balance"] == pytest.approx(20 / 25)
