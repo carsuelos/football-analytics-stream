@@ -29,7 +29,12 @@ SUSTAINED_RUN = 3
 
 @dataclass(frozen=True)
 class PressureWeights:
-    """Weight of each component in the index. Defaults are a first guess, tuned in Phase 3."""
+    """Weight of each component in the index.
+
+    The defaults were a first guess. Phase 3 (docs/MODEL.md, Step 5) fitted
+    them to goals in the next 10' and kept them: the fit was no better on the
+    World Cup (AUC 0.557 against 0.560).
+    """
 
     recoveries: float = 1.0
     box_entries: float = 1.5

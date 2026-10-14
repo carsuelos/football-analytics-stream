@@ -1,4 +1,5 @@
 import itertools
+from dataclasses import replace
 
 import pytest
 
@@ -11,6 +12,9 @@ from engine.ticks import Ticker
 from engine.windows import InMemoryStateStore
 from tests.factories import AWAY, HOME, event, feed_event, feed_marker
 from tests.test_detectors import METRICS
+
+Z_SCORE = MomentumConfig(half_life_s=600, std_floor=3, threshold=2)
+"""A low floor and the pre-tuning threshold, so the tests can work with true z-scores."""
 
 OWN_HALF = (40.0, 40.0)
 ATT_HALF = (65.0, 40.0)  # attacking half, short of the final third
@@ -53,7 +57,7 @@ def steady_match(
 
 def run(es: list[MatchEvent], momentum: Momentum | None = None) -> list[Alert]:
     p = Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    d, t = Detectors([momentum or Momentum()]), Ticker(METRICS)
+    d, t = Detectors([momentum or Momentum(Z_SCORE)]), Ticker(METRICS)
     msgs = [feed_marker(K.match_start, 0), *map(feed_event, es)]
     return [
         a
@@ -88,7 +92,7 @@ def test_no_signals_in_the_first_15_minutes(surge_at: int, fires: bool) -> None:
 
 
 def test_z_uses_the_baseline_spread_when_it_is_above_the_floor() -> None:
-    m = Momentum(MomentumConfig(std_floor=0.5))
+    m = Momentum(replace(Z_SCORE, std_floor=0.5))
     [alert] = run(steady_match(1500, surge_at=1200, extra=8, clumps=(3, 7)), m)
     f = alert.features
     assert f["baseline_std"] > 0.5
@@ -98,7 +102,7 @@ def test_z_uses_the_baseline_spread_when_it_is_above_the_floor() -> None:
 
 
 def test_the_window_is_configurable() -> None:
-    m = Momentum(MomentumConfig(window_s=60))
+    m = Momentum(replace(Z_SCORE, window_s=60))
     [alert] = run(steady_match(1500, surge_at=1200, extra=10), m)
     assert (alert.match_clock_s, alert.window_s) == (1200, 60)
     assert alert.features["pressure_index"] == 10.0  # over 5' it would be 15
@@ -106,12 +110,12 @@ def test_the_window_is_configurable() -> None:
 
 
 def test_the_threshold_is_configurable() -> None:
-    m = Momentum(MomentumConfig(threshold=2.01))
+    m = Momentum(replace(Z_SCORE, threshold=2.01))
     assert run(steady_match(1500, surge_at=1200, extra=6), m) == []  # z 2.0
 
 
 def test_a_new_match_starts_the_baselines_over() -> None:
-    m = Momentum()
+    m = Momentum(Z_SCORE)
     e = steady_match(1500, surge_at=1200, extra=10)
     assert clocks(run(e, m)) == [1200]
     # The same surge as the start of a new match: no baseline to compare with.

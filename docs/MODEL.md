@@ -124,7 +124,7 @@ The goal threat alert fires on xT added per minute over a threshold that was tun
 
 ### Decision
 
-Our grid is committed ([`model/artifacts/xt_statsbomb_12x8.json`](../model/artifacts/xt_statsbomb_12x8.json), derived from StatsBomb Open Data) and can be used with `--xt-grid`. The engine's default stays the published grid until the thresholds are retuned on the training data (step 5), so that switching the grid and the thresholds is measured together.
+Our grid is committed ([`model/artifacts/xt_statsbomb_12x8.json`](../model/artifacts/xt_statsbomb_12x8.json), derived from StatsBomb Open Data) and can be used with `--xt-grid`. The engine's default stays the published grid until the thresholds are retuned on the training data (step 5), so that switching the grid and the thresholds is measured together. Step 5 measured it and [kept the published grid](#our-xt-grid-tested-kept).
 
 ### Iterating
 
@@ -356,7 +356,7 @@ The dashboard shows them as "Goal chance (model)"; the notifier and Kafka sinks 
 | Alerts | Count | A match | Scores in 5' | Lift | Scores in 10' | Lift | Opponent scores in 10' | Right after the team scored |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `goal_chance` | 257 | 4.0 | 12.5% | 1.9 | 22.2% | 1.8 | 10.1% | 15.2% |
-| the 3 rules | 906 | 14.2 | 6.5% | 1.0 | 13.8% | 1.1 | | |
+| the 3 rules (Phase 1 settings; step 5 retunes them) | 906 | 14.2 | 6.5% | 1.0 | 13.8% | 1.1 | | |
 | all | 1,163 | 18.2 | 7.8% | 1.2 | 15.6% | 1.3 | | |
 
 - **The engine reproduces training exactly**: 257 alerts with the same lifts as the curved model at 5 a match in step 3. (It's 4.0 a match on the World Cup, not 5: the test set has fewer goals and the threshold was set on club football.)
@@ -370,6 +370,136 @@ The dashboard shows them as "Goal chance (model)"; the notifier and Kafka sinks 
 - **A new model** only has to produce the same JSON: anything that's a logistic regression over the engine's features, with or without hinges. A different model family (trees) would need its own detector class, and its own parity check.
 - **New features** go into `engine/features.py` (so the engine serves exactly what training saw), then `make dataset train export-model`.
 
+## Step 5: the rules, retuned
+
+**Status: done (PR 7).** Code: [`model/src/model/rules.py`](../model/src/model/rules.py), run with `make rules` (about 20 minutes; the first run also spends about 5 recording, cached in `data/model/rules_{train,test}.npz`). It prints everything below and writes it to `data/model/rules.json`.
+
+### Why
+
+The three rules were set by hand in Phase 1, from one match (the 2022 final), and fire 14 times a match for a 10' lift of 1.1. That leaves a question open: are the rules' *ideas* weak, or only their *settings*? The goal model got its settings from 2,552 matches; this step gives the rules the same chance, picking their settings on the training set and scoring them once on the World Cup.
+
+### Technique: record once, re-run in numpy
+
+Replaying the training set through the engine takes about 70 s on 10 cores, and tuning needs thousands of runs (every setting, at many thresholds). So:
+
+1. **Record.** Each match is replayed once, and at every tick (each 30 s of play), for each team, `model.rules` records what the rules work from: the 5 pressure components over the last 5', the opponent's, both again over the 5' before, the team's own since the last goal in the window, and the xT added and seconds of play since that goal (`RuleInputs`, 907,376 rows). The pressure index is these components times the weights, so new weights are a matrix product, not a replay.
+2. **Re-run.** Each rule is rewritten in numpy over those rows: goal threat and control shift are formulas; momentum is stateful, so it loops through each team's ticks with the engine's own `Ewma` class. `fire` applies the detectors' 5' cooldown per team, and `threshold_for` bisects the threshold that gives a target number of alerts a match.
+3. **Check parity.** A re-implementation can drift from the real thing, so after tuning, the engine's own detectors replay 20 random training matches with the new settings and must raise exactly the same alerts (type, match, team, second): **146 of 146**. A unit test does the same on a synthetic match.
+
+### Comparing at the same volume
+
+Lift depends on volume: a rule that fires only at the most extreme moments has a higher lift than one that fires often. The old rules fire 4 to 6 times a match each, so "new settings are better" could just mean "fewer alerts". Every setting is therefore compared **at the threshold giving 2 alerts a match** on the training set (`--alerts-per-match`), and the tables include **"old at 2"**: the Phase 1 settings with only the threshold raised to that volume. Old → old at 2 is the gain from fewer alerts; old at 2 → new is the gain from better settings. The settings with the best 10' lift on the training set win; the World Cup is only looked at afterwards.
+
+### The pressure weights: tested, kept
+
+All three rules use the pressure index, so its weights come first. A logistic regression of "scores in the next 10'" on the 5 components over the last 5' (training ticks from 15'), with the weights kept non-negative (scipy L-BFGS-B with bounds) and rescaled to the old index's average:
+
+| Component | Phase 1 | Fitted |
+| --- | ---: | ---: |
+| recoveries (attacking half) | 1.0 | 0 |
+| box entries | 1.5 | 3.26 |
+| shot value (1 + xG) | 2.0 | 0.117 |
+| sustained actions | 0.25 | 0.357 |
+| box actions | 0.5 | 0 |
+
+The fitted index ranks the ticks no better: AUC 0.560 → 0.564 on training, **0.560 → 0.557 on the World Cup**. The components move together (a team in the box is also shooting, keeping the ball and winning it back high), so the ranking barely depends on how they are weighed. **Decision: keep the Phase 1 weights.** The fit gains nothing, drops two components people expect to matter, and changing the weights changes the goal model's features, which would need retraining. `make rules ARGS="--fit-weights"` tunes the rules on the fitted weights instead.
+
+### Our xT grid: tested, kept
+
+Step 1 left the engine on the published xT grid until this step. The model's dataset was rebuilt and the curved model retrained with ours (`--xt-grid model/artifacts/xt_statsbomb_12x8.json`): CV skill 0.0261 against 0.0259, test skill 0.0214 against 0.0208, test AUC 0.616 for both. That is inside the noise between settings (about 0.0005). **Decision: keep the published grid.** Ours is as good and is there for when the training data changes.
+
+### Goal threat: a fitted probability
+
+Goal threat was already a logistic score, `sigmoid(bias + a · pressure / sp + b · xT velocity / sv)`, with hand-picked numbers. Which alerts fire depends only on the **mix** of the two features (the threshold absorbs the bias and the overall scale), so:
+
+1. The scales `sp` and `sv` are the features' standard deviations, so a and b compare.
+2. The mix (the xT share of the score) is picked like the other rules' settings, at 2 alerts a match:
+
+   | xT share | 10' lift (train) |
+   | ---: | ---: |
+   | 0 (pressure only) | 1.45 |
+   | 0.25 | 1.47 |
+   | 0.5 | 1.51 |
+   | **0.75** | **1.53** |
+   | 1 (xT only) | 1.52 |
+
+3. A one-feature logistic regression on the mixed score sets the bias and slope, so the score **is the chance the team scores in the next 10'**.
+
+The result: `sigmoid(−2.03 + 0.0412 · pressure / 6.94 + 0.124 · xT velocity / 0.0196)`, firing at **0.185**: a team whose chance has reached 18.5%, against 13.5% on average. The alert's message ("goal threat 22%") now means what it says. Getting the ball into dangerous places (xT velocity) predicts goals better than pressure does, but a little pressure in the mix helps.
+
+### Momentum: a margin, not a z-score
+
+Half-life of the baseline × the floor on its spread, at 2 alerts a match (10' lift, train):
+
+| half-life \ std floor | 3 | 6 | 10 | 15 |
+| --- | ---: | ---: | ---: | ---: |
+| 2.5' | 1.12 | 1.20 | 1.25 | 1.26 |
+| 5' | 1.03 | 1.16 | 1.22 | 1.23 |
+| 10' (Phase 1) | 1.03 | 1.13 | 1.22 | 1.24 |
+| **20'** | 1.00 | 1.14 | 1.26 | **1.27** |
+
+The floor matters and the half-life barely does. With a low floor (a true z-score) momentum is no better than chance: a quiet team getting slightly busier makes a big z, but isn't dangerous. With a floor of 15 the divisor is nearly always 15, so the rule becomes "pressure at least 1.11 × 15 ≈ 17 above the team's usual": an absolute margin. **New: half-life 20', floor 15, threshold 1.11.** The best is at the edge of the grid (a first, narrower grid had picked 5' and 6, also at its edge, which is why it was widened), but from 10 to 15 the gain is flat.
+
+### Control shift: control, not a shift
+
+Smoothing × the most the balance may have been over the 5' before (`previous_max`), at 2 alerts a match (10' lift, train):
+
+| smoothing \ previous_max | −0.2 (Phase 1) | 0 | 0.2 | 1 (off) |
+| --- | ---: | ---: | ---: | ---: |
+| **5 (Phase 1)** | 1.16 | 1.27 | 1.36 | **1.51** |
+| 10 | 1.17 | 1.30 | 1.39 | 1.50 |
+| 20 | 1.12 | 1.31 | 1.40 | 1.50 |
+
+The looser the "was pinned back" condition, the better, all the way to turning it off (a balance is never above 1). Being on top predicts goals; having *just* swung on top predicts them less, since a swing is often a single burst. **New: smoothing 5, previous_max 1 (off), threshold 0.805**: the team's balance over the last 5' is at least 0.805, about 9 to 1 in pressure. The alert keeps its name (`control_shift` is in the schemas, the dashboard and the notifier), its message now says "in control", and `previous_max` stays configurable for anyone who wants swings only.
+
+### Results
+
+Training set (2,552 matches; 10' lift, with a 95% bootstrap interval by match):
+
+| | old: a match | old: lift | old at 2: lift | new: a match | new: lift |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| momentum_shift | 4.8 | 1.07 | 1.03 | 2.0 | 1.27 |
+| goal_threat | 4.0 | 1.43 | 1.51 | 2.0 | 1.53 |
+| control_shift | 4.9 | 1.07 | 1.16 | 2.0 | 1.51 |
+| the 3 rules | 12.3 | 1.17 | 1.25 | 5.2 | **1.44** (1.38–1.50) |
+
+World Cup (64 matches, never tuned on):
+
+| | old: a match | old: lift | old at 2: lift | new: a match | new: lift (95%) | goals covered |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| momentum_shift | 5.2 | 1.03 | 1.16 | 2.1 | 1.47 (0.93–2.03) | 17% |
+| goal_threat | 3.3 | 1.23 | 1.35 | 1.4 | 1.62 (1.03–2.30) | 10% |
+| control_shift | 5.7 | 1.19 | 1.59 | 2.1 | 1.70 (1.16–2.26) | 16% |
+| the 3 rules | 12.9 | 1.12 | 1.28 | 4.7 | **1.60** (1.19–2.06) | 27% |
+
+- **About half the gain is volume and half is settings.** For the three rules together on the World Cup: 1.12 at 13 a match, 1.28 with only the thresholds raised, 1.60 with the new settings.
+- **It holds up on the World Cup**, with wide intervals: 64 matches and about 300 alerts. Momentum's interval still includes 1.
+- **Coverage is the price**, as for the model: the rules warn of 27% of goals instead of 54%, with about a third of the alerts.
+- 8% of the new rules' alerts come within 5' after the team scored (goal threat 3%, since it only counts play since the last goal).
+
+### The final scorecard
+
+`make evaluate`, everything through the engine on the World Cup:
+
+| Alerts | Count | A match | Scores in 5' | Lift | Scores in 10' | Lift | Opponent scores in 10' | Goals covered |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| momentum_shift | 135 | 2.1 | 8.1% | 1.2 | 17.8% | 1.5 | 5.9% | 17% |
+| goal_threat | 87 | 1.4 | 11.5% | 1.8 | 19.5% | 1.6 | 10.3% | 10% |
+| control_shift | 136 | 2.1 | 11.0% | 1.7 | 20.6% | 1.7 | 8.8% | 16% |
+| goal_chance (model) | 257 | 4.0 | 12.5% | 1.9 | 22.2% | 1.8 | 10.1% | 28% |
+| the 3 rules | 358 | 5.6 | 10.1% | 1.5 | 19.3% | 1.6 | 8.1% | 27% |
+| **all** | **615** | **9.6** | 11.1% | **1.7** | 20.5% | **1.7** | 8.9% | **42%** |
+
+Against the start of Phase 3 (step 4's table: 1,163 alerts, 10' lift 1.3, 69% of goals): half the alerts, each worth more. The model is still the best single detector, at almost twice the volume of any rule, and the rules add coverage it doesn't have (42% of goals between them, against 28% for the model alone). In the 2022 final: Argentina are flagged in control at 35:00, 22 seconds before Di María's 2–0, then by the model at 36:54; momentum and control again at 106:00, two minutes before Messi's extra-time goal. France's comeback (a penalty, then a quick break 95 seconds later) gets no warning.
+
+### Iterating
+
+- **The volume** is one flag: `make rules ARGS="--alerts-per-match 3"`. Then copy the printed defaults into the engine's configs.
+- **Grid edges.** Momentum's best is at the edge of its grid. The next step would be the limit it points to, a pure margin (`pressure − mean ≥ k`), and a margin relative to the opponent.
+- **Overlap.** The rules and the model often flag the same team at the same moment. One alert per team per 5' across detectors (whichever is strongest) would cut volume further; it's a product decision more than a modeling one.
+- **Real data.** Everything here works on the canonical schema, so a new provider means exporting its matches as feeds, `make dataset` and `make rules` on them, and comparing with these numbers.
+- **Speed.** Most of the 20 minutes is momentum's EWMA loop in Python (16 settings × 907k rows) and the parity replay. Numba or a vectorized EWMA would make it a few minutes.
+
 ## Next steps
 
-5. Retune the rule thresholds on the training data, and the final scorecard.
+Phase 3 is complete. Skipped on purpose: a **sequence model** over the raw events, since the gradient-boosted trees didn't beat the curved logistic regression (step 3), a hint that a heavier model won't either. Still optional: a Streamlit app for exploring the backtests. Next is Phase 4: deployment to Azure.

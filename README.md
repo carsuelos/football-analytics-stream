@@ -52,6 +52,7 @@ make test                                     # all tests, including schema cont
 | `make xt` | Fit our own xT grid on the training data and compare it with the published one on the World Cup (needs `make fetch-training`) |
 | `make dataset` | Build the goal model's features and labels (each team every 30 seconds) from the training and World Cup feeds into `data/model/` (about 2 minutes) |
 | `make train` | Train and compare the goal models (base rate, logistic regression, gradient-boosted trees) and score them on the World Cup (about 2 minutes) |
+| `make rules` | Retune the three rules (momentum, goal threat, control shift) on the training data and score them on the World Cup, checking the engine raises exactly the simulated alerts; prints the new defaults (about 20 minutes, 5 of them recording the first time) |
 | `make export-model` | Fit the shipped goal model on all the training data and write it into the engine (`engine/src/engine/detectors/goal_model.json`), checking the engine computes what scikit-learn fitted (about 15 seconds) |
 | `make webhook` | Run a webhook receiver on `:9000` that prints the alerts it gets |
 | `make up` / `make down` | Build and start the whole stack in Docker (dashboard on `:3000`) / stop it |
@@ -104,7 +105,7 @@ match 3869685 P2 82:30 (play 90:04) | released 2993 buffered 9 late 0 dup 0
 When a detector fires, the engine logs an alert:
 
 ```text
-ALERT P2 82:27 control_shift: France taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before
+ALERT P3 106:00 control_shift: Argentina in control: pressure balance +0.82 over the last 5', from -0.53 the 5' before
 ```
 
 The metric definitions are in [docs/PLAN.md](docs/PLAN.md#metric-definitions-v1), and the alert definitions in [Predictive signals](docs/PLAN.md#predictive-signals-v1-rule-based). Try:

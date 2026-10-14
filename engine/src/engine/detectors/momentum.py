@@ -14,14 +14,18 @@ from engine.windows import FIVE_MINUTES_S
 class MomentumConfig:
     window_s: float = FIVE_MINUTES_S
     """The pressure index is measured over this window."""
-    half_life_s: float = 600.0
+    half_life_s: float = 1200.0
     """How quickly the baseline forgets: older play counts half as much per half-life."""
     warmup_s: float = 900.0
     """No signals in the first warmup_s of play, while the baselines settle."""
-    std_floor: float = 3.0
-    """Lowest spread used for z, so a quiet spell doesn't turn small rises into alerts."""
-    threshold: float = 2.0
-    """Signal when z reaches this."""
+    std_floor: float = 15.0
+    """Lowest spread used for z, so a quiet spell doesn't turn small rises into
+    alerts. Tuned in Phase 3 (docs/MODEL.md, Step 5): at 15 the floor is
+    nearly always the divisor, so in practice the rule is "pressure at least
+    threshold * 15 above the team's usual", which predicts goals better than
+    a true z-score."""
+    threshold: float = 1.11
+    """Signal when z reaches this; tuned for about 2 alerts a match."""
 
 
 class Momentum:

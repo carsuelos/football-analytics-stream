@@ -15,19 +15,22 @@ from engine.windows import FIVE_MINUTES_S
 class GoalThreatConfig:
     """A logistic score over two features, each divided by a scale.
 
-    The scales are about the top few percent of 5' values in the 2022 final,
-    so a team at both scales scores sigmoid(bias + both weights) = 0.5.
+    Fitted in Phase 3 (docs/MODEL.md, Step 5) so the score is the chance the
+    team scores in the next 10' (about 7% on average). The scales are the
+    features' standard deviations, so the weights compare: xT velocity
+    carries about three times the weight of pressure.
     """
 
     window_s: float = FIVE_MINUTES_S
-    bias: float = -3.0
-    pressure_weight: float = 1.5
-    pressure_scale: float = 18.0
+    bias: float = -2.03
+    pressure_weight: float = 0.0412
+    pressure_scale: float = 6.94
     """Pressure index."""
-    xt_weight: float = 1.5
-    xt_scale: float = 0.05
+    xt_weight: float = 0.124
+    xt_scale: float = 0.0196
     """xT added per minute."""
-    threshold: float = 0.5
+    threshold: float = 0.185
+    """Tuned for about 2 alerts a match."""
 
 
 class GoalThreat:
@@ -50,15 +53,7 @@ class GoalThreat:
 
     def evaluate(self, tick: Tick) -> list[Signal]:
         c = self.config
-        items = tick.windows.events(c.window_s)
-        goals = [i for i, item in enumerate(items) if _is_goal(item.event)]
-        if goals:
-            last_goal = goals[-1]
-            covered_s = tick.play_s - items[last_goal].play_s
-            items = items[last_goal + 1 :]
-        else:
-            covered_s = tick.windows.covered_s(c.window_s)
-        events = [i.event for i in items]
+        events, covered_s = since_last_goal(tick, c.window_s)
         index = pressure(events, tick.team_ids)
         xt = xt_added(events, tick.team_ids, tick.metrics.grid)
         signals = []
@@ -90,6 +85,17 @@ class GoalThreat:
                     )
                 )
         return signals
+
+
+def since_last_goal(tick: Tick, window_s: float) -> tuple[list[MatchEvent], float]:
+    """The events of the last window_s of play after any goal in it, and how
+    much play they cover."""
+    items = tick.windows.events(window_s)
+    goals = [i for i, item in enumerate(items) if _is_goal(item.event)]
+    if not goals:
+        return [i.event for i in items], tick.windows.covered_s(window_s)
+    last_goal = goals[-1]
+    return [i.event for i in items[last_goal + 1 :]], tick.play_s - items[last_goal].play_s
 
 
 def _is_goal(e: MatchEvent) -> bool:
