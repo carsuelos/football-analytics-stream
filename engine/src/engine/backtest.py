@@ -22,11 +22,12 @@ from pathlib import Path
 
 from engine.clock import TimedEvent
 from engine.detectors import ControlShift, Detectors, GoalThreat, Momentum
+from engine.features import goal_for
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.pipeline import Pipeline
 from engine.schema.alert_schema import Alert
-from engine.schema.event_schema import EventType, MatchEvent, ShotOutcome
+from engine.schema.event_schema import EventType
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.metric_schema import MetricSnapshot
 from engine.ticks import SHOOTOUT_PERIOD, Tick, Ticker
@@ -66,19 +67,6 @@ def steps(messages: Iterable[FeedMessage], pipeline: Pipeline, ticker: Ticker) -
     for msg in messages:
         for item in pipeline.handle(msg):
             yield Step(item, ticker.observe(pipeline, item))
-
-
-def goal_for(event: MatchEvent, team_ids: tuple[int, int] | None) -> int | None:
-    """The team a goal counts for, if the event is one. An own goal's team is
-    the side that conceded it. Shootout kicks are not goals."""
-    if event.period == SHOOTOUT_PERIOD:
-        return None
-    if event.type == EventType.shot and event.shot and event.shot.outcome == ShotOutcome.goal:
-        return event.team.id
-    if event.type == EventType.own_goal and team_ids:
-        a, b = team_ids
-        return b if event.team.id == a else a
-    return None
 
 
 @dataclass(frozen=True)

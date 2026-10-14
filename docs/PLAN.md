@@ -262,7 +262,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - older seasons (1958–2000) are left out: a handful of famous matches each, from a different game
   - all 2,552 replay through the engine offline in about 70 s on 10 cores
 - [x] **Our own xT grid** (`make xt`, `model/`): Karun Singh's Markov model fitted on the 2,552 training matches (4.5M passes and carries, 63,658 non-penalty shots), mirrored left to right. Correlation 0.988 with the published grid, about half a point lower everywhere and 6 points lower in front of goal; equally good at predicting whether a World Cup possession scores (Brier 0.0196 each, slightly better in the final third). Committed as `model/artifacts/xt_statsbomb_12x8.json`; the engine keeps the published default until the thresholds are retuned with it. Details: [MODEL.md](MODEL.md).
-- [ ] Features and labels: each team at each tick, labelled by whether it scores within the next 5' or 10'.
+- [x] **Features and labels** (`make dataset`): each team at each 30-second tick from 15', with 43 features computed by the engine (`engine.features`, so the live detector computes exactly what the model trained on) and whether it scores within the next 5' and 10'. 766,134 training rows (a team scores within 10' 13.5% of the time) and 20,592 test rows (12.1%). Alone, no feature ranks the rows much better than chance (best AUC 0.61, field tilt over the match). Details: [MODEL.md](MODEL.md).
 - [ ] Train logistic regression or gradient-boosted (GBM) models; evaluate with Brier score and calibration plots.
 - [ ] Swap the trained model in behind the existing detector interface, and tune heuristic thresholds against the data.
 - [ ] *(Optional)* A Streamlit app for exploring backtest results.

@@ -130,9 +130,78 @@ Our grid is committed ([`model/artifacts/xt_statsbomb_12x8.json`](../model/artif
 - Refit on just international tournaments (250 matches) to see whether the calibration gap is about the competition.
 - Action-based models (VAEP, or xT with pass direction) value the action, not just the zone, but need more than a lookup table at run time.
 
+## Step 2: features and labels
+
+**Status: done (PR 4).** Code: [`engine/src/engine/features.py`](../engine/src/engine/features.py) (the features) and [`model/src/model/dataset.py`](../model/src/model/dataset.py) (the rows), run with `make dataset` (about 2 minutes).
+
+### The prediction
+
+At each 30-second tick from 15' on, for each team: **will this team score in the next 5 minutes? In the next 10?** One row per team per tick, so a 90-minute match gives about 300 rows (more with extra time). The 15' warm-up and the tick are the rules' (Phase 1), so the model and the rules are scored on the same moments.
+
+- **Labels** look only ahead: a goal at `g` labels the ticks `t` with `t < g ≤ t + horizon`. A goal at the tick itself is already in the features (the score), and not in the label.
+- **The end of the match** cuts the horizon short: at 88' a team has only 2 minutes to score in, and is labelled as such. That's what the live question is too ("will they score before the end?"), and `minute` lets the model learn it.
+- **Rows overlap**: consecutive ticks share 9.5 of their 10 minutes, so they are nearly copies. Every split of the data (cross-validation, bootstrap) is by match, never by row, or the model would be tested on near-copies of what it trained on.
+
+### The features
+
+43 numbers per row, from the team's point of view (`opp_` is the same for its opponent):
+
+| Group | Features | Why |
+| --- | --- | --- |
+| Game state | `minute`, `extra_time`, `score_diff`, `goals_for`, `goals_against`, `since_goal_min` | Teams chasing a game attack more; goals are more frequent late on; a goal is followed by a kick-off and a reset |
+| Last 5' and 10' (each) | `tilt`, `xt`, `pressure`, `shots`, `xg`, `box_entries`, `box_actions`, `recoveries`, and the opponent's | The Phase 1 metrics, plus the parts of the pressure index, so the model can weigh them itself instead of using the hand-set weights |
+| Match so far | `xg_match`, `shots_match`, `xt_match` (each with the opponent's) and `tilt_match` | Which team is better on the day. There is no pre-match strength (odds, ratings) in the data, so this is the closest proxy |
+
+All of them come from the canonical events the engine already has, through the engine's own metric functions: the live detector will call the same `FeatureTracker` at each tick. A live provider would need to send the same event types, with locations and an xG per shot.
+
+**No peeking.** A test changes everything after 20' of a match and checks that no feature before 20' changes. The windows only hold events the engine has released, and the reorder buffer releases them in match-time order, so a feature can't see an event from after its tick.
+
+### The data
+
+| Set | Rows | Matches | Scores within 5' | Within 10' |
+| --- | ---: | ---: | ---: | ---: |
+| Training | 766,134 | 2,552 | 7.2% | 13.5% |
+| Test (World Cup) | 20,592 | 64 | 6.5% | 12.1% |
+
+The test rates match the rules' evaluation (6.5% and 12.2%). Club football in the training set scores a little more often than the World Cup did: a model that just learnt the training rate would over-predict on the test by about 10%.
+
+### One feature at a time
+
+Before any model: how well does each feature alone rank the rows (AUC for scoring within 10')? 0.5 is chance; below 0.5 means more of it goes with fewer goals, as for the opponent's features.
+
+| Feature | Train AUC | Test AUC |
+| --- | ---: | ---: |
+| `tilt_match` | 0.608 | 0.590 |
+| `tilt_10` | 0.580 | 0.587 |
+| `pressure_10` | 0.576 | 0.586 |
+| `xt_10` | 0.567 | 0.576 |
+| `tilt_5` | 0.566 | 0.574 |
+| `box_entries_10` | 0.566 | 0.564 |
+| `pressure_5` | 0.562 | 0.563 |
+| `opp_pressure_10` | 0.439 | 0.440 |
+| `xt_match` | 0.559 | 0.559 |
+| `opp_xt_match` | 0.443 | 0.419 |
+| `xg_match` | 0.556 | 0.563 |
+| `score_diff` | 0.553 | 0.547 |
+| `xg_10` | 0.546 | 0.592 |
+| `minute` | 0.484 | 0.494 |
+| `since_goal_min` | 0.484 | 0.448 |
+| `extra_time` | 0.499 | 0.499 |
+
+(`make dataset` prints all 43.)
+
+What this says:
+
+- **Every signal is weak.** The best single feature is right about which of two rows scores 61% of the time, against 50% for a coin. That's football: goals are rare and noisy, and most of what decides them (a deflection, a save) isn't in the event data.
+- **Who is better on the day beats what just happened.** Field tilt over the whole match ranks better than over the last 10', and 10' better than 5'. The short-term "momentum" the Phase 1 alerts look for is a weaker signal than which team has been on top for longer. That fits the rules' lift of 1.0–1.2.
+- **10' windows beat 5' ones** for every metric: more events, less noise.
+- **The opponent matters as much as the team** (`opp_pressure_10` is 0.44, as far from 0.5 as `pressure_10`), so a model should look at both sides.
+- **Train and test agree**: the club-trained ranking holds on the World Cup, so the training set is usable for it. `xg_10` is the exception, much better on the test (0.59) than in training (0.55); 64 matches is a small test, so differences of a few hundredths are within noise.
+
+Combining weak, partly independent signals is what the models in the next step are for.
+
 ## Next steps
 
-2. Features and labels for each team at each 30-second tick.
 3. Models: base rate, logistic regression, gradient boosting.
 4. A `goal_chance` alert from the model.
 5. Retune the rule thresholds on the training data.
