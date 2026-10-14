@@ -1,6 +1,7 @@
 import type { BroadcastAction } from './api'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
-import { buttonClass } from './ui'
+import { PauseIcon, PlayIcon } from './Icons'
+import { buttonClass, segmentClass, segmentsClass } from './ui'
 
 const SPEEDS = [1, 10, 30, 60]
 
@@ -26,14 +27,15 @@ export function BroadcastControls({ status, disabled, onCommand }: Props) {
         disabled={off || status?.state === 'ended'}
         onClick={() => onCommand({ command: playing ? 'pause' : 'play' })}
       >
+        {playing ? <PauseIcon /> : <PlayIcon />}
         {playing ? 'Pause' : 'Play'}
       </button>
-      <div role="group" aria-label="Speed" className="flex gap-1">
+      <div role="group" aria-label="Speed" className={segmentsClass}>
         {SPEEDS.map((speed) => (
           <button
             key={speed}
             type="button"
-            className={buttonClass}
+            className={segmentClass}
             aria-pressed={status?.speed === speed}
             disabled={off}
             onClick={() => onCommand({ command: 'set_speed', speed })}

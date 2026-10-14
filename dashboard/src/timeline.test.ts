@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { duration, matchMinute, periodName, timeline } from './timeline'
+import { duration, matchClock, matchMinute, periodName, timeline } from './timeline'
 
 const at = (period: number, minute: number) => ({ period, match_clock_s: minute * 60 })
 
@@ -80,5 +80,18 @@ describe('duration', () => {
     [7200, '120:00'],
   ])('shows %d seconds as %s', (seconds, text) => {
     expect(duration(seconds)).toBe(text)
+  })
+})
+
+describe('matchClock', () => {
+  it('shows the clock to the second, with time added in stoppage', () => {
+    expect(matchClock({ period: 1, match_clock_s: 0 })).toBe('00:00')
+    expect(matchClock({ period: 1, match_clock_s: 2122.5 })).toBe('35:22')
+    expect(matchClock({ period: 1, match_clock_s: 45 * 60 + 133 })).toBe('45+2:13')
+    expect(matchClock({ period: 2, match_clock_s: 45 * 60 })).toBe('45:00')
+    expect(matchClock({ period: 2, match_clock_s: 91 * 60 + 5 })).toBe('90+1:05')
+    expect(matchClock({ period: 4, match_clock_s: 107 * 60 + 58 })).toBe('107:58')
+    expect(matchClock({ period: 4, match_clock_s: 120 * 60 + 61 })).toBe('120+1:01')
+    expect(matchClock({ period: 5, match_clock_s: 7300 })).toBe('Pens')
   })
 })

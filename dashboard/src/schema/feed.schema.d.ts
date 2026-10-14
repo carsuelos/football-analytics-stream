@@ -113,6 +113,9 @@ export interface Team {
 }
 export interface Player {
   id: number;
+  /**
+   * The name to show: the provider's short name (e.g. Lionel Messi) if it has one.
+   */
   name: string;
 }
 export interface ShotDetail {

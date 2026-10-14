@@ -6,6 +6,7 @@
 //
 //	<dir>/matches/<competition_id>/<season_id>.json
 //	<dir>/events/<match_id>.json
+//	<dir>/lineups/<match_id>.json (optional: players' short names)
 package statsbomb
 
 import (
@@ -94,7 +95,41 @@ func (c *Catalog) LoadInfo(info match.Info) (*match.Match, error) {
 	if err != nil {
 		return nil, fmt.Errorf("match %d: %w", id, err)
 	}
+	nicknames, err := c.nicknames(id)
+	if err != nil {
+		return nil, fmt.Errorf("match %d: %w", id, err)
+	}
+	for i := range events {
+		if p := events[i].Player; p != nil {
+			if nick, ok := nicknames[p.ID]; ok {
+				p.Name = nick
+			}
+		}
+	}
 	return &match.Match{Info: info, Events: events}, nil
+}
+
+// nicknames maps player ids to the short names StatsBomb's lineups give
+// ("Lionel Messi" for "Lionel Andrés Messi Cuccittini"), for the players that
+// have one. Without a lineups file (the training data has none) it is empty.
+func (c *Catalog) nicknames(id int) (map[int]string, error) {
+	path := filepath.Join(c.dir, "lineups", fmt.Sprintf("%d.json", id))
+	if _, err := os.Stat(path); errors.Is(err, fs.ErrNotExist) {
+		return nil, nil
+	}
+	var teams []rawLineup
+	if err := readJSON(path, &teams); err != nil {
+		return nil, err
+	}
+	names := map[int]string{}
+	for _, t := range teams {
+		for _, p := range t.Lineup {
+			if p.Nickname != nil && *p.Nickname != "" {
+				names[p.ID] = *p.Nickname
+			}
+		}
+	}
+	return names, nil
 }
 
 func (c *Catalog) eventsPath(id int) string {

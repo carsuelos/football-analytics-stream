@@ -40,7 +40,10 @@
       "type": "object",
       "properties": {
         "id": { "type": "integer" },
-        "name": { "type": "string" }
+        "name": {
+          "description": "The name to show: the provider's short name (e.g. Lionel Messi) if it has one.",
+          "type": "string"
+        }
       },
       "required": ["id", "name"]
     },

@@ -21,7 +21,12 @@ class Team(BaseModel):
 
 class Player(BaseModel):
     id: int
-    name: str
+    name: Annotated[
+        str,
+        Field(
+            description="The name to show: the provider's short name (e.g. Lionel Messi) if it has one."
+        ),
+    ]
 
 
 class TeamScore(BaseModel):

@@ -1,5 +1,6 @@
 import type { Alert } from '../schema/alert.schema'
 import type { EngineStatus } from '../schema/engine_status.schema'
+import type { Incident } from '../schema/incident.schema'
 import type { MatchReset } from '../schema/match_reset.schema'
 import type { MetricSnapshot, TeamMetrics } from '../schema/metric.schema'
 import type { MatchInfo } from '../schema/match_list.schema'
@@ -57,6 +58,25 @@ export const alert = (overrides: Partial<Alert> = {}): Alert => ({
   window_s: 300,
   features: { balance: 0.69, previous: -0.54 },
   message: "France taking control: pressure balance +0.69 over the last 5', from -0.54 the 5' before",
+  ...overrides,
+})
+
+/** Di María's goal in the 2022 final, Argentina 2-0 up. */
+export const incident = (overrides: Partial<Incident> = {}): Incident => ({
+  schema_version: 1,
+  id: '3869685-di-maria-goal',
+  match_id: 3869685,
+  offset: 1013,
+  period: 1,
+  match_clock_s: 2122.5,
+  play_s: 2122.5,
+  kind: 'goal',
+  team_id: ARGENTINA.id,
+  player: { id: 5487, name: 'Ángel Di María' },
+  score: [
+    { team_id: ARGENTINA.id, goals: 2 },
+    { team_id: FRANCE.id, goals: 0 },
+  ],
   ...overrides,
 })
 

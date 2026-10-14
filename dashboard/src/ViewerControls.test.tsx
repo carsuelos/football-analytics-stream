@@ -74,7 +74,7 @@ describe('ViewerControls', () => {
 
     await userEvent.clear(minute)
     await userEvent.type(minute, '60')
-    await userEvent.click(screen.getByRole('button', { name: 'Go' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Seek' }))
     expect(onCommand).toHaveBeenCalledWith({ command: 'seek', seek_to: { period: 2, match_clock_s: 3600 } })
   })
 
@@ -84,7 +84,7 @@ describe('ViewerControls', () => {
     const minute = screen.getByRole('spinbutton', { name: 'Minute' })
     await userEvent.clear(minute)
     if (value) await userEvent.type(minute, value)
-    await userEvent.click(screen.getByRole('button', { name: 'Go' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Seek' }))
     expect(onCommand).not.toHaveBeenCalled()
   })
 
@@ -98,7 +98,7 @@ describe('ViewerControls', () => {
     renderControls(viewer({ state: 'ended' }))
     expect(screen.getByRole('button', { name: 'Play' })).toBeDisabled()
     expect(screen.getByRole('button', { name: 'Go live' })).toBeDisabled()
-    expect(screen.getByRole('button', { name: 'Go' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Seek' })).toBeEnabled()
   })
 
   it.each([

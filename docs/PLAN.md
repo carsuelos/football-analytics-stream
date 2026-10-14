@@ -213,6 +213,12 @@ Scripted in `infra/bootstrap/` (`bootstrap.sh`, run once locally by a subscripti
   - playback state comes from each control reply, a fetch on load, and a refetch when the engine's state changes
   - tests: vitest and React Testing Library (jsdom)
   - *The pitch view comes after the MVP.*
+- [x] **Dashboard, product pass** (after Phase 3):
+  - scoreboard: score and shootout, the clock to the second with stoppage time, goals (disallowed ones struck through) and red cards per team
+  - match timeline: every event and alert along the match, with hover details
+  - match feed: events (goals, cards, penalties, disallowed goals, the shootout) and alerts together, filterable; each alert says whether its team scored in the next 10'
+  - charts: goals, red cards and alerts marked with hover details, a tooltip listing what happened near the hovered minute, the latest values head to head
+  - stream messages applied in 50 ms batches; a dark theme with Inter
 - [x] **End-to-end smoke test** (`make smoke`, local only until Phase 2): replays the 2022 World Cup final (Argentina vs France) through the real simulator (with 3 s jitter) and engine at 1000×.
   - consistency checks for any match; `--sample N` adds random matches with a printed, reproducible seed (all 64 World Cup matches pass). Snapshots are checked in match-time order, not offset order: with jitter, offsets follow arrival
   - the final's story: Argentina home, penalties, Argentina's first-half field tilt over 50%

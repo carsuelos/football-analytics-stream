@@ -1,4 +1,5 @@
 import type { MatchInfo } from './schema/match_list.schema'
+import { selectClass } from './ui'
 
 interface Props {
   matches: MatchInfo[] | null
@@ -16,7 +17,7 @@ export function MatchPicker({ matches, matchId, disabled, onLoad }: Props) {
       value={matchId ?? ''}
       disabled={disabled || matches === null}
       onChange={(e) => onLoad(Number(e.target.value))}
-      className="rounded-md bg-slate-800 px-3 py-1.5 text-sm disabled:opacity-50"
+      className={`max-w-full ${selectClass}`}
     >
       <option value="" disabled>
         {matches === null ? 'Loading matches…' : 'Choose a match…'}

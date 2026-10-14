@@ -1,12 +1,15 @@
 import { useMemo } from 'react'
-import { AlertFeed } from './AlertFeed'
+import { BroadcastControls } from './BroadcastControls'
 import { matchTeams } from './chartData'
+import { EventStrip } from './EventStrip'
+import { MatchFeed } from './MatchFeed'
 import { MatchPicker } from './MatchPicker'
 import { MetricCharts } from './MetricCharts'
-import { BroadcastControls } from './BroadcastControls'
+import { Scoreboard } from './Scoreboard'
 import { StatusBar } from './StatusBar'
-import { useMatchStream } from './useMatchStream'
+import { timeline, type Position } from './timeline'
 import { useBroadcast, type Broadcast } from './useBroadcast'
+import { useMatchStream } from './useMatchStream'
 import { useViewer } from './useViewer'
 import { ViewerControls } from './ViewerControls'
 
@@ -17,60 +20,85 @@ export default function App() {
   // Hidden only once the engine says there is no simulator, so its errors still show.
   const simulator = broadcast.controllable !== false
   const teams = useMemo(() => matchTeams(match.status, broadcast.matches), [match.status, broadcast.matches])
+  const info = broadcast.matches?.find((m) => m.match_id === match.status?.match_id)
+  const { period, match_clock_s } = match.status ?? {}
+  const position = useMemo(() => viewerPosition(period, match_clock_s), [period, match_clock_s])
+  // One axis for the strip, the charts and the feed. The shootout is not on it.
+  const axis = useMemo(
+    () => timeline([...match.snapshots, ...match.alerts, ...match.incidents.filter((i) => i.period !== 5), ...(position ? [position] : [])]),
+    [match.snapshots, match.alerts, match.incidents, position],
+  )
+  const now = position ? axis.x(position) : undefined
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-7xl flex-col gap-4 p-4">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
-        <h1 className="text-xl font-semibold">Live Football Analytics</h1>
-        <StatusBar connection={match.connection} status={match.status} />
-      </header>
-      {simulator && (
-        <section
-          aria-label="Simulator"
-          aria-describedby="simulator-note"
-          className="flex flex-col gap-2 rounded-lg border border-dashed border-slate-700 p-3"
-        >
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <h2 className={groupHeading}>Simulator</h2>
-            <p id="simulator-note" className="text-xs text-slate-500">
-              Stands in for the live feed: picks the match and plays its broadcast. A real feed has none of this.
-            </p>
+    <div className="min-h-screen">
+      <header className="sticky top-0 z-30 border-b border-white/[0.06] bg-ink-950/70 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[90rem] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6">
+          <div className="flex items-center gap-3">
+            <Logo />
+            <div className="leading-tight">
+              <h1 className="text-[15px] font-semibold tracking-tight">Live Football Analytics</h1>
+              <p className="text-xs text-slate-500">Momentum, threat and goal chances, as they happen</p>
+            </div>
           </div>
-          <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
-            <MatchPicker
-              matches={broadcast.matches}
-              matchId={broadcast.status?.match_id}
-              disabled={broadcast.pending}
-              onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
-            />
-            <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
-            <ErrorMessage message={broadcast.error} />
-          </div>
-        </section>
-      )}
-      <section aria-label="Controls" className="rounded-lg bg-slate-900 p-3">
-        <div role="group" aria-label="Viewer" className="flex flex-wrap items-center gap-3">
-          <h2 className={groupHeading}>Viewer</h2>
-          <ViewerControls status={match.status} disabled={viewer.pending} onCommand={viewer.send} />
-          <ErrorMessage message={viewer.error} />
+          <StatusBar connection={match.connection} status={match.status} />
         </div>
-      </section>
-      <main className="grid flex-1 gap-4 lg:grid-cols-[1fr_22rem]">
-        <section aria-label="Charts" className="rounded-lg bg-slate-900 p-4">
-          <MetricCharts
-            teams={teams}
-            snapshots={match.snapshots}
-            alerts={match.alerts}
-            broadcastState={broadcast.status?.state}
-            simulator={simulator}
-          />
-        </section>
-        <aside aria-label="Alerts" className="rounded-lg bg-slate-900 p-4">
-          <AlertFeed teams={teams} alerts={match.alerts} />
-        </aside>
+      </header>
+      <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
+        <Scoreboard teams={teams} status={match.status} incidents={match.incidents} connection={match.connection} info={info} />
+        <div className={`grid gap-4 ${simulator ? 'xl:grid-cols-2' : ''}`}>
+          <section aria-label="Controls" className="card min-w-0 px-4 py-3">
+            <div role="group" aria-label="Viewer" className="flex flex-wrap items-center gap-3">
+              <h2 className={groupHeading}>Watch</h2>
+              <ViewerControls status={match.status} disabled={viewer.pending} onCommand={viewer.send} />
+              <ErrorMessage message={viewer.error} />
+            </div>
+          </section>
+          {simulator && (
+            <section aria-label="Simulator" aria-describedby="simulator-note" className="min-w-0 rounded-2xl border border-dashed border-white/10 px-4 py-3">
+              <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
+                <h2 className={groupHeading}>Simulator</h2>
+                <MatchPicker
+                  matches={broadcast.matches}
+                  matchId={broadcast.status?.match_id}
+                  disabled={broadcast.pending}
+                  onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
+                />
+                <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
+                <ErrorMessage message={broadcast.error} />
+              </div>
+              <p id="simulator-note" className="mt-2 text-xs text-slate-500">
+                Stands in for the live feed: picks the match and plays its broadcast. A real feed has none of this.
+              </p>
+            </section>
+          )}
+        </div>
+        <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <section aria-label="Charts" className="card flex flex-col gap-6 p-5">
+            {teams && <EventStrip teams={teams} incidents={match.incidents} alerts={match.alerts} axis={axis} now={now} />}
+            <MetricCharts
+              teams={teams}
+              snapshots={match.snapshots}
+              alerts={match.alerts}
+              incidents={match.incidents}
+              axis={axis}
+              broadcastState={broadcast.status?.state}
+              simulator={simulator}
+            />
+          </section>
+          <aside aria-label="Match feed" className="card p-4 lg:sticky lg:top-24 lg:self-start">
+            <MatchFeed teams={teams} alerts={match.alerts} incidents={match.incidents} axis={axis} now={now} />
+          </aside>
+        </div>
       </main>
     </div>
   )
+}
+
+/** Where the viewer is in the match, unless it's before the first event or in the shootout. */
+function viewerPosition(period?: number, match_clock_s?: number): Position | null {
+  if (period === undefined || match_clock_s === undefined || period === 5) return null
+  return { period, match_clock_s }
 }
 
 /** Choosing a match puts it on air, as on a real feed; Pause stops it. */
@@ -80,7 +108,18 @@ async function loadAndPlay(broadcast: Broadcast, match_id: number) {
   }
 }
 
-const groupHeading = 'w-20 text-xs font-semibold tracking-wide text-slate-400 uppercase'
+const groupHeading = 'eyebrow w-20'
+
+function Logo() {
+  return (
+    <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-home to-pitch shadow-lg shadow-home/20" aria-hidden="true">
+      <svg viewBox="0 0 24 24" className="size-5 text-ink-950" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 17l5-5 4 3 9-9" />
+        <path d="M16 6h5v5" />
+      </svg>
+    </span>
+  )
+}
 
 function ErrorMessage({ message }: { message: string | null }) {
   return (

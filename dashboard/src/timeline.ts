@@ -31,6 +31,22 @@ function minuteLabel(period: number, clockMinutes: number) {
   return minute > end ? `${end}+${minute - end}'` : `${minute}'`
 }
 
+/**
+ * The match clock to the second, as a broadcast shows it: "36:54", or in
+ * stoppage time the period's end plus the time added, "45+2:13".
+ */
+export function matchClock({ period, match_clock_s }: Position) {
+  if (period === 5) return 'Pens'
+  const s = Math.floor(match_clock_s + 1e-9)
+  const end = (PERIODS[period].start + PERIODS[period].length) * 60
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (s >= end) {
+    const over = s - end
+    return `${end / 60}+${Math.floor(over / 60)}:${pad(over % 60)}`
+  }
+  return `${pad(Math.floor(s / 60))}:${pad(s % 60)}`
+}
+
 /** Seconds of play as minutes and seconds, e.g. "12:05". */
 export function duration(seconds: number) {
   const s = Math.floor(seconds)
