@@ -39,7 +39,7 @@ from engine.sinks import (
 )
 from engine.sources import EventSource, KafkaSource, WebSocketSource
 from engine.sources.kafka import config_from_env
-from engine.ticks import Ticker
+from engine.ticks import TICK_S, Ticker
 from engine.windows import InMemoryStateStore, WindowMode
 
 log = logging.getLogger(__name__)
@@ -116,6 +116,13 @@ def parse_args(
         metavar="PATH",
         help="12x8 expected-threat grid JSON (downloaded by make fetch-data)",
     )
+    parser.add_argument(
+        "--tick",
+        type=float,
+        default=TICK_S,
+        metavar="SECONDS",
+        help="how often (in seconds of play) to snapshot the metrics and run the detectors",
+    )
     add_goal_model_args(parser)
     parser.add_argument(
         "--webhook",
@@ -148,6 +155,8 @@ def parse_args(
         parser.error("--port must be between 0 and 65535")
     if args.allowed_lateness < 0:
         parser.error("--allowed-lateness must not be negative")
+    if args.tick <= 0:
+        parser.error("--tick must be positive")
     if args.status_every <= 0:
         parser.error("--status-every must be positive")
     return args
@@ -225,7 +234,7 @@ def engine_app(
                     dvr,
                     pipeline,
                     metrics=metrics,
-                    ticker=Ticker(metrics),
+                    ticker=Ticker(metrics, args.tick),
                     detectors=default_detectors(goal_model),
                     incidents=incidents,
                     sinks=sinks,

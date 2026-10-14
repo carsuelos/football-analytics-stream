@@ -18,7 +18,7 @@ def match(*times: tuple[int, float]) -> list[MatchEvent]:
 def ticks(
     *msgs: FeedMessage, ticker: Ticker | None = None, pipeline: Pipeline | None = None
 ) -> list[Tick]:
-    t = ticker or Ticker(METRICS)
+    t = ticker or Ticker(METRICS, tick_s=30)
     p = pipeline or Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     return [tick for msg in msgs for item in p.handle_each(msg) if (tick := t.observe(p, item))]
 
@@ -66,7 +66,7 @@ def test_the_tick_length_is_configurable() -> None:
 
 def test_a_tick_shows_the_match_as_of_its_event() -> None:
     e = match((1, 0), (1, 10), (1, 30), (1, 40))
-    t, p = Ticker(METRICS), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    t, p = Ticker(METRICS, tick_s=30), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     seen = []
     for msg in (start(), *map(feed_event, e)):
         for item in p.handle(msg):
@@ -84,7 +84,7 @@ def test_a_tick_does_not_see_events_released_with_it() -> None:
     # Held back for lateness, all four come out together at match_end; the
     # tick at 30 must still not see 40, a few seconds in its future.
     e = match((1, 0), (1, 10), (1, 30), (1, 40))
-    t, p = Ticker(METRICS), Pipeline(InMemoryStateStore(), allowed_lateness_s=60)
+    t, p = Ticker(METRICS, tick_s=30), Pipeline(InMemoryStateStore(), allowed_lateness_s=60)
     seen = []
     for msg in (start(), *map(feed_event, e), feed_marker(K.match_end, 4)):
         for item in p.handle_each(msg):
@@ -101,10 +101,17 @@ def test_ticks_while_catching_up_are_replays() -> None:
 
 def test_ticks_start_over_with_the_match() -> None:
     e = match(*((1, float(s)) for s in range(0, 100, 30)))
-    t, p = Ticker(METRICS), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
+    t, p = Ticker(METRICS, tick_s=30), Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
     first = ticks(start(), *map(feed_event, e), ticker=t, pipeline=p)
     seek = feed_marker(K.match_start, 0, head=2)
     again = ticks(seek, *map(feed_event, e), ticker=t, pipeline=p)
     assert at(again) == at(first) == [(1, 30), (1, 60), (1, 90)]
     # The seek lands on offset 2, so the tick at offset 1 is the only replay.
     assert [(x.generation, x.replay) for x in again] == [(2, True), (2, False), (2, False)]
+
+
+def test_the_live_engine_ticks_every_5s_of_play() -> None:
+    e = match(*((1, float(c)) for c in range(0, 31, 2)))
+    assert at(ticks(start(), *map(feed_event, e), ticker=Ticker(METRICS))) == [
+        (1, c) for c in (6, 10, 16, 20, 26, 30)
+    ]

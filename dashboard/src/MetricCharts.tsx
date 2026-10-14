@@ -73,7 +73,7 @@ export function MetricCharts({ teams, snapshots, alerts, broadcastState, simulat
               : 'No match yet. Waiting for the feed to start one…'
             : simulator && broadcastState === 'paused'
               ? 'The broadcast is paused. Press Play in the Simulator panel to start it.'
-              : 'Waiting for the first metrics (one every 30 seconds of play)…'}
+              : 'Waiting for the first metrics (one every 5 seconds of play)…'}
         </p>
       ) : (
         <>

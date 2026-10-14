@@ -92,12 +92,18 @@ async def test_replay_matches_the_live_engine() -> None:
     await run(
         ListSource(*msgs),
         Pipeline(InMemoryStateStore()),
-        ticker=Ticker(METRICS),
+        ticker=Ticker(METRICS, tick_s=30),
         detectors=Detectors([Fake(fire=(HOME.id, AWAY.id))]),
         hub=hub,
         report=lambda _: None,
     )
-    r = replay(msgs, METRICS, detectors=Detectors([Fake(fire=(HOME.id, AWAY.id))]), snapshots=True)
+    r = replay(
+        msgs,
+        METRICS,
+        detectors=Detectors([Fake(fire=(HOME.id, AWAY.id))]),
+        snapshots=True,
+        tick_s=30,
+    )
     assert hub.alerts and [a.alert for a in r.alerts] == hub.alerts
     assert r.snapshots == hub.snapshots
     assert [a.play_s for a in r.alerts][:2] == [40, 40]  # the first event past 00:30
@@ -109,6 +115,7 @@ def test_replay_calls_on_step_for_every_released_event() -> None:
         a_match(),
         METRICS,
         on_step=lambda _, s: seen.append((s.item.event.offset, s.tick is not None)),
+        tick_s=30,
     )
     assert [o for o, _ in seen] == list(range(124))
     assert sum(t for _, t in seen) == 2430 // 30  # a tick every 30 s of play, from 00:30

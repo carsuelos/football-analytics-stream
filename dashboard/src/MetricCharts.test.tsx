@@ -22,12 +22,12 @@ describe('MetricCharts', () => {
     const { rerender } = render(<MetricCharts teams={null} snapshots={[]} alerts={[]} simulator={false} />)
     expect(screen.getByText('No match yet. Waiting for the feed to start one…')).toBeInTheDocument()
     rerender(<MetricCharts teams={TEAMS} snapshots={[]} alerts={[]} broadcastState="paused" simulator={false} />)
-    expect(screen.getByText('Waiting for the first metrics (one every 30 seconds of play)…')).toBeInTheDocument()
+    expect(screen.getByText('Waiting for the first metrics (one every 5 seconds of play)…')).toBeInTheDocument()
   })
 
   it('waits for the first metrics in the chosen window', async () => {
     render(<MetricCharts teams={TEAMS} snapshots={[snapshot(1, 600, 600)]} alerts={[]} />)
-    expect(screen.getByText('Waiting for the first metrics (one every 30 seconds of play)…')).toBeInTheDocument()
+    expect(screen.getByText('Waiting for the first metrics (one every 5 seconds of play)…')).toBeInTheDocument()
 
     await userEvent.click(screen.getByRole('button', { name: "10'" }))
     expect(screen.getAllByRole('figure').map((f) => f.getAttribute('aria-label'))).toEqual([

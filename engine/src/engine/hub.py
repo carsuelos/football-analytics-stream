@@ -31,7 +31,7 @@ class MatchHub:
     from a seek's rebuild never trips it; only a stuck subscriber does.
     """
 
-    def __init__(self, max_pending: int = 5000) -> None:
+    def __init__(self, max_pending: int = 20_000) -> None:
         self.max_pending = max_pending
         self.reset = MatchReset(schema_version=1, generation=0)
         self.status: EngineStatus | None = None

@@ -39,6 +39,10 @@ TEST_FEEDS = ROOT / "data" / "feeds"
 TEST_COMPETITION = ("FIFA World Cup", "2022")
 OUT = ROOT / "data" / "model"
 WARMUP_S = 15 * 60.0
+TICK_S = 30.0
+"""A row every 30s of play. The live engine ticks more often (engine.ticks.TICK_S),
+but rows 5s apart are near-copies of each other: more of them would make
+training slower, not better. The features are the same at any tick."""
 HORIZONS_MIN = (5, 10)
 
 
@@ -114,7 +118,9 @@ def match_rows(path: Path, grid_path: Path = DEFAULT_GRID_PATH) -> Dataset:
         if step.tick.play_s >= WARMUP_S:
             rows.extend((step.tick.play_s, team, f) for team, f in features.items())
 
-    r = replay(read_feed(path), MetricsConfig(XTGrid.load(grid_path)), on_step=on_step)
+    r = replay(
+        read_feed(path), MetricsConfig(XTGrid.load(grid_path)), on_step=on_step, tick_s=TICK_S
+    )
     play_s = np.array([t for t, _, _ in rows], dtype=np.float64)
     team_id = np.array([team for _, team, _ in rows], dtype=np.int64)
     y = labels(play_s, team_id, [(g.team_id, g.play_s) for g in r.goals])

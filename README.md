@@ -87,7 +87,7 @@ curl --json '{"schema_version": 1, "command": "play"}' localhost:8000/api/broadc
 
 The engine serves its API on `http://localhost:8000` (`--simulator` sets where the simulator is, or `--no-simulator` says there is none; `--host` and `--port` where to listen):
 
-- `GET /api/stream`: server-sent events. A `reset`, the latest `status` (with the score), the match so far (a `snapshot` every 30s of play, each `alert`, and each `incident`: goals, cards, penalties and shootout kicks, each with the score after it), then updates as they happen.
+- `GET /api/stream`: server-sent events. A `reset`, the latest `status` (with the score), the match so far (a `snapshot` every 5s of play, each `alert`, and each `incident`: goals, cards, penalties and shootout kicks, each with the score after it), then updates as they happen.
 - `GET /api/status`, `/api/metrics`, `/api/alerts`, `/api/incidents`: the same, once.
 - `GET /api/matches`, `GET /api/broadcast`, `POST /api/broadcast`: passed through to the simulator (the broadcaster: load a match, play, pause, speed), so the dashboard only talks to the engine. With `--no-simulator` they answer 404 `no simulator`, and the dashboard hides its simulator controls.
 - `POST /api/control`: the viewer's controls. The engine is a DVR over the broadcast: `pause`, `play`, `set_speed` (while behind live), `seek` to any point up to the live edge, and `go_live`. It replies with the engine's status, which also shows the live edge and how far behind it the viewer is (`behind_live_s`).
