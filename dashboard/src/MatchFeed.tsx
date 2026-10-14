@@ -11,6 +11,9 @@ import { matchClock, type Timeline } from './timeline'
 const CATEGORIES = ['Alerts', 'Goals', 'Cards', 'Penalties'] as const
 type Category = (typeof CATEGORIES)[number]
 
+/** The rest are noisier, so start hidden. */
+const SHOWN_AT_FIRST: Category[] = ['Alerts', 'Goals']
+
 const KINDS: Record<IncidentKind, Category> = {
   goal: 'Goals',
   own_goal: 'Goals',
@@ -35,6 +38,8 @@ interface Props {
   axis: Timeline
   /** Where the viewer is on the axis, to say when an alert's 10 minutes are up. */
   now?: number
+  /** Whether play is over (full time, or the shootout), so no alert is still waiting on its 10 minutes. */
+  over?: boolean
 }
 
 /**
@@ -42,8 +47,8 @@ interface Props {
  * penalties) and the engine's alerts, each alert marked with whether the team
  * went on to score within 10 minutes. A filter shows just one or the other.
  */
-export function MatchFeed({ teams, alerts, incidents, axis, now }: Props) {
-  const [shown, setShown] = useState<ReadonlySet<Category>>(() => new Set(CATEGORIES))
+export function MatchFeed({ teams, alerts, incidents, axis, now, over = false }: Props) {
+  const [shown, setShown] = useState<ReadonlySet<Category>>(() => new Set(SHOWN_AT_FIRST))
   const counts = useMemo(() => {
     const n: Record<Category, number> = { Goals: 0, Cards: 0, Penalties: 0, Alerts: alerts.length }
     for (const i of incidents) n[KINDS[i.kind]] += 1
@@ -90,7 +95,7 @@ export function MatchFeed({ teams, alerts, incidents, axis, now }: Props) {
             item.kind === 'incident' ? (
               <IncidentItem key={item.incident.id} incident={item.incident} teams={teams} disallowed={cancelled.has(item.incident.id)} />
             ) : (
-              <AlertItem key={item.alert.id} alert={item.alert} teams={teams} incidents={incidents} axis={axis} now={now} />
+              <AlertItem key={item.alert.id} alert={item.alert} teams={teams} incidents={incidents} axis={axis} now={now} over={over} />
             ),
           )}
         </ol>
@@ -128,7 +133,21 @@ function IncidentItem({ incident: i, teams, disallowed }: { incident: Incident; 
   )
 }
 
-function AlertItem({ alert: a, teams, incidents, axis, now }: { alert: Alert; teams: Team[] | null; incidents: Incident[]; axis: Timeline; now?: number }) {
+function AlertItem({
+  alert: a,
+  teams,
+  incidents,
+  axis,
+  now,
+  over,
+}: {
+  alert: Alert
+  teams: Team[] | null
+  incidents: Incident[]
+  axis: Timeline
+  now?: number
+  over: boolean
+}) {
   // Worked out here, from the goals the viewer has seen so far: the alert itself never changes.
   const scored = goalAfter(a, incidents, axis)
   const elapsed = now === undefined ? undefined : now - axis.x(a)
@@ -142,11 +161,11 @@ function AlertItem({ alert: a, teams, incidents, axis, now }: { alert: Alert; te
           <span title={OUTCOME_HINT} className="ml-auto flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-300">
             <BallIcon className="size-3" /> Scored {minutesLater(scored.minutes)}
           </span>
-        ) : elapsed === undefined ? null : elapsed > ALERT_HORIZON_MIN ? (
+        ) : (elapsed !== undefined && elapsed > ALERT_HORIZON_MIN) || over ? (
           <span title={OUTCOME_HINT} className="ml-auto rounded-full bg-rose-400/10 px-2 py-0.5 text-rose-300/80">
-            No goal in 10'
+            {elapsed !== undefined && elapsed <= ALERT_HORIZON_MIN ? 'No goal by full time' : "No goal in 10'"}
           </span>
-        ) : (
+        ) : elapsed === undefined ? null : (
           <span title={OUTCOME_HINT} className="ml-auto rounded-full border border-sky-400/20 px-2 py-0.5 text-sky-300/80">
             Watching · {Math.min(ALERT_HORIZON_MIN, Math.max(1, Math.ceil(ALERT_HORIZON_MIN - elapsed)))}' left
           </span>
@@ -161,5 +180,5 @@ const OUTCOME_HINT = 'Checked as the match plays on: did this team score within 
 
 /** How long after the alert, e.g. "22s later" or "4' later". */
 function minutesLater(minutes: number) {
-  return minutes < 1 ? `${Math.round(minutes * 60)}s later` : `${Math.floor(minutes)}' later`
+  return minutes < 1 ? `${Math.max(1, Math.round(minutes * 60))}s later` : `${Math.floor(minutes)}' later`
 }

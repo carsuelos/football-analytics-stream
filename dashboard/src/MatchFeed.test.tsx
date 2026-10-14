@@ -31,26 +31,37 @@ describe('MatchFeed', () => {
     expect(items.map((li) => li.className.match(/border-(home|away)/)?.[1])).toEqual(['away', 'home', 'home', 'away'])
   })
 
-  it('shows or hides goals, cards, penalties and alerts, with how many of each', async () => {
+  it('shows alerts and goals at first, and can show cards and penalties too, with how many of each', async () => {
     const card = incident({ id: 'y', kind: 'yellow_card', match_clock_s: 40 * 60 })
     const award = incident({ id: 'p', kind: 'penalty_awarded', match_clock_s: 20 * 60 })
     const kicks = incident({ id: 's', kind: 'shootout_miss', period: 5, match_clock_s: 7300 })
     render(<MatchFeed teams={TEAMS} alerts={[control]} incidents={[goal, card, award, kicks]} axis={axis} />)
     const filters = screen.getByRole('group', { name: 'Show' })
     expect(filters).toHaveTextContent('Alerts1Goals1Cards1Penalties2')
-    expect(screen.getAllByRole('listitem')).toHaveLength(5)
-
-    await userEvent.click(screen.getByRole('button', { name: /^Cards/ }))
-    await userEvent.click(screen.getByRole('button', { name: /^Penalties/ }))
     expect(screen.getByRole('button', { name: /^Cards/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '35:22· Argentina2–0Goal · Ángel Di María',
       '35:00· Control Scored 23s laterArgentina in control',
     ])
 
-    await userEvent.click(screen.getByRole('button', { name: /^Alerts/ }))
-    await userEvent.click(screen.getByRole('button', { name: /^Goals/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Cards/ }))
+    await userEvent.click(screen.getByRole('button', { name: /^Penalties/ }))
+    expect(screen.getAllByRole('listitem')).toHaveLength(5)
+
+    for (const name of [/^Alerts/, /^Goals/, /^Cards/, /^Penalties/]) {
+      await userEvent.click(screen.getByRole('button', { name }))
+    }
     expect(screen.getByText('Choose what to show above.')).toBeInTheDocument()
+  })
+
+  it('settles every alert once play is over, as in the shootout', () => {
+    const late = alert({ id: 'l', team_id: FRANCE.id, period: 4, match_clock_s: 117 * 60, message: 'France late on' })
+    const played = timeline([threat, late, { period: 4, match_clock_s: 121 * 60 }])
+    render(<MatchFeed teams={TEAMS} alerts={[threat, late]} incidents={[]} axis={played} now={played.domain[1]} over />)
+    expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
+      "117:00· ControlNo goal by full timeFrance late on",
+      "20:00· Goal threatNo goal in 10'France goal threat 20%",
+    ])
   })
 
   it('shows a disallowed goal struck through, and an alert before it unscored', () => {
