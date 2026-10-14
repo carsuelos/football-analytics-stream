@@ -75,11 +75,11 @@ curl --json '{"schema_version": 1, "command": "set_speed", "speed": 60}' localho
 curl --json '{"schema_version": 1, "command": "play"}' localhost:8000/api/broadcast
 ```
 
-The engine serves its API on `http://localhost:8000` (`--simulator` sets where the simulator is, `--host` and `--port` where to listen):
+The engine serves its API on `http://localhost:8000` (`--simulator` sets where the simulator is, or `--no-simulator` says there is none; `--host` and `--port` where to listen):
 
 - `GET /api/stream`: server-sent events. A `reset`, the latest `status`, the match so far (a `snapshot` every 30s of play, and each `alert`), then updates as they happen.
 - `GET /api/status`, `/api/metrics`, `/api/alerts`: the same, once.
-- `GET /api/matches`, `GET /api/broadcast`, `POST /api/broadcast`: passed through to the simulator (the broadcaster: load a match, play, pause, speed), so the dashboard only talks to the engine.
+- `GET /api/matches`, `GET /api/broadcast`, `POST /api/broadcast`: passed through to the simulator (the broadcaster: load a match, play, pause, speed), so the dashboard only talks to the engine. With `--no-simulator` they answer 404 `no simulator`, and the dashboard hides its simulator controls.
 - `POST /api/control`: the viewer's controls. The engine is a DVR over the broadcast: `pause`, `play`, `set_speed` (while behind live), `seek` to any point up to the live edge, and `go_live`. It replies with the engine's status, which also shows the live edge and how far behind it the viewer is (`behind_live_s`).
 
 `POST` bodies must be sent as JSON (`curl --json`, not `-d`).
@@ -114,7 +114,12 @@ make engine                                                         # terminal 2
 make dashboard                                                      # terminal 3, then open http://localhost:5173
 ```
 
-Choose a match and its broadcast starts, in real time; pick 60× to play a half in under a minute, or Pause to hold it. Those are the broadcast controls (the simulator, standing in for a live feed). The viewer controls below it drive your view of it, as on a TV box: pause, rewind to any minute up to the live edge (the engine rebuilds the charts and alerts up to there), catch up at a faster speed, or jump back to live. The badge shows "LIVE" or how far behind it you are. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
+The dashboard has two kinds of controls, kept apart on purpose:
+
+- **Simulator** (the dashed panel at the top): the simulator stands in for a live feed, so this is the "TV studio". Choose a match and its broadcast starts, in real time; pick 60× to play a half in under a minute, or Pause to hold it. A real feed can't be paused or sped up, so when the engine has no simulator (`--no-simulator`) the panel is hidden and the match is whatever the feed is playing.
+- **Viewer**: your view of the broadcast, as on a TV box. These work on any feed: pause, rewind to any minute up to the live edge (the engine rebuilds the charts and alerts up to there), catch up at a faster speed, or jump back to live. The badge shows "LIVE" or how far behind it you are.
+
+The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes; a line marks each alert, and the feed on the right explains it. The header shows the match clock, what the engine is doing, and whether the dashboard is connected. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
 
 ### Running it all in Docker
 
@@ -139,6 +144,15 @@ KAFKA_SASL_PASSWORD='<connection string>'
 ```
 
 The engine follows one match at a time: the one most recently started.
+
+To see the dashboard as it would be on a real feed, with nothing to control, run a second engine on the stack's Kafka with no simulator, and a dev dashboard on it:
+
+```sh
+KAFKA_BOOTSTRAP_SERVERS=localhost:19092 make engine ARGS="--source kafka --no-simulator --port 8001"
+ENGINE_URL=http://localhost:8001 make dashboard   # http://localhost:5173: no Simulator panel
+```
+
+It follows whatever match the stack's simulator is broadcasting (start one at http://localhost:3000). It also publishes its metrics and alerts, which the notifier drops as repeats.
 
 The engine publishes back to the broker too: each metrics snapshot to `metrics` and each alert to `alerts`, keyed by match (`docker compose exec redpanda rpk topic consume alerts -n 1`). Only live play is published, not the catch-up after a restart, but a viewer rewatching through the DVR publishes that stretch again, so consumers drop repeats (alerts by `id`, snapshots by match, offset and window).
 

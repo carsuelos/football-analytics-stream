@@ -113,6 +113,7 @@ flowchart LR
     - a seek back starts the match over from that copy, rebuilds up to the target time without sending alerts, and plays on from there at the viewer's speed; a seek forward fast-forwards through the copy;
     - it can't seek past the live edge (what has been received so far): a later target goes live. Playing to the end of the copy goes live too, and "go live" catches up at once;
     - viewer controls are `POST /api/control` (play, pause, speed, seek, go live); broadcaster controls pass through `/api/broadcast`. The status reports the viewer's state, the live edge, and how far behind it the viewer is in play time;
+    - the two are never merged: the viewer's controls work on any feed, while the broadcaster's only exist because the simulator stands in for one. The engine runs without a simulator (`--no-simulator`, Kafka only), as it will on a real feed; its broadcast endpoints then answer 404 and the dashboard hides its simulator panel;
     - a new match from the source restarts the DVR live. On a reconnect, the broadcaster resends the match from offset 0 if the engine asks for more than it has published (e.g. after a broadcaster restart), and the engine starts over.
 - **Only the DVR uses the wall clock** (from Phase 2). The engine's playback clock releases each event when playback reaches its match time, at the viewer's speed. Windows, metrics and detectors still see only match time.
 - **Catch-up is a replay too.** Each `match_start` carries the feed's `head`, the number of events already published. When the engine connects or reconnects mid-match, it rebuilds state from those events without sending alerts for them.
@@ -234,6 +235,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   - engine: a DVR over the source with pause, speed, seek up to the live edge, and "go live"; a seek replays from the DVR's in-memory copy and rebuilds without alerts; the status reports the live edge and how far behind it the viewer is
   - the smoke test rewatches the first match from P2 60:00 and checks the DVR rebuilds exactly what was built live
 - [x] **Dashboard DVR controls:** separate broadcast (simulator: play/pause, speed) and viewer (engine DVR) controls; the viewer's shows "LIVE" or how far behind it, play/pause, speed, a "Go live" button, and a seek to a period and minute bounded by the live edge.
+- [x] **Simulator panel:** the dashboard keeps the simulator's controls (match picker, broadcast play/pause and speed) in their own panel, apart from the viewer's, and hides it when the engine runs with `--no-simulator`, as it would on a real feed.
 - [x] **Kafka transport:**
   - Redpanda in Compose; confluent-kafka (librdkafka) clients in Go and Python, with no Redpanda-only features, so it moves to Azure Event Hubs with config changes
   - simulator producer: events and markers in an `events` topic keyed by `match_id`
@@ -275,7 +277,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 
 ### Phase 5 (optional): Live provider
 - [ ] Evaluate paid live feeds for how detailed their coordinates are.
-- [ ] Implement `LiveProviderSource` behind the same schema.
+- [ ] Implement `LiveProviderSource` behind the same schema, published to the `events` topic; the engine runs with `--no-simulator`.
 
 ## Open questions
 - Azure region.

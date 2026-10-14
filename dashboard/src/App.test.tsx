@@ -37,9 +37,10 @@ afterEach(() => {
 it('renders the layout', () => {
   render(<App />)
   expect(screen.getByRole('heading', { name: 'Live Football Analytics' })).toBeInTheDocument()
-  const controls = screen.getByRole('region', { name: 'Controls' })
-  expect(within(controls).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
-  expect(within(controls).getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
+  const simulator = screen.getByRole('region', { name: 'Simulator' })
+  expect(simulator).toHaveAccessibleDescription(/Stands in for the live feed/)
+  expect(within(simulator).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
+  expect(within(screen.getByRole('region', { name: 'Controls' })).getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
   expect(screen.getByRole('complementary', { name: 'Alerts' })).toBeInTheDocument()
 })
@@ -73,6 +74,19 @@ it('does not start the broadcast if the match fails to load', async () => {
   await userEvent.selectOptions(await screen.findByRole('combobox', { name: 'Match' }), '3869685')
   expect(await screen.findByRole('alert')).toHaveTextContent('no such match')
   expect(broadcastCommands()).toEqual([{ schema_version: 1, command: 'load_match', match_id: 3869685 }])
+})
+
+it('hides the simulator when the engine has none, as with a real feed', async () => {
+  const noSimulator = json({ error: "no simulator: this feed can't be controlled from here" }, 404)
+  const ok = fetch.getMockImplementation()!
+  fetch.mockImplementation((url, init) =>
+    url === '/api/broadcast' || url === '/api/matches' ? noSimulator : ok(url, init),
+  )
+  render(<App />)
+  expect(await screen.findByText('No match yet. Waiting for the feed to start one…')).toBeInTheDocument()
+  expect(screen.queryByRole('region', { name: 'Simulator' })).toBeNull()
+  expect(screen.queryByRole('alert')).toBeNull()
+  expect(screen.getByRole('group', { name: 'Viewer' })).toBeInTheDocument()
 })
 
 it('shows the error when the engine is down', async () => {

@@ -32,6 +32,7 @@ def test_cli_defaults_and_validation() -> None:
     assert args.source == "ws"
     assert (args.kafka, args.alerts_topic, args.metrics_topic) == ({}, "alerts", "metrics")
     assert args.simulator == "http://localhost:8080"
+    assert args.no_simulator is False
     assert args.feed == "ws://localhost:8080/feed"
     assert (args.host, args.port) == ("127.0.0.1", 8000)
     assert args.allowed_lateness == 5.0
@@ -54,6 +55,7 @@ def test_cli_defaults_and_validation() -> None:
         ["--status-every", "0"],
         ["--source", "kafka"],
         ["--source", "carrier-pigeon"],
+        ["--no-simulator"],  # the ws feed is the simulator's
     ):
         with pytest.raises(SystemExit):
             parse_args(bad, env={})
@@ -68,6 +70,7 @@ def test_the_source_is_the_websocket_feed_or_a_kafka_topic() -> None:
     assert isinstance(kafka, KafkaSource)
     assert kafka.config == {"bootstrap.servers": "redpanda:9092", "client.id": "engine-2"}
     assert kafka.topic == "feed"
+    assert parse_args(["--source", "kafka", "--no-simulator"], env=env).no_simulator
 
 
 @pytest.mark.parametrize(
@@ -95,12 +98,14 @@ class Failing:
         raise ConnectionError("boom")
 
 
-def engine_server(source: EventSource, stops: list[BaseException | None]) -> Server:
+def engine_server(
+    source: EventSource, stops: list[BaseException | None], *, no_simulator: bool = False
+) -> Server:
     """The engine on a free local port, reading source; run loop stops go to stops."""
     hub = MatchHub()
-    app = engine_app(
-        parse_args(["--status-every", "0.01"], env={}), METRICS.grid, source, hub, stops.append
-    )
+    args = parse_args(["--status-every", "0.01"], env={})
+    args.no_simulator = no_simulator  # without Kafka settings, which would start a publisher
+    app = engine_app(args, METRICS.grid, source, hub, stops.append)
     return server(app, hub, "127.0.0.1", 0)
 
 
@@ -123,6 +128,17 @@ async def test_the_engine_serves_the_match_its_run_loop_builds() -> None:
     assert len(metrics) == 4
     # The test source simply ends; a real one never does, so the engine stops.
     assert stops == [None]
+
+
+async def test_without_a_simulator_the_engine_still_serves_the_match() -> None:
+    stops: list[BaseException | None] = []
+    async with (
+        serving(engine_server(ListSource(*MSGS), stops, no_simulator=True)) as url,
+        httpx.AsyncClient(base_url=url) as c,
+    ):
+        await until(lambda: stops)
+        assert (await c.get("/api/status")).json()["released"] == 3
+        assert (await c.get("/api/broadcast")).status_code == 404
 
 
 async def test_viewer_controls_drive_the_engines_dvr() -> None:

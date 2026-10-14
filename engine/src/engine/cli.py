@@ -64,6 +64,12 @@ def parse_args(
         "the feed is its /feed",
     )
     parser.add_argument(
+        "--no-simulator",
+        action="store_true",
+        help="there is no simulator to control (as with a real feed): the broadcast endpoints "
+        "answer 404 and the dashboard hides its simulator controls; needs --source kafka",
+    )
+    parser.add_argument(
         "--source",
         choices=["ws", "kafka"],
         default="ws",
@@ -133,6 +139,8 @@ def parse_args(
     args.kafka = config_from_env(env)
     if args.source == "kafka" and "bootstrap.servers" not in args.kafka:
         parser.error("--source kafka needs KAFKA_BOOTSTRAP_SERVERS")
+    if args.no_simulator and args.source != "kafka":
+        parser.error("--no-simulator needs --source kafka: the ws feed is the simulator's")
     if not 0 <= args.port <= 65535:
         parser.error("--port must be between 0 and 65535")
     if args.allowed_lateness < 0:
@@ -178,7 +186,7 @@ def engine_app(
         window_mode=args.window_mode,
     )
     metrics = MetricsConfig(grid)
-    simulator = httpx.AsyncClient(base_url=args.simulator, timeout=5)
+    simulator = None if args.no_simulator else httpx.AsyncClient(base_url=args.simulator, timeout=5)
     dvr = Dvr(source)
 
     def control(cmd: ViewerCommand) -> EngineStatus:
@@ -197,7 +205,8 @@ def engine_app(
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         async with AsyncExitStack() as stack:
-            await stack.enter_async_context(simulator)
+            if simulator is not None:
+                await stack.enter_async_context(simulator)
             sinks: list[AlertSink] = [LogSink()]
             metric_sinks: list[MetricSink] = []
             for url in args.webhook:

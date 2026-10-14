@@ -10,7 +10,7 @@ import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
 
-from engine.api import create_app
+from engine.api import NO_SIMULATOR, create_app
 from engine.cli import server
 from engine.dvr import InvalidCommandError, NoMatchError
 from engine.hub import MatchHub
@@ -237,6 +237,20 @@ async def test_an_invalid_reply_from_the_simulator_is_bad_gateway(
     sim.reply = reply
     r = await client.get("/api/broadcast")
     assert (r.status_code, r.json()) == (502, {"error": "invalid reply from simulator"})
+
+
+@pytest.mark.parametrize(("method", "path"), [("GET", "/api/matches"), ("GET", "/api/broadcast")])
+async def test_without_a_simulator_the_broadcast_endpoints_are_not_found(
+    hub: MatchHub, ctl: FakeControl, method: str, path: str
+) -> None:
+    app = create_app(hub, None, control=ctl)
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url="http://e") as c:
+        r = await c.request(method, path)
+        assert (r.status_code, r.json()) == (404, {"error": NO_SIMULATOR})
+        r = await c.post("/api/broadcast", json=PLAY)
+        assert (r.status_code, r.json()) == (404, {"error": NO_SIMULATOR})
+        # The viewer's controls don't need one.
+        assert (await c.post("/api/control", json=PLAY)).status_code == 200
 
 
 async def test_unknown_paths_and_methods_get_the_same_error_shape(
