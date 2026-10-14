@@ -31,6 +31,7 @@ from pathlib import Path
 from typing import Any
 
 from engine.backtest import Replay, replay_files
+from engine.metrics.xt import DEFAULT_GRID_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_FEEDS = ROOT / "data" / "feeds"
@@ -191,6 +192,9 @@ def main() -> None:
     )
     parser.add_argument("--seed", type=int, default=DEFAULT_SEED, help="for --sample")
     parser.add_argument("--workers", type=int, help="processes (default: one per CPU)")
+    parser.add_argument(
+        "--xt-grid", type=Path, default=DEFAULT_GRID_PATH, metavar="FILE", help="xT grid JSON"
+    )
     args = parser.parse_args()
 
     chosen = choose(args.feeds, args.competition, args.season)
@@ -201,7 +205,7 @@ def main() -> None:
     print(f"Replaying {len(chosen)} matches", file=sys.stderr, flush=True)
     paths = [args.feeds / f"{m['match_id']}.jsonl" for m in chosen]
     evaluation = Evaluation([], [], 0, {})
-    for r in replay_files(paths, workers=args.workers):
+    for r in replay_files(paths, args.xt_grid, workers=args.workers):
         evaluation.add(r)
     print(evaluation.report())
 
