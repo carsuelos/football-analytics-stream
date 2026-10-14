@@ -12,7 +12,8 @@ export interface Broadcast {
   error: string | null
   /** Whether a command is in flight; controls are disabled meanwhile. */
   pending: boolean
-  send: (command: BroadcastAction) => Promise<void>
+  /** Sends a command; resolves to whether it succeeded (a failure sets error). */
+  send: (command: BroadcastAction) => Promise<boolean>
 }
 
 /**
@@ -38,11 +39,13 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
           setStatus(reply)
           setError(null)
         }
+        return true
       },
       (e: unknown) => {
         if (id === latest.current) {
           setError(messageOf(e))
         }
+        return false
       },
     )
   }, [])
@@ -65,7 +68,7 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
     async (command: BroadcastAction) => {
       setInFlight((n) => n + 1)
       try {
-        await track(sendBroadcast(command))
+        return await track(sendBroadcast(command))
       } finally {
         setInFlight((n) => n - 1)
       }

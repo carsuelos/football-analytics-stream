@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { Area, AreaChart, CartesianGrid, Line, LineChart, ReferenceLine, Tooltip, XAxis, YAxis } from 'recharts'
 import { chartPoints, type ChartPoint } from './chartData'
 import type { Alert } from './schema/alert.schema'
+import type { BroadcastState } from './schema/broadcast_status.schema'
 import type { Team } from './schema/engine_status.schema'
 import type { MetricSnapshot, TeamMetrics } from './schema/metric.schema'
 import { timeline, type Timeline } from './timeline'
@@ -21,10 +22,12 @@ interface Props {
   teams: Team[] | null
   snapshots: MetricSnapshot[]
   alerts: Alert[]
+  /** The simulator's broadcast, to explain why there are no metrics yet. */
+  broadcastState?: BroadcastState
 }
 
 /** Field tilt, xT added and pressure over the match, for a 5' or 10' window, with alerts marked. */
-export function MetricCharts({ teams, snapshots, alerts }: Props) {
+export function MetricCharts({ teams, snapshots, alerts, broadcastState }: Props) {
   const [window_s, setWindow] = useState(300)
   const axis = useMemo(() => timeline([...snapshots, ...alerts]), [snapshots, alerts])
   const points = useMemo(
@@ -62,7 +65,11 @@ export function MetricCharts({ teams, snapshots, alerts }: Props) {
       </div>
       {teams === null || points.length === 0 ? (
         <p className="py-16 text-center text-slate-400">
-          {teams === null ? 'No match yet. Choose one above and press Play.' : 'Waiting for the first metrics…'}
+          {teams === null
+            ? 'No match yet. Choose one above.'
+            : broadcastState === 'paused'
+              ? 'The broadcast is paused. Press Play under Broadcast to start it.'
+              : 'Waiting for the first metrics (one every 30 seconds of play)…'}
         </p>
       ) : (
         <>

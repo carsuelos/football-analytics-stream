@@ -18,7 +18,7 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, and reconnects when the browser gives up |
 | `src/useBroadcast.ts` | `useBroadcast`: the match list and the simulator's broadcast status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken |
 | `src/useViewer.ts` | `useViewer`: sends the viewer's DVR commands, with an error and pending flag; the engine's new status arrives on the stream |
-| `src/MatchPicker.tsx` | Chooses the match to load (named without its score) |
+| `src/MatchPicker.tsx` | Chooses the match to load (named without its score); `App` then starts its broadcast |
 | `src/BroadcastControls.tsx` | The broadcast's play/pause and speed presets (1×, 10×, 30×, 60×) |
 | `src/ViewerControls.tsx` | The viewer's DVR: "LIVE" or how far behind it, play/pause, "Go live", speed presets, and a seek to a period and minute up to the live edge |
 | `src/timeline.ts` | The charts' time axis: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'"); `matchMinute` labels a single moment the same way |
