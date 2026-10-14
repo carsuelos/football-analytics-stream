@@ -65,7 +65,7 @@ class Step:
 def steps(messages: Iterable[FeedMessage], pipeline: Pipeline, ticker: Ticker) -> Iterator[Step]:
     """Feed messages through pipeline, as the live engine does (see runner.run)."""
     for msg in messages:
-        for item in pipeline.handle(msg):
+        for item in pipeline.handle_each(msg):
             yield Step(item, ticker.observe(pipeline, item))
 
 

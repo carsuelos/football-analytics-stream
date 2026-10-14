@@ -30,12 +30,14 @@ Both sets go through the same path as live: the simulator exports each match exa
 
 | Alert | Count | Scores in 5' | Lift | Scores in 10' | Lift |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| momentum_shift | 333 | 6.9% | 1.1 | 13.5% | 1.1 |
-| goal_threat | 210 | 8.1% | 1.2 | 14.8% | 1.2 |
-| control_shift | 368 | 6.0% | 0.9 | 14.7% | 1.2 |
-| all | 911 | 6.8% | 1.0 | 14.3% | 1.2 |
+| momentum_shift | 330 | 5.5% | 0.8 | 12.4% | 1.0 |
+| goal_threat | 209 | 9.1% | 1.4 | 14.8% | 1.2 |
+| control_shift | 367 | 6.0% | 0.9 | 14.4% | 1.2 |
+| all | 906 | 6.5% | 1.0 | 13.8% | 1.1 |
 
-57% of goals had an alert for the scorer in the 10' before, but at 911 alerts in 64 matches (14 a match) that is mostly volume. The model has to beat a 10' lift of 1.2.
+54% of goals had an alert for the scorer in the 10' before, but at 906 alerts in 64 matches (14 a match) that is mostly volume. The model has to beat a 10' lift of 1.1.
+
+> **Fixed: ticks saw a few seconds ahead.** These numbers are after a fix found while training the model (step 3). The pipeline holds events back for up to 5 s in case one arrives late, then releases them together; it used to put the whole batch in the windows before the ticker looked at each event, so a tick could see events a few seconds after it, goals included. Now each event goes into the windows only as it is handed on (`Pipeline.handle_each`). Before the fix the rules looked slightly better (911 alerts, 10' lift 1.2); the model's features exposed it, as a goal a few seconds *after* the tick showed up in them.
 
 ## Step 1: our own xT grid
 
@@ -113,12 +115,12 @@ The shapes agree (correlation 0.988): value climbs slowly through midfield and j
 
 | Alert | Grid | Count | Lift 5' | Lift 10' |
 | --- | --- | ---: | ---: | ---: |
-| goal_threat | published | 210 | 1.2 | 1.2 |
-| goal_threat | ours | 166 | 1.1 | 1.1 |
-| all | published | 911 | 1.0 | 1.2 |
-| all | ours | 867 | 1.0 | 1.2 |
+| goal_threat | published | 209 | 1.4 | 1.2 |
+| goal_threat | ours | 163 | 1.3 | 1.3 |
+| all | published | 906 | 1.0 | 1.1 |
+| all | ours | 860 | 1.0 | 1.1 |
 
-The goal threat alert fires on xT added per minute over a threshold that was tuned with the published grid. Ours is lower, so it fires less. Momentum and control shift don't use xT's level, and are unchanged.
+The goal threat alert fires on xT added per minute over a threshold that was tuned with the published grid. Ours is lower, so it fires less; the alerts it keeps do slightly better (10' lift 1.3 against 1.2), though on about 160 alerts that is within noise. Momentum and control shift don't use xT's level, and are unchanged.
 
 ### Decision
 
@@ -173,19 +175,19 @@ Before any model: how well does each feature alone rank the rows (AUC for scorin
 | --- | ---: | ---: |
 | `tilt_match` | 0.608 | 0.590 |
 | `tilt_10` | 0.580 | 0.587 |
-| `pressure_10` | 0.576 | 0.586 |
-| `xt_10` | 0.567 | 0.576 |
-| `tilt_5` | 0.566 | 0.574 |
-| `box_entries_10` | 0.566 | 0.564 |
-| `pressure_5` | 0.562 | 0.563 |
-| `opp_pressure_10` | 0.439 | 0.440 |
-| `xt_match` | 0.559 | 0.559 |
+| `pressure_10` | 0.575 | 0.584 |
+| `xt_10` | 0.566 | 0.575 |
+| `tilt_5` | 0.565 | 0.574 |
+| `box_entries_10` | 0.565 | 0.563 |
+| `pressure_5` | 0.560 | 0.560 |
+| `opp_pressure_10` | 0.440 | 0.441 |
+| `xt_match` | 0.558 | 0.559 |
 | `opp_xt_match` | 0.443 | 0.419 |
-| `xg_match` | 0.556 | 0.563 |
-| `score_diff` | 0.553 | 0.547 |
-| `xg_10` | 0.546 | 0.592 |
+| `xg_match` | 0.554 | 0.560 |
+| `score_diff` | 0.550 | 0.543 |
+| `xg_10` | 0.542 | 0.586 |
 | `minute` | 0.484 | 0.494 |
-| `since_goal_min` | 0.484 | 0.448 |
+| `since_goal_min` | 0.492 | 0.455 |
 | `extra_time` | 0.499 | 0.499 |
 
 (`make dataset` prints all 43.)
@@ -193,10 +195,10 @@ Before any model: how well does each feature alone rank the rows (AUC for scorin
 What this says:
 
 - **Every signal is weak.** The best single feature is right about which of two rows scores 61% of the time, against 50% for a coin. That's football: goals are rare and noisy, and most of what decides them (a deflection, a save) isn't in the event data.
-- **Who is better on the day beats what just happened.** Field tilt over the whole match ranks better than over the last 10', and 10' better than 5'. The short-term "momentum" the Phase 1 alerts look for is a weaker signal than which team has been on top for longer. That fits the rules' lift of 1.0–1.2.
+- **Who is better on the day beats what just happened.** Field tilt over the whole match ranks better than over the last 10', and 10' better than 5'. The short-term "momentum" the Phase 1 alerts look for is a weaker signal than which team has been on top for longer. That fits the rules' modest lift (about 1.1).
 - **10' windows beat 5' ones** for every metric: more events, less noise.
 - **The opponent matters as much as the team** (`opp_pressure_10` is 0.44, as far from 0.5 as `pressure_10`), so a model should look at both sides.
-- **Train and test agree**: the club-trained ranking holds on the World Cup, so the training set is usable for it. `xg_10` is the exception, much better on the test (0.59) than in training (0.55); 64 matches is a small test, so differences of a few hundredths are within noise.
+- **Train and test agree**: the club-trained ranking holds on the World Cup, so the training set is usable for it. `xg_10` is the exception, much better on the test (0.59) than in training (0.54); 64 matches is a small test, so differences of a few hundredths are within noise.
 
 Combining weak, partly independent signals is what the models in the next step are for.
 
