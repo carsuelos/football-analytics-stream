@@ -20,7 +20,7 @@ def ticks(
 ) -> list[Tick]:
     t = ticker or Ticker(METRICS)
     p = pipeline or Pipeline(InMemoryStateStore(), allowed_lateness_s=0)
-    return [tick for msg in msgs for item in p.handle(msg) if (tick := t.observe(p, item))]
+    return [tick for msg in msgs for item in p.handle_each(msg) if (tick := t.observe(p, item))]
 
 
 def start(head: int | None = None) -> FeedMessage:
@@ -78,6 +78,19 @@ def test_a_tick_shows_the_match_as_of_its_event() -> None:
                 snaps = [(s.window_s, s.offset) for s in tick.snapshots()]
                 assert snaps == [(300, 2), (600, 2)]
     assert seen == [[0, 1, 2], [1, 2]]  # not 40: it had not happened yet
+
+
+def test_a_tick_does_not_see_events_released_with_it() -> None:
+    # Held back for lateness, all four come out together at match_end; the
+    # tick at 30 must still not see 40, a few seconds in its future.
+    e = match((1, 0), (1, 10), (1, 30), (1, 40))
+    t, p = Ticker(METRICS), Pipeline(InMemoryStateStore(), allowed_lateness_s=60)
+    seen = []
+    for msg in (start(), *map(feed_event, e), feed_marker(K.match_end, 4)):
+        for item in p.handle_each(msg):
+            if tick := t.observe(p, item):
+                seen.append((tick.play_s, [x.offset for x in tick.events(300)]))
+    assert seen == [(30, [0, 1, 2])]
 
 
 def test_ticks_while_catching_up_are_replays() -> None:

@@ -1,6 +1,7 @@
 """From feed messages to ordered, windowed events."""
 
 import logging
+from collections.abc import Iterator
 
 from engine.clock import MatchClock, ReorderBuffer, TimedEvent
 from engine.schema.common_schema import Team
@@ -80,6 +81,20 @@ class Pipeline:
 
     def handle(self, msg: FeedMessage) -> list[TimedEvent]:
         """Process one feed message; return the events it released, in order."""
+        return list(self.handle_each(msg))
+
+    def handle_each(self, msg: FeedMessage) -> Iterator[TimedEvent]:
+        """Process one feed message; return the events it released, in order.
+
+        The message is checked and buffered now, but each released event goes
+        into the windows only when the iterator reaches it. So as each event
+        comes out, the windows hold it and the events before it, none after:
+        a tick taken at it sees the match as of then, not a few seconds on.
+        Use it up before handling the next message.
+        """
+        return self._place(self._release(msg))
+
+    def _release(self, msg: FeedMessage) -> list[MatchEvent]:
         match msg.kind:
             case FeedMessageKind.match_start:
                 marker = _marker(msg)
@@ -97,11 +112,11 @@ class Pipeline:
             case FeedMessageKind.event:
                 if msg.event is None:
                     raise ValueError("event message without an event")
-                return self._place(self.buffer.push(self._check(msg.event)))
+                return self.buffer.push(self._check(msg.event))
             case FeedMessageKind.match_end:
                 log.info("match %d: end at offset %d", _marker(msg).match_id, _marker(msg).offset)
                 self.ended = True
-                return self._place(self.buffer.flush())
+                return self.buffer.flush()
 
     def _start(self, match_id: int) -> None:
         if self.windows:
@@ -126,15 +141,14 @@ class Pipeline:
         self._next_offset = max(self._next_offset, event.offset + 1)
         return event
 
-    def _place(self, events: list[MatchEvent]) -> list[TimedEvent]:
-        assert self.windows is not None
-        placed = []
+    def _place(self, events: list[MatchEvent]) -> Iterator[TimedEvent]:
+        windows = self.windows
         for event in events:
+            assert windows is not None
             item = self.clock.advance(event)
             self.teams.setdefault(event.team.id, event.team)
-            self.windows.add(item)
-            placed.append(item)
-        return placed
+            windows.add(item)
+            yield item
 
 
 def _marker(msg: FeedMessage) -> FeedMarker:

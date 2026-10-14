@@ -70,7 +70,7 @@ async def run(
     reporter = asyncio.create_task(report_every())
     try:
         async for msg in source.subscribe():
-            items = pipeline.handle(msg)
+            items = pipeline.handle_each(msg)
             if hub and pipeline.generation != hub.generation:
                 hub.start(pipeline.generation, pipeline.match_id)
                 hub.set_status(engine_status(pipeline, dvr))
