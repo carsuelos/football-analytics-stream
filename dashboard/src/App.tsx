@@ -28,7 +28,9 @@ export default function App() {
     () => timeline([...match.snapshots, ...match.alerts, ...match.incidents.filter((i) => i.period !== 5), ...(position ? [position] : [])]),
     [match.snapshots, match.alerts, match.incidents, position],
   )
-  const now = position ? axis.x(position) : undefined
+  // Play is over in the shootout and at full time: every alert's outcome is known.
+  const over = period === 5 || match.status?.state === 'ended'
+  const now = position ? axis.x(position) : period === 5 ? axis.domain[1] : undefined
 
   return (
     <div className="min-h-screen">
@@ -94,7 +96,7 @@ export default function App() {
             />
           </section>
           <aside aria-label="Match feed" className="card p-4 lg:sticky lg:top-24 lg:self-start">
-            <MatchFeed teams={teams} alerts={match.alerts} incidents={match.incidents} axis={axis} now={now} />
+            <MatchFeed teams={teams} alerts={match.alerts} incidents={match.incidents} axis={axis} now={now} over={over} />
           </aside>
         </div>
       </main>
