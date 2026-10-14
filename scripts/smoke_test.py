@@ -330,8 +330,8 @@ def final_checks(r: Replay) -> list[str]:
         )
     if r.status["period"] != 5:
         problems.append(f"the match ended in period {r.status['period']}, not in the shootout")
-    score = [(s["team_id"], s["goals"], s.get("shootout")) for s in r.status.get("score", [])]
-    if score != [(ARGENTINA, 3, 4), (FRANCE, 3, 2)]:
+    score = {s["team_id"]: (s["goals"], s.get("shootout")) for s in r.status.get("score", [])}
+    if score != {ARGENTINA: (3, 4), FRANCE: (3, 2)}:
         problems.append(f"the final score is {score}, not 3-3 and 4-2 on penalties")
     kinds = Counter(i["kind"] for i in r.incidents)
     expected = {"goal": 3, "penalty_goal": 3, "penalty_awarded": 3, "yellow_card": 8}
