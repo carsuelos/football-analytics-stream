@@ -15,6 +15,10 @@ followed:
   reacts rather than predicts;
 - how many goals the scorer had an alert for in the 10 minutes before.
 
+The rules (momentum, goal threat, control shift) are scored together as well as
+one by one, and so is everything including the goal model's goal_chance alerts
+(--no-goal-model leaves them out).
+
 Only play after 15 minutes counts (the momentum detector's warm-up), and not
 the penalty shootout. The 64 World Cup matches replay in a few seconds; they
 have 172 goals, about 150 after the warm-up.
@@ -31,6 +35,8 @@ from pathlib import Path
 from typing import Any
 
 from engine.backtest import Replay, replay_files
+from engine.detectors import GoalModel
+from engine.detectors.goal_chance import add_goal_model_args, grid_mismatch
 from engine.metrics.xt import DEFAULT_GRID_PATH
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +48,9 @@ HORIZONS_MIN = (5, 10)
 REACTIVE_MIN = 5
 WARMUP_S = 15 * 60
 STEP_S = 30  # the detectors' tick, for sampling the base rate
-TYPES = ("momentum_shift", "goal_threat", "control_shift")
+RULES = ("momentum_shift", "goal_threat", "control_shift")
+TYPES = (*RULES, "goal_chance")
+GROUPS = {"rules": RULES, "all": TYPES}
 
 
 @dataclass(frozen=True)
@@ -112,7 +120,8 @@ class Evaluation:
                 for type, team, at in timed
                 if team == scorer and scored_s - longest * 60 <= at < scored_s
             }
-            for type in before | ({"any"} if before else set()):
+            groups = {name for name, types in GROUPS.items() if before & set(types)}
+            for type in before | groups:
                 self.warned[type] = self.warned.get(type, 0) + 1
 
     def report(self) -> str:
@@ -129,9 +138,10 @@ class Evaluation:
             "",
             header,
         ]
-        for type in (*TYPES, None):
-            rows = [o for o in self.outcomes if type is None or o.type == type]
-            cells = f"{type or 'all':16}{len(rows):>6}"
+        for type in (*TYPES, *GROUPS):
+            types = GROUPS.get(type, (type,))
+            rows = [o for o in self.outcomes if o.type in types]
+            cells = f"{type:16}{len(rows):>6}"
             for i, b in enumerate(base):
                 r = rate([o.scores[i] for o in rows])
                 cells += f"{percent(r):>15}{ratio(r, b):>6}"
@@ -139,7 +149,7 @@ class Evaluation:
             cells += f"{percent(rate([o.reactive for o in rows])):>20}"
             lines.append(cells)
         lines += ["", f"Goals the scorer had an alert for in the {longest}' before:"]
-        for type in (*TYPES, "any"):
+        for type in (*TYPES, *GROUPS):
             n = self.warned.get(type, 0)
             lines.append(f"  {type:16}{n:>4}  {percent(n / self.goals if self.goals else None)}")
         return "\n".join(lines)
@@ -195,7 +205,12 @@ def main() -> None:
     parser.add_argument(
         "--xt-grid", type=Path, default=DEFAULT_GRID_PATH, metavar="FILE", help="xT grid JSON"
     )
+    add_goal_model_args(parser)
     args = parser.parse_args()
+    if args.goal_model and (
+        warning := grid_mismatch(GoalModel.load(args.goal_model), args.xt_grid)
+    ):
+        print(f"evaluate alerts: warning: {warning}", file=sys.stderr)
 
     chosen = choose(args.feeds, args.competition, args.season)
     if not chosen:
@@ -205,7 +220,7 @@ def main() -> None:
     print(f"Replaying {len(chosen)} matches", file=sys.stderr, flush=True)
     paths = [args.feeds / f"{m['match_id']}.jsonl" for m in chosen]
     evaluation = Evaluation([], [], 0, {})
-    for r in replay_files(paths, args.xt_grid, workers=args.workers):
+    for r in replay_files(paths, args.xt_grid, workers=args.workers, goal_model=args.goal_model):
         evaluation.add(r)
     print(evaluation.report())
 

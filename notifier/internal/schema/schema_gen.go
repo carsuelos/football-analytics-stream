@@ -42,7 +42,8 @@ type Alert struct {
 	// Type corresponds to the JSON schema field "type".
 	Type AlertType `json:"type"`
 
-	// Detector output (e.g. z-score or heuristic goal score).
+	// Detector output (e.g. z-score, heuristic goal score, or for goal_chance the
+	// probability of scoring within window_s).
 	Value float64 `json:"value"`
 
 	// WindowS corresponds to the JSON schema field "window_s".
@@ -55,6 +56,7 @@ type AlertFeatures map[string]float64
 type AlertType string
 
 const AlertTypeControlShift AlertType = "control_shift"
+const AlertTypeGoalChance AlertType = "goal_chance"
 const AlertTypeGoalThreat AlertType = "goal_threat"
 const AlertTypeMomentumShift AlertType = "momentum_shift"
 
@@ -62,6 +64,7 @@ var enumValues_AlertType = []interface{}{
 	"momentum_shift",
 	"goal_threat",
 	"control_shift",
+	"goal_chance",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

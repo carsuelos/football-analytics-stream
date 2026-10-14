@@ -315,7 +315,61 @@ Ideas, roughly by expected value:
 
 To compare an idea: change the features or the model, run `make dataset` (if features changed) and `make train`, and compare the CV log loss and skill first (most data), then test AUC and the alert lift at 5 a match. A change worth keeping should improve CV by more than the gap between the settings tried (about 0.0005 in skill).
 
+## Step 4: the model in the engine
+
+The curved model now runs live as a fourth detector, `goal_chance`, next to the three rules.
+
+### Shipping it: `make export-model`
+
+`model.export` fits the curved model (10', C = 0.01, knots at 60/80/85/90/95/100) on **all** 2,552 training matches and writes `engine/src/engine/detectors/goal_model.json` (5 KB):
+
+| Field | What |
+| --- | --- |
+| `features`, `minute_knots` | The 43 feature names in order, and the knots of the 6 hinge terms (`max(0, minute − k)`) appended after them |
+| `mean`, `scale` | The standardization of each of the 49 terms |
+| `coef`, `intercept` | The weights, in log-odds per standard deviation |
+| `threshold`, `alerts_per_match` | The alert threshold (0.195) and the volume it was picked for (5 a match) |
+| `base_rate`, `horizon_min`, `warmup_s` | 13.5% of training rows score within 10'; predictions start at 15' |
+| `xt_grid`, `xt_grid_sha256` | The xT grid the features were computed with, and its digest |
+| `training`, `test` | Cross-validated and World Cup scores, for the record |
+
+Three details matter:
+
+- **The threshold comes from cross-validation, not the final fit.** The model is fitted 5 times by match (GroupKFold) and each fold scores the matches it didn't see; the threshold is the score giving 5 alerts a match, after the 5' cooldown, on those out-of-fold scores. A threshold picked on the model's own training predictions would be a little too high, since a model is more confident on rows it has seen.
+- **The engine doesn't run scikit-learn.** At run time a prediction is `sigmoid(intercept + Σ coef × (term − mean) / scale)`, a few lines of Python in `GoalModel.probability`. The export checks that the engine's `GoalModel`, loaded from the JSON it just wrote, gives the same probabilities as the scikit-learn pipeline on every training row (largest gap ≤ 1e-9), and refuses to write otherwise. Plain JSON instead of a pickle means no version coupling with scikit-learn, nothing executable in the artifact, and weights anyone can read.
+- **The features must be computed the same way.** Training and the engine both use `engine.features.FeatureTracker`, and `GoalModel` refuses to load if the feature names or order differ from the engine's. The xT grid can't be checked that way, so the engine compares the grid it was given (`--xt-grid`) with the model's `xt_grid_sha256` and logs a warning if they differ: the model still runs, but its xT features are on a different scale than it learned.
+
+### The detector
+
+`GoalChance` (`engine/src/engine/detectors/goal_chance.py`) keeps its own `FeatureTracker`, fed every tick (every 30s of play), and from 15' it predicts each team's chance of scoring in the next 10'. Above the threshold it raises an alert, which goes through the same 5' cooldown per team as the rules (the cooldown the threshold was picked with). The alert carries:
+
+- `value`: the probability, and `threshold`: 0.195; `window_s`: 600 (the horizon);
+- `features`: the base rate and the raw values of up to 3 **drivers**, the terms that pushed this prediction up the most (coefficient × standardized value, positive). The minute, its hinges and the score are left out, since "it's the 30th minute" isn't a reason anyone can act on;
+- a message such as, from the 2022 final: *"Argentina: 21% chance to score in the next 10' (usually 13%): high field tilt (match), low opponent's pressure (last 10'), high pressure (last 10')"*. High and low are relative to the training average.
+
+The dashboard shows them as "Goal chance (model)"; the notifier and Kafka sinks pass them on like any other alert. `--no-goal-model` turns it off, and `--goal-model PATH` loads another model (both on `engine` and `python -m engine.backtest`).
+
+### Results
+
+`make evaluate` replays the World Cup through the engine itself (its pipeline, ticks and detectors, not the training code), so this checks that the shipped detector behaves like the model scored in step 3:
+
+| Alerts | Count | A match | Scores in 5' | Lift | Scores in 10' | Lift | Opponent scores in 10' | Right after the team scored |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| `goal_chance` | 257 | 4.0 | 12.5% | 1.9 | 22.2% | 1.8 | 10.1% | 15.2% |
+| the 3 rules | 906 | 14.2 | 6.5% | 1.0 | 13.8% | 1.1 | | |
+| all | 1,163 | 18.2 | 7.8% | 1.2 | 15.6% | 1.3 | | |
+
+- **The engine reproduces training exactly**: 257 alerts with the same lifts as the curved model at 5 a match in step 3. (It's 4.0 a match on the World Cup, not 5: the test set has fewer goals and the threshold was set on club football.)
+- **Each alert is worth much more than a rule alert**: the team scores within 10' 22% of the time, against 14% for a rule alert and 12% on average.
+- **Coverage is the trade-off.** 28% of World Cup goals had a `goal_chance` alert for the scoring team in the 10' before, against 54% for the rules (with 3.5 times the alerts) and 69% for both. A lower threshold buys coverage at the cost of lift (step 3's table at 14.2 a match: 1.38).
+- **15% of its alerts come within 5' of the same team scoring**, like the one in the final above (1.5' after Argentina's second goal). They're still predictions about the next 10', not reports of the goal: a team that has just scored usually has the tilt and xT that made it score. Whether to suppress them is a product decision; the model says the chance really is above average.
+
+### Iterating
+
+- **The operating point** is a single number: change `ALERTS_PER_MATCH` in `model/export.py` and `make export-model`. Step 3's table shows what to expect at 2 and 14 a match.
+- **A new model** only has to produce the same JSON: anything that's a logistic regression over the engine's features, with or without hinges. A different model family (trees) would need its own detector class, and its own parity check.
+- **New features** go into `engine/features.py` (so the engine serves exactly what training saw), then `make dataset train export-model`.
+
 ## Next steps
 
-4. A `goal_chance` alert from the curved model, in the engine.
 5. Retune the rule thresholds on the training data, and the final scorecard.

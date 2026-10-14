@@ -22,7 +22,7 @@ import logging
 import os
 from collections.abc import Sequence
 from concurrent.futures import ProcessPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -54,6 +54,8 @@ class Dataset:
     team_id: np.ndarray
     play_s: np.ndarray
     names: tuple[str, ...] = FEATURE_NAMES
+    meta: dict[str, str] = field(default_factory=dict)
+    """How it was built, e.g. the xT grid's digest (see main)."""
 
     def __len__(self) -> int:
         return len(self.y)
@@ -86,7 +88,8 @@ class Dataset:
             names = tuple(str(n) for n in f["names"])
             if names != FEATURE_NAMES or tuple(f["horizons"]) != HORIZONS_MIN:
                 raise SystemExit(f"{path} is out of date with the engine's features; rebuild it")
-            return cls(f["x"], f["y"], f["match_id"], f["team_id"], f["play_s"], names)
+            meta = json.loads(str(f["meta"])) if "meta" in f else {}
+            return cls(f["x"], f["y"], f["match_id"], f["team_id"], f["play_s"], names, meta)
 
     @classmethod
     def concat(cls, parts: Sequence["Dataset"]) -> "Dataset":

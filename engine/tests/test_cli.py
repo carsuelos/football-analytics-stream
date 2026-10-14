@@ -16,6 +16,7 @@ from engine.cli import (
     parse_args,
     server,
 )
+from engine.detectors import DEFAULT_MODEL_PATH
 from engine.hub import MatchHub
 from engine.metrics.xt import DEFAULT_GRID_PATH
 from engine.schema.engine_status_schema import EngineState
@@ -45,6 +46,9 @@ def test_cli_defaults_and_validation() -> None:
     ]
     assert parse_args(["--window-mode", "per_period"]).window_mode is WindowMode.PER_PERIOD
     assert parse_args(["--xt-grid", "g.json"]).xt_grid == Path("g.json")
+    assert args.goal_model == DEFAULT_MODEL_PATH
+    assert parse_args(["--goal-model", "m.json"]).goal_model == Path("m.json")
+    assert parse_args(["--no-goal-model"]).goal_model is None
     for bad in (
         ["--allowed-lateness", "-1"],
         ["--window-mode", "sideways"],
@@ -56,6 +60,7 @@ def test_cli_defaults_and_validation() -> None:
         ["--source", "kafka"],
         ["--source", "carrier-pigeon"],
         ["--no-simulator"],  # the ws feed is the simulator's
+        ["--goal-model", "m.json", "--no-goal-model"],
     ):
         with pytest.raises(SystemExit):
             parse_args(bad, env={})

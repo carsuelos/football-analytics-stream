@@ -17,7 +17,8 @@ import uvicorn
 from fastapi import FastAPI
 
 from engine.api import create_app
-from engine.detectors import ControlShift, Detectors, GoalThreat, Momentum
+from engine.detectors import GoalModel, GoalModelError, default_detectors
+from engine.detectors.goal_chance import add_goal_model_args, grid_mismatch
 from engine.dvr import Dvr
 from engine.hub import MatchHub
 from engine.metrics import MetricsConfig, XTGrid, XTGridError
@@ -114,6 +115,7 @@ def parse_args(
         metavar="PATH",
         help="12x8 expected-threat grid JSON (downloaded by make fetch-data)",
     )
+    add_goal_model_args(parser)
     parser.add_argument(
         "--webhook",
         action="append",
@@ -171,6 +173,7 @@ def engine_app(
     source: EventSource,
     hub: MatchHub,
     on_stop: Callable[[BaseException | None], None],
+    goal_model: GoalModel | None = None,
 ) -> FastAPI:
     """The API over hub, with the run loop filling hub while the app is up.
 
@@ -221,7 +224,7 @@ def engine_app(
                     pipeline,
                     metrics=metrics,
                     ticker=Ticker(metrics),
-                    detectors=Detectors([Momentum(), GoalThreat(), ControlShift()]),
+                    detectors=default_detectors(goal_model),
                     sinks=sinks,
                     metric_sinks=metric_sinks,
                     hub=hub,
@@ -271,7 +274,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     try:
         grid = XTGrid.load(args.xt_grid)
-    except XTGridError as e:
+        goal_model = GoalModel.load(args.goal_model) if args.goal_model else None
+    except (XTGridError, GoalModelError) as e:
         sys.exit(f"engine: {e}")
     logging.basicConfig(
         level=args.log_level, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S"
@@ -280,6 +284,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     logging.getLogger("httpx").setLevel(
         max(logging.WARNING, logging.getLevelNamesMapping()[args.log_level])
     )
+    if goal_model and (warning := grid_mismatch(goal_model, args.xt_grid)):
+        log.warning("%s", warning)
     failed = False
 
     def stop(_: BaseException | None) -> None:
@@ -288,7 +294,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         srv.should_exit = True
 
     hub = MatchHub()
-    app = engine_app(args, grid, event_source(args), hub, on_stop=stop)
+    app = engine_app(args, grid, event_source(args), hub, on_stop=stop, goal_model=goal_model)
     srv = server(app, hub, args.host, args.port)
     with contextlib.suppress(KeyboardInterrupt):
         asyncio.run(srv.serve())
