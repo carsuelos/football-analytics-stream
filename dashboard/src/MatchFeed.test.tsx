@@ -37,7 +37,7 @@ describe('MatchFeed', () => {
     const kicks = incident({ id: 's', kind: 'shootout_miss', period: 5, match_clock_s: 7300 })
     render(<MatchFeed teams={TEAMS} alerts={[control]} incidents={[goal, card, award, kicks]} axis={axis} />)
     const filters = screen.getByRole('group', { name: 'Show' })
-    expect(filters).toHaveTextContent('Goals1Cards1Penalties2Alerts1')
+    expect(filters).toHaveTextContent('Alerts1Goals1Cards1Penalties2')
     expect(screen.getAllByRole('listitem')).toHaveLength(5)
 
     await userEvent.click(screen.getByRole('button', { name: /^Cards/ }))
