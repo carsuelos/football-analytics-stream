@@ -35,6 +35,10 @@ export interface LibrarySeason {
   gender: "male" | "female";
   youth?: boolean;
   /**
+   * The goal and full-time models were trained on this season (every men's senior season from 2003, except the 2022 World Cup they're tested on), so its matches aren't a fair test of them.
+   */
+  in_training?: boolean;
+  /**
    * Matches of this season on disk.
    */
   downloaded: number;

@@ -1138,6 +1138,11 @@ type LibrarySeason struct {
 	// Gender corresponds to the JSON schema field "gender".
 	Gender LibrarySeasonGender `json:"gender"`
 
+	// The goal and full-time models were trained on this season (every men's senior
+	// season from 2003, except the 2022 World Cup they're tested on), so its matches
+	// aren't a fair test of them.
+	InTraining *bool `json:"in_training,omitempty,omitzero"`
+
 	// Matches StatsBomb has for it, once its list has been downloaded.
 	Matches *int `json:"matches,omitempty,omitzero"`
 

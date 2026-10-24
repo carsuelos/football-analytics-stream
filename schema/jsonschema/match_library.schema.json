@@ -30,6 +30,7 @@
         "country": { "type": "string" },
         "gender": { "type": "string", "enum": ["male", "female"] },
         "youth": { "type": "boolean" },
+        "in_training": { "description": "The goal and full-time models were trained on this season (every men's senior season from 2003, except the 2022 World Cup they're tested on), so its matches aren't a fair test of them.", "type": "boolean" },
         "downloaded": { "description": "Matches of this season on disk.", "type": "integer", "minimum": 0 },
         "matches": { "description": "Matches StatsBomb has for it, once its list has been downloaded.", "type": "integer", "minimum": 0 }
       },

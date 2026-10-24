@@ -3,6 +3,7 @@ package library
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -137,5 +138,39 @@ func TestOfflineItKeepsTheListOnDisk(t *testing.T) {
 	lib := l.Get(ctx)
 	if len(lib.Seasons) != 2 || lib.Error == nil {
 		t.Errorf("offline: %d seasons, error %v", len(lib.Seasons), lib.Error)
+	}
+}
+
+func TestInTrainingIsTheTrainingDataRule(t *testing.T) {
+	for _, c := range []struct {
+		competition, season, gender string
+		youth, want                 bool
+	}{
+		{"Premier League", "2015/2016", "male", false, true},
+		{"UEFA Euro", "2024", "male", false, true},
+		{"FIFA World Cup", "2022", "male", false, false}, // the test set
+		{"FIFA World Cup", "1970", "male", false, false},
+		{"UEFA Women's Euro", "2025", "female", false, false},
+		{"FIFA U20 World Cup", "1979", "male", true, false},
+	} {
+		if got := InTraining(c.competition, c.season, c.gender, c.youth); got != c.want {
+			t.Errorf("%s %s: %v", c.competition, c.season, got)
+		}
+	}
+	// The same rule as the script that downloads the training data.
+	script, err := os.ReadFile("../../../scripts/fetch_statsbomb.py")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		fmt.Sprintf("TRAINING_SINCE = %d", TrainingSince),
+		fmt.Sprintf(`"--competition", default=%q`, TestCompetition),
+		fmt.Sprintf(`"--season", default=%q`, TestSeason),
+		`c["competition_gender"] == "male"`,
+		`not c.get("competition_youth")`,
+	} {
+		if !strings.Contains(string(script), want) {
+			t.Errorf("scripts/fetch_statsbomb.py no longer has %s", want)
+		}
 	}
 }

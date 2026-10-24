@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ApiError, downloadSeason, getLibrary } from './api'
 import type { LibrarySeason, MatchLibrary as Library } from './schema/match_library.schema'
 import { buttonClass, segmentClass, segmentsClass } from './ui'
+import { useStoredFlag } from './useStored'
 
 /** How often the dialog checks a download's progress. */
 export const LIBRARY_POLL_MS = 1000
@@ -36,6 +37,8 @@ function LibraryDialog({ onClose, onDownloaded }: { onClose: () => void; onDownl
   const [error, setError] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [who, setWho] = useState<Who>('all')
+  // A season the models trained on isn't a fair test of them, so by default they're hidden.
+  const [unseenOnly, setUnseenOnly] = useStoredFlag('library.unseen', true)
   const search = useRef<HTMLInputElement>(null)
   const downloading = library?.download?.state === 'downloading'
   const wasDownloading = useRef(false)
@@ -81,9 +84,10 @@ function LibraryDialog({ onClose, onDownloaded }: { onClose: () => void; onDownl
     return (library?.seasons ?? []).filter(
       (s) =>
         (who === 'all' || s.gender === who) &&
+        (!unseenOnly || !s.in_training) &&
         words.every((w) => `${s.competition} ${s.season} ${s.country ?? ''}`.toLowerCase().includes(w)),
     )
-  }, [library, query, who])
+  }, [library, query, who, unseenOnly])
   const d = library?.download
 
   return (
@@ -126,6 +130,10 @@ function LibraryDialog({ onClose, onDownloaded }: { onClose: () => void; onDownl
             ))}
           </div>
         </div>
+        <label className="flex items-center gap-2 text-sm text-slate-300" title="The models were trained on every men's senior season from 2003 (except the 2022 World Cup they're tested on): replaying those is fine to watch, but not a fair test of the alerts">
+          <input type="checkbox" checked={unseenOnly} onChange={(e) => setUnseenOnly(e.target.checked)} />
+          Only seasons the model hasn't seen
+        </label>
         {d && <DownloadProgress download={d} />}
         {(error ?? library?.error) && (
           <p role="alert" className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-sm text-red-300">
@@ -141,8 +149,15 @@ function LibraryDialog({ onClose, onDownloaded }: { onClose: () => void; onDownl
             return (
               <li key={`${s.competition_id}-${s.season_id}`} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-white/[0.03]">
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-slate-100">
-                    {s.competition} <span className="text-slate-400">{s.season}</span>
+                  <p className="flex items-center gap-2 text-sm font-medium text-slate-100">
+                    <span className="truncate">
+                      {s.competition} <span className="text-slate-400">{s.season}</span>
+                    </span>
+                    {s.in_training && (
+                      <span title="The models were trained on this season: not a fair test of them" className="shrink-0 rounded-full bg-amber-400/10 px-1.5 py-px text-[10px] font-semibold text-amber-300/90">
+                        In training
+                      </span>
+                    )}
                   </p>
                   <p className="text-xs text-slate-500">
                     {[s.country, s.gender === 'female' ? "Women's" : "Men's", s.youth ? 'Youth' : null].filter(Boolean).join(' · ')}

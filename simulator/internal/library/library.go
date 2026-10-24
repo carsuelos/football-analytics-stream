@@ -44,6 +44,21 @@ const (
 	workers      = 8
 )
 
+// The models' training data (scripts/fetch_statsbomb.py --training): every
+// men's senior season from TrainingSince, except the season they're tested on.
+const (
+	TrainingSince   = 2003
+	TestCompetition = "FIFA World Cup"
+	TestSeason      = "2022"
+)
+
+// InTraining says whether the models were trained on a competition season.
+func InTraining(competition, season, gender string, youth bool) bool {
+	start, err := strconv.Atoi(season[:min(4, len(season))])
+	return err == nil && gender == "male" && !youth && start >= TrainingSince &&
+		!(competition == TestCompetition && season == TestSeason)
+}
+
 // ErrBusy is returned when a download is already running.
 var ErrBusy = errors.New("a download is already running")
 
@@ -114,6 +129,8 @@ func (l *Library) Get(ctx context.Context) schema.MatchLibrary {
 		if c.Gender == "female" {
 			s.Gender = schema.LibrarySeasonGenderFemale
 		}
+		trained := InTraining(c.Competition, c.Season, c.Gender, c.Youth)
+		s.InTraining = &trained
 		if c.Country != "" {
 			country := c.Country
 			s.Country = &country

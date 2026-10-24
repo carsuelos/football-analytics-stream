@@ -23,6 +23,12 @@ class LibrarySeason(BaseModel):
     country: str | None = None
     gender: Gender
     youth: bool | None = None
+    in_training: Annotated[
+        bool | None,
+        Field(
+            description="The goal and full-time models were trained on this season (every men's senior season from 2003, except the 2022 World Cup they're tested on), so its matches aren't a fair test of them."
+        ),
+    ] = None
     downloaded: Annotated[int, Field(description="Matches of this season on disk.", ge=0)]
     matches: Annotated[
         int | None,

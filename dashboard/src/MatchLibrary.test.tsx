@@ -8,7 +8,8 @@ const json = (body: unknown, status = 200) =>
   Promise.resolve(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }))
 
 const EURO = { competition_id: 53, season_id: 315, competition: "UEFA Women's Euro", season: '2025', country: 'Europe', gender: 'female', downloaded: 0 } as const
-const WORLD_CUP = { competition_id: 43, season_id: 106, competition: 'FIFA World Cup', season: '2022', country: 'International', gender: 'male', downloaded: 64, matches: 64 } as const
+const WORLD_CUP = { competition_id: 43, season_id: 106, competition: 'FIFA World Cup', season: '2022', country: 'International', gender: 'male', downloaded: 64, matches: 64, in_training: false } as const
+const EPL = { competition_id: 2, season_id: 27, competition: 'Premier League', season: '2015/2016', country: 'England', gender: 'male', downloaded: 0, in_training: true } as const
 const progress = (state: LibraryDownload['state'], done: number): LibraryDownload => ({
   competition_id: 53, season_id: 315, competition: "UEFA Women's Euro", season: '2025', state, done, total: 31,
 }) // prettier-ignore
@@ -17,7 +18,7 @@ let library: MatchLibrary
 let fetch: ReturnType<typeof vi.fn<typeof globalThis.fetch>>
 
 beforeEach(() => {
-  library = { schema_version: 1, seasons: [EURO, WORLD_CUP] }
+  library = { schema_version: 1, seasons: [EURO, WORLD_CUP, EPL] }
   fetch = vi.fn<typeof globalThis.fetch>((url, init) => {
     if (url === '/api/library' && init?.method === 'POST') {
       library = { ...library, download: progress('downloading', 3) }
@@ -78,4 +79,15 @@ it("isn't offered where the simulator can't download", async () => {
   fetch.mockImplementation(() => json({ error: "this simulator can't download matches" }, 404))
   render(<AddMatches onDownloaded={() => {}} />)
   await waitFor(() => expect(screen.queryByRole('button', { name: '+ Add matches' })).toBeNull())
+})
+
+it('hides the seasons the models trained on, unless asked, and tags them', async () => {
+  render(<AddMatches onDownloaded={() => {}} />)
+  await userEvent.click(screen.getByRole('button', { name: '+ Add matches' }))
+  const seasons = await screen.findByRole('list', { name: 'Seasons' })
+  await waitFor(() => expect(within(seasons).getAllByRole('listitem')).toHaveLength(2))
+  expect(seasons).not.toHaveTextContent('Premier League')
+  await userEvent.click(screen.getByRole('checkbox', { name: "Only seasons the model hasn't seen" }))
+  expect(within(seasons).getAllByRole('listitem')[2]).toHaveTextContent('Premier League 2015/2016In training')
+  expect(localStorage.getItem('library.unseen')).toBe('0')
 })
