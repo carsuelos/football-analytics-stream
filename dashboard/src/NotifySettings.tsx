@@ -7,15 +7,18 @@ const on = 'border-sky-400/40 bg-sky-400/15 text-sky-200'
 /**
  * How new alerts are announced. They always pop up on the dashboard; these
  * add a ding, and Mac notifications while the window is in the background.
+ * Option-clicking Notify me sends a test through all of them instead.
  */
 export function NotifySettings({
   system,
   sound,
   onSound,
+  onTest,
 }: {
   system: ReturnType<typeof useNotifySetting>
   sound: boolean
   onSound: (on: boolean) => void
+  onTest: () => void
 }) {
   const blocked = system.permission === 'denied'
   return (
@@ -29,13 +32,13 @@ export function NotifySettings({
           role="switch"
           aria-checked={system.on}
           disabled={blocked}
-          onClick={() => void system.toggle()}
+          onClick={(e) => (e.altKey ? onTest() : void system.toggle())}
           title={
             blocked
               ? "Notifications are blocked for this site in your browser's settings"
               : system.on
-                ? 'New alerts also show as Mac notifications while this window is in the background'
-                : 'Also show new alerts as Mac notifications while this window is in the background'
+                ? 'New alerts also show as Mac notifications while this window is in the background (⌥-click to send a test)'
+                : 'Also show new alerts as Mac notifications while this window is in the background (⌥-click to send a test)'
           }
           className={`${pill} ${system.on ? on : off}`}
         >
