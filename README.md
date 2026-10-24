@@ -189,7 +189,7 @@ notifier             HTTP POST     (the webhook)
 ### Running it in Azure
 
 ```sh
-make cloud-up       # deploys from main with GitHub Actions (about 10 minutes), then prints the URL
+make cloud-up       # deploys from main with GitHub Actions (about 5 minutes), then prints the URL
 make cloud-down     # when you're done; it also goes down every night
 ```
 

@@ -16,6 +16,6 @@ COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=755 19-basic-auth.envsh /docker-entrypoint.d/
 # Without DASHBOARD_PASSWORD, 19-basic-auth.envsh leaves sign-in off and
 # auth_basic_user_file unused; nginx still needs the directive to name a file.
-ENV AUTH_BASIC=off AUTH_BASIC_USER_FILE=/dev/null
+ENV SIGN_IN_REALM=off SIGN_IN_USERS_FILE=/dev/null
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

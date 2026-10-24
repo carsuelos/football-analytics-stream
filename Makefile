@@ -138,7 +138,7 @@ smoke-compose: ## Start the Docker stack with events up to 3s late and run the s
 
 # Azure (docs/AZURE.md). The deploy runs in GitHub Actions, signed in with OIDC:
 # these only start it (with gh) and follow it.
-cloud-up: ## Deploy the stack to Azure from main (about 10 minutes; about $0.15/hour while up), then print its URL
+cloud-up: ## Deploy the stack to Azure from main (about 5 minutes; about $0.15/hour while up), then print its URL
 	gh workflow run deploy.yml --ref main -f action=up
 	@sleep 5; gh run watch --exit-status "$$(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
 	@$(MAKE) --no-print-directory cloud-status

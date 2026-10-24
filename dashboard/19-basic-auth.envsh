@@ -6,7 +6,7 @@
 # never touches the disk. Without a password, as with `make up`, there's no prompt.
 
 if [ -z "${DASHBOARD_PASSWORD:-}" ]; then
-    export AUTH_BASIC=off
+    export SIGN_IN_REALM=off
     return 0 2>/dev/null || exit 0
 fi
 
@@ -16,5 +16,5 @@ mkdir -p /tmp/nginx
 hash=$(printf '%s' "$DASHBOARD_PASSWORD" | mkpasswd -m sha256 -P 0)
 printf '%s:%s\n' "${DASHBOARD_USER:-viewer}" "$hash" > "$htpasswd"
 chmod 600 "$htpasswd"
-export AUTH_BASIC='"Live Football Analytics"'
-export AUTH_BASIC_USER_FILE="$htpasswd"
+export SIGN_IN_REALM='"Live Football Analytics"'
+export SIGN_IN_USERS_FILE="$htpasswd"

@@ -3,7 +3,7 @@
 The same stack as `make up`, on Azure Container Apps, behind a password. It's deployed by GitHub Actions and brought up only when you want it.
 
 ```sh
-make cloud-up       # about 10 minutes; prints the URL
+make cloud-up       # about 5 minutes; prints the URL
 make cloud-status   # up or down, and the URL
 make cloud-down     # when you're done (it also goes down every night at 03:00 Seattle time)
 ```
@@ -54,7 +54,7 @@ The apps find each other by name inside the environment, as in Compose: the dash
 | Key Vault | `kv-football-<suffix>` | It holds the secrets. |
 | Storage account and file share | `stfootball<suffix>` / `data` | The data, about 190 MB, is uploaded once. |
 | Log Analytics and Application Insights | `log-…`, `appi-…` | The logs and traces outlive the apps (30 days), so you can look back after `down`. |
-| Container Apps environment | `cae-football-<suffix>` | It's free with nothing running, and it takes about 15 minutes to create. Keeping it also keeps the URL the same. |
+| Container Apps environment | `cae-football-<suffix>` | It's free with nothing running, and it takes about 15 minutes to create (the rest of an `up` takes about 4). Keeping it also keeps the URL the same. |
 
 **Apps**, only while up (about $0.15 an hour):
 
