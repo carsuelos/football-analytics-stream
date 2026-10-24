@@ -10,14 +10,16 @@
 # The web app is the one with that name, or else any Safari web app that opens
 # the dashboard (whatever it was called when added).
 #
-# Logs to ~/Library/Logs/football-analytics-launcher.log. A second launch while
-# one is running just brings the web app forward.
+# Logs to ~/Library/Logs/football-analytics-launcher.log. One runs at a time: a
+# second launch says "still starting" while the first is bringing the stack up,
+# and brings the web app forward once it's open. A lock left by a launcher that
+# died (its process is gone) is taken over.
 set -uo pipefail
 
 REPO=${1:?usage: launch.sh <repo> [web app name]}
 WEBAPP=${2:-Football Analytics}
 URL=http://localhost:3000
-LOCK=${TMPDIR:-/tmp}/football-analytics-launcher.lock
+LOCK="$HOME/Library/Caches/football-analytics-launcher.lock"
 export PATH="$HOME/.docker/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 notify() { osascript -e "display notification \"$1\" with title \"Football Analytics\"" >/dev/null 2>&1 || true; }
@@ -49,12 +51,26 @@ if [ "$WEBAPP" = --which ]; then
   exit 0
 fi
 
-if ! mkdir "$LOCK" 2>/dev/null; then
-  log "already running; bringing the dashboard forward"
-  if find_webapp; then open "$APP_PATH"; else open "$URL"; fi
-  exit 0
+# The lock: a directory holding the running launcher's pid and its state.
+take_lock() { mkdir "$LOCK" 2>/dev/null && echo $$ >"$LOCK/pid" && echo starting >"$LOCK/state"; }
+if ! take_lock; then
+  other=$(cat "$LOCK/pid" 2>/dev/null)
+  if [ -n "$other" ] && kill -0 "$other" 2>/dev/null; then
+    if [ "$(cat "$LOCK/state" 2>/dev/null)" = starting ]; then
+      log "already starting (pid $other)"
+      notify "Still starting…"
+    else
+      log "already running (pid $other); bringing the dashboard forward"
+      if find_webapp; then open "$APP_PATH"; else open "$URL"; fi
+    fi
+    exit 0
+  fi
+  log "taking over a lock left by a launcher that's gone (pid ${other:-unknown})"
+  rm -rf "$LOCK"
+  take_lock || { log "couldn't take the lock"; exit 1; }
 fi
-trap 'rmdir "$LOCK" 2>/dev/null' EXIT
+trap 'rm -rf "$LOCK"' EXIT
+ready() { echo ready >"$LOCK/state"; }
 
 cd "$REPO" || { notify "Can't find $REPO"; exit 1; }
 
@@ -75,11 +91,13 @@ fi
 
 if ! find_webapp; then
   log "no web app for $URL; opening it in the browser and leaving the stack up (make down to stop it)"
+  ready
   open "$URL"
   exit 0
 fi
 
 log "opening $APP_PATH"
+ready
 open "$APP_PATH"
 for _ in $(seq 1 30); do running && break; sleep 1; done
 while running; do sleep 5; done
