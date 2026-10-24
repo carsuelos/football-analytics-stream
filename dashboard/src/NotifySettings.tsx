@@ -7,18 +7,15 @@ const on = 'border-sky-400/40 bg-sky-400/15 text-sky-200'
 /**
  * How new alerts are announced. They always pop up on the dashboard; these
  * add a ding, and Mac notifications while the window is in the background.
- * Test announces the latest alert (or a sample) to try them.
  */
 export function NotifySettings({
   system,
   sound,
   onSound,
-  onTest,
 }: {
   system: ReturnType<typeof useNotifySetting>
   sound: boolean
   onSound: (on: boolean) => void
-  onTest: () => void
 }) {
   const blocked = system.permission === 'denied'
   return (
@@ -46,9 +43,6 @@ export function NotifySettings({
           {blocked ? 'Notifications blocked' : 'Notify me'}
         </button>
       )}
-      <button type="button" onClick={onTest} title="Announce the latest alert (or a sample) to try these" className={`${pill} ${off}`}>
-        Test
-      </button>
     </div>
   )
 }

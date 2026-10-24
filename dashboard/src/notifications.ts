@@ -59,7 +59,7 @@ interface Settings {
  * on), and a system notification (on a Mac, in Notification Centre) when the
  * window is in the background and those are on. Each alert is announced at
  * most once while the page is open, so a reconnect or a rewatch doesn't
- * repeat it. `test` announces a sample, to try the settings.
+ * repeat it.
  */
 export function useAlertNotifications(settings: Settings, alerts: Alert[], status: EngineStatus | null, teams: Team[] | null) {
   const done = useRef(new Set<string>())
@@ -68,14 +68,14 @@ export function useAlertNotifications(settings: Settings, alerts: Alert[], statu
   const { system, sound } = settings
 
   const announce = useCallback(
-    (a: Alert, test = false) => {
+    (a: Alert) => {
       const team = teams?.find((t) => t.id === a.team_id)?.name
       const title = `${ALERT_NAMES[a.type]}${team ? ` · ${team}` : ''}`
       const body = `${matchClock(a)} · ${a.message.split('. By full time:')[0]}`
-      const id = test ? `test-${Date.now()}` : a.id
+      const id = a.id
       setToasts((ts) => [...ts.filter((t) => t.id !== id), { id, alert: a, title, body }].slice(-MAX_TOASTS))
       if (sound) ding()
-      if (system && supported() && Notification.permission === 'granted' && (test || !document.hasFocus())) {
+      if (system && supported() && Notification.permission === 'granted' && !document.hasFocus()) {
         const n = new Notification(title, { body, tag: id })
         n.onclick = () => {
           window.focus()
@@ -95,25 +95,7 @@ export function useAlertNotifications(settings: Settings, alerts: Alert[], statu
     }
   }, [alerts, status, announce])
 
-  const test = useCallback(() => announce(alerts.at(-1) ?? SAMPLE, true), [alerts, announce])
-  return { toasts, dismiss, test }
-}
-
-/** What the test announces when the match has no alert yet. */
-const SAMPLE: Alert = {
-  schema_version: 1,
-  id: 'sample',
-  match_id: 0,
-  offset: 0,
-  period: 1,
-  match_clock_s: 36 * 60 + 53,
-  type: 'goal_chance',
-  team_id: 0,
-  value: 0.19,
-  threshold: 0.18,
-  window_s: 600,
-  features: {},
-  message: "A test: 19% chance to score in the next 10' (usually 13%)",
+  return { toasts, dismiss }
 }
 
 let audio: AudioContext | undefined

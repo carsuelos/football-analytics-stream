@@ -114,17 +114,8 @@ it('keeps the latest few pop-ups, which close by themselves or when closed', asy
   expect(result.current.toasts).toEqual([])
 })
 
-it('announces the latest alert, or a sample, on test, Mac notification included', () => {
-  focused = true
-  const { result } = announcing([], at(4950))
-  act(() => result.current.test())
-  expect(result.current.toasts[0].body).toMatch(/A test/)
-  expect(FakeNotification.shown).toHaveLength(1)
-  expect(FakeAudio.notes).toBe(2)
-})
-
 function Settings({ sound = true }: { sound?: boolean }) {
-  return <NotifySettings system={useNotifySetting()} sound={sound} onSound={() => {}} onTest={() => {}} />
+  return <NotifySettings system={useNotifySetting()} sound={sound} onSound={() => {}} />
 }
 
 it('asks for permission when Mac notifications are turned on, and remembers the choice', async () => {
@@ -146,7 +137,7 @@ it('asks for permission when Mac notifications are turned on, and remembers the 
 })
 
 it('says when the browser blocks notifications', () => {
-  render(<NotifySettings system={{ on: false, permission: 'denied', toggle: async () => {} }} sound={false} onSound={() => {}} onTest={() => {}} />)
+  render(<NotifySettings system={{ on: false, permission: 'denied', toggle: async () => {} }} sound={false} onSound={() => {}} />)
   expect(screen.getByRole('switch', { name: 'Notifications blocked' })).toBeDisabled()
   expect(screen.getByRole('switch', { name: 'Sound' })).not.toBeChecked()
 })
