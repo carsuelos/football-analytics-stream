@@ -27,7 +27,7 @@ export function PriceChart({ contract, history }: Props) {
       ) : (
         <figure aria-label="Best all-in price" className="m-0">
           <LineChart responsive data={data} style={{ width: '100%', height: 200 }} margin={{ top: 8, right: 8, bottom: 0, left: -16 }}>
-            <CartesianGrid stroke="rgb(255 255 255 / 0.05)" vertical={false} />
+            <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
             <XAxis
               dataKey="t"
               type="number"

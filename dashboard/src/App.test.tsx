@@ -52,6 +52,21 @@ it('switches to the markets with the URL, and back', async () => {
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
 })
 
+it('switches between the dark and light themes, and remembers', async () => {
+  const { unmount } = render(<App />)
+  const toggle = screen.getByRole('switch', { name: 'Light theme' })
+  expect(toggle).not.toBeChecked()
+  expect(document.documentElement).not.toHaveClass('light')
+  await userEvent.click(toggle)
+  expect(toggle).toBeChecked()
+  expect(document.documentElement).toHaveClass('light')
+  unmount()
+  render(<App />)
+  expect(screen.getByRole('switch', { name: 'Light theme' })).toBeChecked()
+  await userEvent.click(screen.getByRole('switch', { name: 'Light theme' }))
+  expect(document.documentElement).not.toHaveClass('light')
+})
+
 /** Waits for the stream's messages to be applied. */
 const applied = () => act(() => new Promise((resolve) => setTimeout(resolve, FLUSH_MS * 2)))
 
