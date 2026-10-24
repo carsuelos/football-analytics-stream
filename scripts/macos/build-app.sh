@@ -21,8 +21,8 @@ cmd="KEEP_RECORDING=${KEEP_RECORDING:-0} nohup $(q "$REPO/scripts/macos/launch.s
 osacompile -o "$APP" -e "do shell script \"${cmd//\"/\\\"}\""
 
 # The heat-tiles icon in the macOS app shape (app-icon.svg, rendered to
-# app-icon.png at 1024 px).
-set_icon() {
+# app-icon.png at 1024 px), as an .icns at $1.
+make_icns() {
   local work
   work=$(mktemp -d)
   mkdir "$work/icon.iconset"
@@ -31,10 +31,10 @@ set_icon() {
     sips -z $size $size "$src" --out "$work/icon.iconset/icon_${size}x${size}.png" >/dev/null
     sips -z $((size * 2)) $((size * 2)) "$src" --out "$work/icon.iconset/icon_${size}x${size}@2x.png" >/dev/null
   done
-  iconutil -c icns "$work/icon.iconset" -o "$APP/Contents/Resources/applet.icns"
+  iconutil -c icns "$work/icon.iconset" -o "$1"
   rm -rf "$work"
 }
-set_icon
+make_icns "$APP/Contents/Resources/applet.icns"
 # Newer AppleScript apps carry their icon in Assets.car, which wins over the
 # .icns; drop it so ours shows. Changing the bundle breaks its signature, so
 # sign it again (ad hoc: it only runs on this Mac).
@@ -42,6 +42,13 @@ rm -f "$APP/Contents/Resources/Assets.car"
 /usr/libexec/PlistBuddy -c "Delete :CFBundleIconName" "$APP/Contents/Info.plist" 2>/dev/null || true
 codesign --force --deep --sign - "$APP" 2>/dev/null
 touch "$APP"
+
+# Safari copies a web app's icon when it's added to the Dock, and macOS won't
+# let a script change another app, so a new icon reaches the web app only by
+# adding it again.
+for web in "/Applications/$WEBAPP.app" "$HOME/Applications/$WEBAPP.app"; do
+  [ -d "$web" ] && echo "  \"$WEBAPP\" keeps the icon it had when added: to update it, delete $web, then in Safari open http://localhost:3000 and File > Add to Dock (name it \"$WEBAPP\")."
+done
 
 echo "Built $APP"
 echo "  It runs make up, opens \"$WEBAPP\" (Safari > File > Add to Dock), and runs make down when you quit it."
