@@ -23,6 +23,14 @@
    "league": "EPL",
    "status": "FINAL",
    "startsTs": 1792850400000
+  },
+  {
+   "eventId": "01a1553c-2e2c-7131-ae31-8102061b6a93",
+   "description": "AFC Bournemouth @ Manchester United FC",
+   "sport": "SOCCER",
+   "league": "EPL",
+   "status": "OPEN_PREGAME",
+   "startsTs": 1792936800000
   }
  ],
  "next": null
