@@ -1,0 +1,20 @@
+#!/bin/sh
+# Turns the dashboard's sign-in on when DASHBOARD_PASSWORD is set: nginx then
+# asks every request for a username (DASHBOARD_USER, default "viewer") and the
+# password, by HTTP basic auth. It runs (sourced, so its exports last) just before the template is filled in
+# (20-envsubst-on-templates.sh), and only hashes the password: the plain one
+# never touches the disk. Without a password, as with `make up`, there's no prompt.
+
+if [ -z "${DASHBOARD_PASSWORD:-}" ]; then
+    export AUTH_BASIC=off
+    return 0 2>/dev/null || exit 0
+fi
+
+htpasswd=/tmp/nginx/htpasswd
+mkdir -p /tmp/nginx
+# Read the password from standard input, so it never appears in ps.
+hash=$(printf '%s' "$DASHBOARD_PASSWORD" | mkpasswd -m sha256 -P 0)
+printf '%s:%s\n' "${DASHBOARD_USER:-viewer}" "$hash" > "$htpasswd"
+chmod 600 "$htpasswd"
+export AUTH_BASIC='"Live Football Analytics"'
+export AUTH_BASIC_USER_FILE="$htpasswd"

@@ -13,5 +13,9 @@ FROM nginxinc/nginx-unprivileged:1.29-alpine
 # ${NGINX_LOCAL_RESOLVERS} with the nameservers in /etc/resolv.conf.
 ENV ENGINE_URL=http://engine:8000 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
+COPY --chmod=755 19-basic-auth.envsh /docker-entrypoint.d/
+# Without DASHBOARD_PASSWORD, 19-basic-auth.envsh leaves sign-in off and
+# auth_basic_user_file unused; nginx still needs the directive to name a file.
+ENV AUTH_BASIC=off AUTH_BASIC_USER_FILE=/dev/null
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

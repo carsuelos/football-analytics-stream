@@ -1,0 +1,184 @@
+name: Deploy
+
+# Brings the stack up in Azure, or takes it down (`make cloud-up`, `make
+# cloud-down`), and takes it down every night in case it was left up: it costs
+# by the hour while up, and next to nothing while down.
+#
+#   up:   deploy the base (infra/main.bicep: registry, Key Vault, logs, data
+#         share, Container Apps environment), build and push the images, upload
+#         the data, deploy Event Hubs and the apps, then smoke-test the URL.
+#   down: delete the apps and Event Hubs. The base stays, so the next `up` is
+#         quick and the dashboard keeps its URL.
+#
+# It signs in to Azure with GitHub's OIDC token (no stored credentials) as the
+# identity infra/bootstrap made, which only trusts main. (So no GitHub
+# environment: a job in one gets a token for the environment, not the branch.)
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: up or down
+        type: choice
+        options: [up, down]
+        default: up
+  schedule:
+    - cron: "0 10 * * *" # 03:00 in Seattle (PDT): down
+
+permissions:
+  contents: read
+  id-token: write
+
+# One deployment at a time; a down never cancels an up halfway, or vice versa.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+env:
+  RG: rg-football-analytics
+
+jobs:
+  up:
+    if: github.event_name == 'workflow_dispatch' && inputs.action == 'up'
+    name: Up
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check the secrets
+        env:
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+        run: |
+          if [ ${#DASHBOARD_PASSWORD} -lt 12 ]; then
+            echo "::error::Set the DASHBOARD_PASSWORD secret (12+ characters): gh secret set DASHBOARD_PASSWORD"
+            exit 1
+          fi
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy the base
+        id: base
+        run: |
+          az deployment group create --resource-group "$RG" --name football-base \
+            --template-file infra/main.bicep --only-show-errors \
+            --query properties.outputs -o json > base.json
+          for key in registryName registryServer storageAccountName shareName dashboardUrl; do
+            echo "$key=$(jq -r ".$key.value" base.json)" >> "$GITHUB_OUTPUT"
+          done
+
+      # Built here (the Docker layer cache lives in GitHub's cache, as in CI) and
+      # pushed as the deploy's identity, tagged with the commit.
+      - uses: docker/setup-buildx-action@v4
+      - name: Sign in to the registry
+        run: az acr login --name "${{ steps.base.outputs.registryName }}"
+      - name: Build and push the images
+        uses: docker/bake-action@v7
+        env:
+          REGISTRY: ${{ steps.base.outputs.registryServer }}
+          TAG: ${{ github.sha }}
+        with:
+          source: .
+          files: infra/images.hcl
+          push: true
+
+      # StatsBomb's data can't go in an image (its licence allows use, not
+      # redistribution), so it goes on the file share the apps mount at /data.
+      - uses: astral-sh/setup-uv@v10.2.0
+      - name: Cache the match data
+        id: data
+        uses: actions/cache@v6
+        with:
+          path: data
+          key: data-wc2022-${{ hashFiles('scripts/fetch_statsbomb.py', 'scripts/fetch_xt_grid.py') }}
+      - name: Fetch the match data
+        if: steps.data.outputs.cache-hit != 'true'
+        run: make fetch-data
+      - name: Upload the data
+        env:
+          ACCOUNT: ${{ steps.base.outputs.storageAccountName }}
+          SHARE: ${{ steps.base.outputs.shareName }}
+        run: |
+          # The account key, as Container Apps mounts the share with it.
+          export AZURE_STORAGE_KEY="$(az storage account keys list -g "$RG" -n "$ACCOUNT" --query '[0].value' -o tsv)"
+          export AZURE_STORAGE_ACCOUNT="$ACCOUNT"
+          # A fingerprint of the data, so an unchanged upload is skipped.
+          fingerprint="$(find data/statsbomb data/xt -type f -printf '%P %s\n' | sort | sha256sum | cut -c1-16)"
+          current=""
+          if az storage file download --share-name "$SHARE" --path .fingerprint --dest current \
+            --only-show-errors -o none 2>/dev/null; then
+            current="$(cat current)"
+          fi
+          if [ "$current" = "$fingerprint" ]; then
+            echo "The share already has this data."
+            exit 0
+          fi
+          for dir in statsbomb xt; do
+            az storage directory create --share-name "$SHARE" --name "$dir" --only-show-errors -o none
+            az storage file upload-batch --destination "$SHARE" --destination-path "$dir" \
+              --source "data/$dir" --max-connections 16 --only-show-errors -o none
+          done
+          printf '%s' "$fingerprint" > fingerprint
+          az storage file upload --share-name "$SHARE" --path .fingerprint --source fingerprint --only-show-errors -o none
+
+      - name: Deploy Event Hubs and the apps
+        id: apps
+        env:
+          DASHBOARD_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+          ALERT_WEBHOOKS: ${{ secrets.ALERT_WEBHOOKS }}
+        run: |
+          # Secrets go in a parameters file, not on the command line.
+          jq -n --arg tag "$GITHUB_SHA" --arg pw "$DASHBOARD_PASSWORD" --arg hooks "$ALERT_WEBHOOKS" '{
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+            contentVersion: "1.0.0.0",
+            parameters: {
+              deployApps: { value: true },
+              imageTag: { value: $tag },
+              dashboardPassword: { value: $pw },
+              alertWebhooks: { value: $hooks }
+            }
+          }' > "$RUNNER_TEMP/params.json"
+          az deployment group create --resource-group "$RG" --name football-apps \
+            --template-file infra/main.bicep --parameters "@$RUNNER_TEMP/params.json" \
+            --only-show-errors -o none
+          rm "$RUNNER_TEMP/params.json"
+          echo "url=${{ steps.base.outputs.dashboardUrl }}" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        env:
+          SMOKE_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
+        run: uv run scripts/smoke_test.py --external "${{ steps.apps.outputs.url }}"
+
+      - name: Summary
+        if: always() && steps.apps.outputs.url
+        run: |
+          {
+            echo "### Up at ${{ steps.apps.outputs.url }}"
+            echo
+            echo "Sign in as \`viewer\` with the DASHBOARD_PASSWORD secret. Commit \`${GITHUB_SHA::7}\`."
+            echo "It costs about \$0.15 an hour while up: \`make cloud-down\` when you're done (it also goes down tonight)."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  down:
+    if: github.event_name == 'schedule' || inputs.action == 'down'
+    name: Down
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Delete the apps and Event Hubs
+        run: |
+          ids="$(az resource list -g "$RG" --query "[?type=='Microsoft.App/containerApps' || type=='Microsoft.EventHub/namespaces'].id" -o tsv)"
+          if [ -z "$ids" ]; then
+            echo "Already down."
+          else
+            echo "$ids"
+            az resource delete --ids $ids --only-show-errors -o none
+          fi
+          echo "### Down" >> "$GITHUB_STEP_SUMMARY"
+          az resource list -g "$RG" --query "[].{name:name, type:type}" -o table | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY"

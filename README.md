@@ -20,6 +20,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `scripts/` | Data fetch and offline tooling |
 | `data/` | Local StatsBomb cache (gitignored) |
 | `compose.yaml` | Docker Compose: the whole stack (each service has its own `Dockerfile`) |
+| `infra/` | Bicep: the Azure resources (`bootstrap/`, run once by an Owner, then `main.bicep`, deployed by `.github/workflows/deploy.yml`); see [docs/AZURE.md](docs/AZURE.md) |
 
 ## Prerequisites
 
@@ -184,6 +185,15 @@ notifier             HTTP POST     (the webhook)
 ```
 
 `make up` sends the traces to the [Aspire dashboard](https://aspire.dev/dashboard/standalone/) at http://localhost:18888 (`ASPIRE_PORT`), a free OTLP viewer. In Azure they go to Application Insights through the Container Apps OpenTelemetry agent; the code knows nothing about either. The engine's API requests and its calls to the simulator are traced too, but not the event stream (it lasts as long as the connection) or health checks.
+
+### Running it in Azure
+
+```sh
+make cloud-up       # deploys from main with GitHub Actions (about 10 minutes), then prints the URL
+make cloud-down     # when you're done; it also goes down every night
+```
+
+The same stack, on Azure Container Apps behind a password, with Event Hubs as the broker and traces in Application Insights. It costs about $0.15 an hour while up and about $5 a month while down. How it's built, deployed and observed: [docs/AZURE.md](docs/AZURE.md).
 
 ### Smoke test
 

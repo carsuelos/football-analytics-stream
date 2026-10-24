@@ -30,6 +30,7 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 | `src/incidents.ts`, `src/alerts.ts` | Names, icons and descriptions of incidents and alert types; the score line; disallowed goals; `goalAfter`, the alerted team's goal within 10' |
 | `src/Icons.tsx` | Inline SVG icons: ball, cards, penalty, VAR, the alert types, play and pause |
 | `src/StatusBar.tsx` | The stream's connection and the engine's state; the last state stays on screen, dimmed, while reconnecting |
+| `nginx.conf.template`, `19-basic-auth.envsh` | The production server: the build, `/api` proxied to the engine (re-resolved, unbuffered for the stream), and a shared password by basic auth when `DASHBOARD_PASSWORD` is set (as in Azure; `/healthz` is open for probes) |
 | `src/ui.ts` | Shared Tailwind classes |
 | `src/index.css` | Tailwind CSS entry point and theme: Inter (self-hosted, `@fontsource-variable/inter`), the ink palette, team colours, the `card` and `eyebrow` utilities |
 | `src/test/` | UI test setup (Testing Library matchers and cleanup) factories for API and stream messages, and a fake `EventSource` |

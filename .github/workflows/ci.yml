@@ -134,6 +134,17 @@ jobs:
       - run: make setup
       - run: make check-gen
 
+  infra:
+    name: Infrastructure (Bicep)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install Bicep
+        run: az bicep install
+      # Warnings fail too (bicepconfig.json sets which rules apply).
+      - name: Lint
+        run: make lint-infra 2>&1 | tee lint.txt; ! grep -E "Warning|Error" lint.txt
+
   images:
     name: Images and smoke test (Compose)
     runs-on: ubuntu-latest
