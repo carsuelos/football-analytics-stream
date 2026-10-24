@@ -24,10 +24,13 @@ With --external, nothing is built or started: the checks run against an
 engine API that is already up (such as `make up`, through the dashboard's
 proxy), and its logs are not checked. With --webhook too (the stack's
 webhook_echo.py), it also checks that the notifier delivered every alert of
-the run exactly once, rewatch included, as the engine raised it.
+the run exactly once, rewatch included, as the engine raised it. If the
+stack asks for a password (as the one in Azure does), set SMOKE_PASSWORD
+(and SMOKE_USER, default viewer).
 """
 
 import argparse
+import base64
 import json
 import os
 import random
@@ -67,11 +70,15 @@ class SmokeError(Exception):
 class Api:
     """The engine's API."""
 
-    def __init__(self, base: str) -> None:
+    def __init__(self, base: str, password: str = "", user: str = "viewer") -> None:
         self.base = base.rstrip("/")
+        self.headers = {}
+        if password:
+            token = base64.b64encode(f"{user}:{password}".encode()).decode()
+            self.headers["Authorization"] = f"Basic {token}"
 
     def get(self, path: str) -> Any:
-        return self._send(urllib.request.Request(self.base + path))
+        return self._send(urllib.request.Request(self.base + path, headers=self.headers))
 
     def broadcast(self, command: str, **fields: Any) -> Json:
         """Drives the simulator's broadcast."""
@@ -84,7 +91,7 @@ class Api:
     def _post(self, path: str, command: str, fields: Json) -> Json:
         body = json.dumps({"schema_version": 1, "command": command, **fields}).encode()
         request = urllib.request.Request(
-            self.base + path, body, {"Content-Type": "application/json"}
+            self.base + path, body, {"Content-Type": "application/json", **self.headers}
         )
         reply: Json = self._send(request)
         return reply
@@ -520,7 +527,11 @@ def main() -> None:
             nullcontext([]) if args.external else stack(args.sim_port, args.engine_port, logs)
         )
         with running as processes:
-            api = Api(args.external or f"http://127.0.0.1:{args.engine_port}")
+            api = Api(
+                args.external or f"http://127.0.0.1:{args.engine_port}",
+                os.environ.get("SMOKE_PASSWORD", ""),
+                os.environ.get("SMOKE_USER", "viewer"),
+            )
             downloaded = {m["match_id"]: m for m in wait_ready(api, processes)}
             before = len(received(args.webhook)) if args.webhook else 0
             raised: list[Json] = []

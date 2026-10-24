@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook up down logs smoke-compose
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -135,3 +135,24 @@ smoke-compose: ## Start the Docker stack with events up to 3s late and run the s
 	SIM_JITTER=3s docker compose up -d $(COMPOSE_BUILD) --wait
 	uv run scripts/smoke_test.py --external http://localhost:$${DASHBOARD_PORT:-3000} \
 		--webhook http://localhost:$${WEBHOOK_PORT:-9000} $(ARGS)
+
+# Azure (docs/AZURE.md). The deploy runs in GitHub Actions, signed in with OIDC:
+# these only start it (with gh) and follow it.
+cloud-up: ## Deploy the stack to Azure from main (about 10 minutes; about $0.15/hour while up), then print its URL
+	gh workflow run deploy.yml --ref main -f action=up
+	@sleep 5; gh run watch --exit-status "$$(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+	@$(MAKE) --no-print-directory cloud-status
+
+cloud-down: ## Take the Azure stack down (the apps and Event Hubs; the rest stays, for next time)
+	gh workflow run deploy.yml --ref main -f action=down
+	@sleep 5; gh run watch --exit-status "$$(gh run list --workflow deploy.yml --limit 1 --json databaseId --jq '.[0].databaseId')"
+
+cloud-status: ## Whether the Azure stack is up, and its URL
+	@gh run list --workflow deploy.yml --limit 3
+	@url="$$(az containerapp show -g rg-football-analytics -n dashboard --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null)"; \
+		if [ -n "$$url" ]; then echo "Up: https://$$url (user viewer, the DASHBOARD_PASSWORD secret)"; else echo "Down."; fi
+
+lint-infra: ## Build and lint the Bicep
+	az bicep lint --file infra/main.bicep
+	az bicep lint --file infra/bootstrap/main.bicep
+	az bicep lint --file infra/bootstrap/identity.bicep

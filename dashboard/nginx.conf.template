@@ -7,6 +7,18 @@ server {
     listen 8080;
     root /usr/share/nginx/html;
 
+    # The shared password, if DASHBOARD_PASSWORD is set (see 19-basic-auth.envsh).
+    auth_basic ${AUTH_BASIC};
+    auth_basic_user_file ${AUTH_BASIC_USER_FILE};
+
+    # For the platform's health probes, which can't sign in.
+    location = /healthz {
+        auth_basic off;
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
     # The engine's API, including the /api/stream server-sent events.
     location /api/ {
         # A variable makes nginx resolve the name through the resolver above.

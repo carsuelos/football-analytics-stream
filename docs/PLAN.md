@@ -276,20 +276,15 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 - [ ] *(Optional)* A Streamlit app for exploring backtest results.
 
 ### Phase 4: Azure deployment & operations
-- [ ] Bicep modules in `infra/`:
-  - Container Registry (Basic)
-  - Log Analytics + Application Insights
-  - Key Vault
-  - Container Apps: an environment plus the simulator and engine apps. The engine runs at least 1 replica, since its state is in memory, and both use WebSocket ingress.
-  - Static Web Apps for the dashboard
-  - Event Hubs Standard, using its Kafka endpoint
-- [ ] Dashboard access control: shared password or built-in Microsoft account sign-in. Playback controls are never public.
-- [ ] GitHub Actions deploy pipeline (signs in via OIDC):
-  1. build the images
-  2. push them to the Container Registry
-  3. run `az deployment group create`
+- [x] Bicep in `infra/` (details: [AZURE.md](AZURE.md)), in two stages:
+  - the base, always there (~$5/month): Container Registry (Basic), Log Analytics + Application Insights, Key Vault, an Azure Files share for the data, the Container Apps environment (with its OpenTelemetry agent sending traces to Application Insights)
+  - the apps, only while up (~$0.15/hour): Event Hubs Standard (its Kafka endpoint), and the simulator, engine, notifier, dashboard and stand-in webhook as Container Apps, one replica each (the engine's state is in memory)
+  - the dashboard is a Container App, not Static Web Apps: the same nginx image proxies `/api` to the engine inside the environment, so only the dashboard is public
+  - the apps run as a managed identity (made by the bootstrap, which can grant roles) that pulls images and reads Key Vault; no passwords or keys in app config
+- [x] Dashboard access control: a shared password (nginx basic auth, from Key Vault). Microsoft sign-in can replace it later. The API and the playback controls are only reachable through the dashboard.
+- [x] GitHub Actions deploy pipeline (`deploy.yml`, signs in via OIDC): deploy the base, build and push the images, upload the data, deploy the apps, smoke-test the public URL
 - [x] Structured logging and OpenTelemetry tracing: JSON logs with trace ids, OTLP traces across all three apps (context in Kafka headers), the Aspire dashboard in `make up`.
-- [ ] Teardown and recreate scripts for the costly resources, to save credit. Check costs in the Azure pricing calculator first.
+- [x] On demand, to save credit: `make cloud-up` / `cloud-down` / `cloud-status`, and a nightly teardown in case it was left up.
 
 ### Phase 5 (optional): Live provider
 - [ ] Evaluate paid live feeds for how detailed their coordinates are.
@@ -297,7 +292,6 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 
 ## Open questions
 - Azure region.
-- Shared password or Microsoft sign-in for the dashboard (Phase 4).
 - The detector windows (5 minutes in v1) and the alert thresholds; tune in Phase 3.
 - Whether generated code is committed or generated in CI.
 - Whether a more compact wire format is worth it on the broker (unlikely at this scale).

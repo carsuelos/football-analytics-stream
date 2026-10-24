@@ -6,6 +6,8 @@
 #   3. GitHub OIDC: Entra app + federated credential for the main branch,
 #      Contributor on the project resource group only (no client secret)
 #   4. GitHub repo variables AZURE_CLIENT_ID / AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID
+#   5. The apps' managed identity, allowed to pull images and read Key Vault
+#      secrets (identity.bicep): granting roles needs Owner, which CI lacks
 #
 # Prerequisites: az (logged in, Bicep installed), gh (logged in with repo admin).
 # Usage: infra/bootstrap/bootstrap.sh [alert-email]
@@ -93,6 +95,13 @@ if [[ -z "$(az role assignment list --assignee "$SP_OBJECT_ID" --scope "$RG_ID" 
   done
 fi
 
+log "Apps' managed identity and its roles"
+az deployment group create \
+  --name football-analytics-identity \
+  --resource-group "$RG" \
+  --template-file "$HERE/identity.bicep" \
+  --only-show-errors --output none
+
 log "GitHub repository variables"
 gh variable set AZURE_CLIENT_ID --repo "$REPO" --body "$APP_ID"
 gh variable set AZURE_TENANT_ID --repo "$REPO" --body "$TENANT_ID"
@@ -104,5 +113,6 @@ Resource group : $RG ($LOCATION)
 Budget         : budget-football-analytics, alerts to $ALERT_EMAIL
 OIDC app       : $APP_NAME (client id $APP_ID)
 Role           : Contributor on $RG
+Apps identity  : id-football-analytics-apps (AcrPull, Key Vault Secrets User on $RG)
 Verify OIDC    : run the "Azure login check" workflow on main (Actions tab)
 EOF

@@ -2,6 +2,10 @@
 //
 //	notifier -webhook URL [-webhook URL...] [-topic alerts] [-max-age 5m] [-timeout 5s]
 //
+// Without -webhook it reads them from NOTIFIER_WEBHOOKS, separated by commas or
+// spaces: a webhook URL often embeds a token, and an environment variable can
+// come from a secret store where a command line can't.
+//
 // It reads the alerts topic as a member of a Kafka consumer group, configured
 // by KAFKA_* environment variables (KAFKA_BOOTSTRAP_SERVERS is required), and
 // POSTs each alert, as JSON, to every webhook. See package notify.
@@ -16,6 +20,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -39,6 +44,30 @@ type urls []string
 
 func (u *urls) String() string { return strings.Join(*u, ",") }
 
+// hosts are the webhooks without their paths, which often hold a token, for logging.
+func (u urls) hosts() []string {
+	hosts := make([]string, len(u))
+	for i, s := range u {
+		if parsed, err := url.Parse(s); err == nil {
+			hosts[i] = parsed.Scheme + "://" + parsed.Host
+		} else {
+			hosts[i] = "(unparsable)"
+		}
+	}
+	return hosts
+}
+
+// parseWebhooks splits s at commas and spaces into webhook URLs.
+func parseWebhooks(s string) (urls, error) {
+	var u urls
+	for _, v := range strings.FieldsFunc(s, func(r rune) bool { return r == ',' || r == ' ' }) {
+		if err := u.Set(v); err != nil {
+			return nil, err
+		}
+	}
+	return u, nil
+}
+
 func (u *urls) Set(v string) error {
 	if !strings.HasPrefix(v, "http://") && !strings.HasPrefix(v, "https://") {
 		return errors.New("want an http:// or https:// URL")
@@ -57,7 +86,13 @@ func run(args, environ []string) error {
 	verbose := flags.Bool("v", false, "also log repeats skipped")
 	flags.Parse(args) // ExitOnError: -h exits 0, a bad flag exits 2
 	if len(webhooks) == 0 {
-		return errors.New("give at least one -webhook")
+		var err error
+		if webhooks, err = parseWebhooks(env(environ, "NOTIFIER_WEBHOOKS")); err != nil {
+			return fmt.Errorf("NOTIFIER_WEBHOOKS: %w", err)
+		}
+	}
+	if len(webhooks) == 0 {
+		return errors.New("give at least one -webhook, or set NOTIFIER_WEBHOOKS")
 	}
 	config, ok := kafka.ConfigFromEnv(environ)
 	if !ok {
@@ -86,7 +121,7 @@ func run(args, environ []string) error {
 		return err
 	}
 	defer consumer.Close()
-	log.Info("notifier delivering", "topic", *topic, "bootstrap_servers", config["bootstrap.servers"], "webhooks", webhooks, "tracing", telemetry.Enabled())
+	log.Info("notifier delivering", "topic", *topic, "bootstrap_servers", config["bootstrap.servers"], "webhooks", webhooks.hosts(), "tracing", telemetry.Enabled())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -102,4 +137,14 @@ func run(args, environ []string) error {
 	err = n.Run(ctx)
 	log.Info("notifier stopped")
 	return err
+}
+
+// env returns the value of name in environ, or "".
+func env(environ []string, name string) string {
+	for _, kv := range environ {
+		if k, v, ok := strings.Cut(kv, "="); ok && k == name {
+			return v
+		}
+	}
+	return ""
 }

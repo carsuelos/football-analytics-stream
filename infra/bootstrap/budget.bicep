@@ -8,7 +8,7 @@ param startDate string
 
 var actualThresholds = [50, 80, 100]
 
-resource budget 'Microsoft.Consumption/budgets@2024-08-01' = {
+resource budget 'Microsoft.Consumption/budgets@2026-06-01' = {
   name: 'budget-football-analytics'
   properties: {
     category: 'Cost'
