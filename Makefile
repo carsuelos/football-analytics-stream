@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape up down dock-app logs smoke-compose cloud-up cloud-down cloud-status lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape up down dock-app logs smoke-compose cloud-up cloud-down cloud-status cloud-record cloud-tapes cloud-record-status cloud-record-off lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -168,7 +168,20 @@ cloud-status: ## Whether the Azure stack is up, and its URL
 	@url="$$(az containerapp show -g rg-football-analytics -n dashboard --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null)"; \
 		if [ -n "$$url" ]; then echo "Up: https://$$url (user viewer, the DASHBOARD_PASSWORD secret)"; else echo "Down."; fi
 
+cloud-record: ## Record the markets' prices in Azure on a schedule, without the rest of the stack: START="2026-10-25 06:00" (Pacific) HOURS=11. Builds the markets image there and schedules a job (a few cents an hour while it runs)
+	scripts/cloud-recorder.sh schedule "$(START)" $(HOURS)
+
+cloud-tapes: ## Download what the Azure recorder recorded into data/markets (then make tape)
+	scripts/cloud-recorder.sh tapes
+
+cloud-record-status: ## The Azure recorder's schedule and runs
+	scripts/cloud-recorder.sh status
+
+cloud-record-off: ## Remove the Azure recorder's job (its share and tapes stay)
+	scripts/cloud-recorder.sh off
+
 lint-infra: ## Build and lint the Bicep
 	az bicep lint --file infra/main.bicep
+	az bicep lint --file infra/recorder.bicep
 	az bicep lint --file infra/bootstrap/main.bicep
 	az bicep lint --file infra/bootstrap/identity.bicep
