@@ -20,15 +20,16 @@ rm -rf "$APP"
 cmd="KEEP_RECORDING=${KEEP_RECORDING:-0} nohup $(q "$REPO/scripts/macos/launch.sh") $(q "$REPO") $(q "$WEBAPP") >> $(q "$LOG") 2>&1 &"
 osacompile -o "$APP" -e "do shell script \"${cmd//\"/\\\"}\""
 
-# The pitch icon, from the dashboard's.
+# The heat-tiles icon in the macOS app shape (app-icon.svg, rendered to
+# app-icon.png at 1024 px).
 set_icon() {
   local work
   work=$(mktemp -d)
   mkdir "$work/icon.iconset"
+  local src="$REPO/scripts/macos/app-icon.png"
   for size in 16 32 128 256 512; do
-    sips -z $size $size "$REPO/dashboard/public/icon-512.png" --out "$work/icon.iconset/icon_${size}x${size}.png" >/dev/null
-    double=$((size * 2))
-    [ $double -le 512 ] && sips -z $double $double "$REPO/dashboard/public/icon-512.png" --out "$work/icon.iconset/icon_${size}x${size}@2x.png" >/dev/null
+    sips -z $size $size "$src" --out "$work/icon.iconset/icon_${size}x${size}.png" >/dev/null
+    sips -z $((size * 2)) $((size * 2)) "$src" --out "$work/icon.iconset/icon_${size}x${size}@2x.png" >/dev/null
   done
   iconutil -c icns "$work/icon.iconset" -o "$APP/Contents/Resources/applet.icns"
   rm -rf "$work"

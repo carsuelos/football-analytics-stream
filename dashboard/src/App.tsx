@@ -44,13 +44,25 @@ export default function App() {
   )
 }
 
+/** The app's mark: field tilt as heat tiles, hottest by the opponent's goal (as the app icon). */
 function Logo() {
   return (
-    <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-br from-home to-pitch shadow-lg shadow-home/20" aria-hidden="true">
-      <svg viewBox="0 0 24 24" className="size-5 text-ink-950" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 17l5-5 4 3 9-9" />
-        <path d="M16 6h5v5" />
+    <span className="grid size-9 place-items-center rounded-xl bg-gradient-to-b from-[#1b2232] to-[#0b0f1a] shadow-lg shadow-black/30 ring-1 ring-white/10" aria-hidden="true">
+      <svg viewBox="0 0 48 36" className="w-6">
+        {HEAT.map((column, c) =>
+          column.map((heat, r) => <rect key={`${c}${r}`} x={c * 12.5} y={r * 12.5} width="10.5" height="10.5" rx="2" fill={TILE[heat]} />),
+        )}
+        <circle cx={3 * 12.5 + 5.25} cy={11.5} r="2.6" fill="#fff" />
       </svg>
     </span>
   )
 }
+
+const TILE = ['#1e3a5f', '#27587f', '#3fb0f0', '#3fd18b', '#f5a142', '#ef6b3b']
+/** Each column's tiles (own goal on the left), top to bottom: how hot. */
+const HEAT = [
+  [0, 1, 0],
+  [1, 2, 1],
+  [2, 3, 3],
+  [3, 5, 4],
+]
