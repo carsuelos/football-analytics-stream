@@ -48,16 +48,27 @@ group('incidents', () => {
     ])
   })
 
-  it("finds the alerted team's goal in the 10 minutes after an alert", () => {
+  it("finds the alerted team's goal from 30 seconds to 10 minutes after an alert", () => {
     const axis = timeline([])
     const a = alert({ team_id: ARGENTINA.id, period: 1, match_clock_s: 35 * 60 })
-    const goal = incident({ match_clock_s: 35 * 60 + 22 })
-    expect(goalAfter(a, [goal], axis)?.minutes).toBeCloseTo(22 / 60)
+    const goal = incident({ match_clock_s: 35 * 60 + 37 })
+    expect(goalAfter(a, [goal], axis)).toMatchObject({ counts: true })
+    expect(goalAfter(a, [goal], axis)?.minutes).toBeCloseTo(37 / 60)
+    expect(goalAfter(a, [incident({ match_clock_s: 35 * 60 + 30 })], axis)?.counts).toBe(true) // just in time
     expect(goalAfter(a, [incident({ match_clock_s: 46 * 60 })], axis)).toBeNull() // too late
     expect(goalAfter(a, [incident({ match_clock_s: 34 * 60 })], axis)).toBeNull() // before
     expect(goalAfter(a, [incident({ team_id: FRANCE.id })], axis)).toBeNull() // the other team
     const var_ = incident({ id: 'v', kind: 'goal_disallowed', cancels: goal.id })
     expect(goalAfter(a, [goal, var_], axis)).toBeNull()
+  })
+
+  it('reports a goal too soon after the alert, unless a later one counts', () => {
+    const axis = timeline([])
+    const a = alert({ team_id: ARGENTINA.id, period: 1, match_clock_s: 35 * 60 })
+    const soon = incident({ id: 's', match_clock_s: 35 * 60 + 3 })
+    const later = incident({ id: 'l', match_clock_s: 40 * 60 })
+    expect(goalAfter(a, [soon], axis)).toMatchObject({ incident: soon, counts: false })
+    expect(goalAfter(a, [soon, later], axis)).toMatchObject({ incident: later, counts: true })
   })
 
   it('shortens a name to what a scoreboard shows', () => {

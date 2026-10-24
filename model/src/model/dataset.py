@@ -9,10 +9,11 @@ next 5 and 10 minutes of play. Ticks are every 30 seconds, so a match gives
 about 400 rows, and consecutive rows of a team overlap heavily: they are
 grouped by match whenever the data is split.
 
-Labels look at goals after the tick, (t, t + horizon]; features only at events
-released by then. A match ends when it ends: a tick at 88' has 2 minutes left
-to score in, and is labelled as such, exactly like the rules' evaluation
-(scripts/evaluate_alerts.py).
+Labels look at goals after the tick, [t + 30s, t + horizon] (MIN_LEAD_S: a
+goal sooner than that is the attack already under way, not something to warn
+of); features only at events released by then. A match ends when it ends: a
+tick at 88' has 2 minutes left to score in, and is labelled as such, exactly
+like the rules' evaluation (scripts/evaluate_alerts.py).
 """
 
 import argparse
@@ -26,7 +27,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
-from engine.backtest import Step, read_feed, replay
+from engine.backtest import MIN_LEAD_S, Step, read_feed, replay
 from engine.features import FEATURE_NAMES, FeatureTracker
 from engine.metrics import MetricsConfig, XTGrid
 from engine.metrics.xt import DEFAULT_GRID_PATH
@@ -131,12 +132,13 @@ def match_rows(path: Path, grid_path: Path = DEFAULT_GRID_PATH) -> Dataset:
 def labels(
     play_s: np.ndarray, team_id: np.ndarray, goals: Sequence[tuple[int, float]]
 ) -> np.ndarray:
-    """For each row, whether its team scores in (play_s, play_s + horizon] for
-    each of HORIZONS_MIN. goals are (team it counts for, play_s)."""
+    """For each row, whether its team scores in [play_s + MIN_LEAD_S,
+    play_s + horizon] for each of HORIZONS_MIN. goals are (team it counts for,
+    play_s)."""
     y = np.zeros((len(play_s), len(HORIZONS_MIN)), dtype=bool)
     for team, at in goals:
         for j, h in enumerate(HORIZONS_MIN):
-            y[:, j] |= (team_id == team) & (play_s < at) & (at <= play_s + h * 60)
+            y[:, j] |= (team_id == team) & (play_s + MIN_LEAD_S <= at) & (at <= play_s + h * 60)
     return y
 
 
@@ -206,7 +208,11 @@ def main() -> None:
     parser.add_argument("--workers", type=int)
     args = parser.parse_args()
 
-    meta = {"xt_grid": args.xt_grid.name, "xt_grid_sha256": file_digest(args.xt_grid)}
+    meta = {
+        "xt_grid": args.xt_grid.name,
+        "xt_grid_sha256": file_digest(args.xt_grid),
+        "min_lead_s": str(MIN_LEAD_S),
+    }
     test = build(test_paths(args.test), args.xt_grid, args.workers)
     test.save(args.out / "test.npz", **meta)
     print(describe("test", test), flush=True)

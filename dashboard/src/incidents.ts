@@ -65,18 +65,37 @@ export function scoreboardLines(incidents: Incident[], teamId: number): Scoreboa
 export const ALERT_HORIZON_MIN = 10
 
 /**
- * The first goal the alerted team scored within ALERT_HORIZON_MIN minutes of
- * play after the alert, if any (disallowed goals don't count).
+ * How long before a goal an alert must come to count as predicting it, in
+ * minutes: a second before is the attack that scored, already under way. The
+ * engine's evaluation and training use the same (engine.backtest.MIN_LEAD_S).
  */
-export function goalAfter(alert: Alert, incidents: Incident[], axis: Timeline): { incident: Incident; minutes: number } | null {
+export const ALERT_MIN_LEAD_MIN = 0.5
+
+export interface GoalAfter {
+  incident: Incident
+  /** Minutes of play from the alert to the goal. */
+  minutes: number
+  /** Whether it came late enough after the alert to count as predicted. */
+  counts: boolean
+}
+
+/**
+ * The alerted team's goal within ALERT_HORIZON_MIN minutes of play after the
+ * alert (disallowed goals don't count): the first that came at least
+ * ALERT_MIN_LEAD_MIN later, or else the first, too soon to count.
+ */
+export function goalAfter(alert: Alert, incidents: Incident[], axis: Timeline): GoalAfter | null {
   const cancelled = cancelledGoals(incidents)
   const from = axis.x(alert)
+  let tooSoon: GoalAfter | null = null
   for (const i of incidents) {
     if (!isGoal(i) || i.team_id !== alert.team_id || cancelled.has(i.id) || i.period === 5) continue
     const minutes = axis.x(i) - from
-    if (minutes > 0 && minutes <= ALERT_HORIZON_MIN) return { incident: i, minutes }
+    if (minutes <= 0 || minutes > ALERT_HORIZON_MIN) continue
+    if (minutes >= ALERT_MIN_LEAD_MIN - 1e-9) return { incident: i, minutes, counts: true }
+    tooSoon ??= { incident: i, minutes, counts: false }
   }
-  return null
+  return tooSoon
 }
 
 /** The name without the first name, as on a scoreboard: "Di María", "Mbappé". */

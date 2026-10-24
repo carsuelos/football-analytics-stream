@@ -38,7 +38,7 @@ from dataclasses import asdict, dataclass, field, fields, replace
 from pathlib import Path
 
 import numpy as np
-from engine.backtest import Step, read_feed, replay
+from engine.backtest import MIN_LEAD_S, Step, read_feed, replay
 from engine.detectors import (
     ControlShift,
     ControlShiftConfig,
@@ -319,7 +319,7 @@ class Score:
     lift_10: float
     lift_10_ci: tuple[float, float]
     covered: float
-    """Share of goals after 15' with an alert for the scorer in the 10' before."""
+    """Share of goals after 15' with an alert for the scorer from 10' to 30s before."""
     reactive: float
     """Share of alerts within 5' after the team scored."""
 
@@ -370,7 +370,7 @@ def covered(d: RuleInputs, fired: np.ndarray) -> float:
     hit = 0
     for m, t, s in goals:
         a = times.get((m, t))
-        hit += bool(a is not None and ((a >= s - 600) & (a < s)).any())
+        hit += bool(a is not None and ((a >= s - 600) & (a <= s - MIN_LEAD_S)).any())
     return hit / len(goals) if goals else math.nan
 
 
@@ -599,11 +599,14 @@ def load_or_build(
 ) -> RuleInputs:
     if path.exists() and not rebuild:
         d = RuleInputs.load(path)
-        if d.meta.get("xt_grid_sha256") == file_digest(grid):
+        # Rebuilt when the grid or the labels' lead time changes.
+        if d.meta.get("xt_grid_sha256") == file_digest(grid) and d.meta.get("min_lead_s") == str(
+            MIN_LEAD_S
+        ):
             return d
     print(f"recording the rules' inputs into {path}…", flush=True)
     d = build(paths(), grid, workers)
-    d.save(path, xt_grid=grid.name, xt_grid_sha256=file_digest(grid))
+    d.save(path, xt_grid=grid.name, xt_grid_sha256=file_digest(grid), min_lead_s=str(MIN_LEAD_S))
     return RuleInputs.load(path)
 
 

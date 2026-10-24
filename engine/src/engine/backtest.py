@@ -34,6 +34,12 @@ from engine.schema.metric_schema import MetricSnapshot
 from engine.ticks import SHOOTOUT_PERIOD, TICK_S, Tick, Ticker
 from engine.windows import InMemoryStateStore
 
+MIN_LEAD_S = 30.0
+"""How long before a goal an alert must come to count as predicting it: one
+seconds before is the attack that scored, already under way, not a warning.
+Training labels, the rules' tuning and the evaluation all count goals from
+this long after a moment on."""
+
 
 def read_feed(path: Path) -> Iterator[FeedMessage]:
     """The messages in a feed file, one JSON message per line."""

@@ -17,20 +17,22 @@ class GoalThreatConfig:
     """A logistic score over two features, each divided by a scale.
 
     Fitted in Phase 3 (docs/MODEL.md, Step 5) so the score is the chance the
-    team scores in the next 10' (about 7% on average). The scales are the
-    features' standard deviations, so the weights compare: xT velocity
-    carries about three times the weight of pressure.
+    team scores from 30 seconds to 10' later (about 7% on average). The scales
+    are the features' standard deviations, so the weights compare. Once a
+    goal had to come 30 seconds after the alert to count, xT velocity's weight
+    fell to 0: it mostly foretold the goal of an attack already under way. So
+    the score is the pressure alone, and the xT part stays for retuning.
     """
 
     window_s: float = FIVE_MINUTES_S
-    bias: float = -2.03
-    pressure_weight: float = 0.0412
+    bias: float = -2.12
+    pressure_weight: float = 0.167
     pressure_scale: float = 6.94
     """Pressure index."""
-    xt_weight: float = 0.124
+    xt_weight: float = 0.0
     xt_scale: float = 0.0196
     """xT added per minute."""
-    threshold: float = 0.185
+    threshold: float = 0.177
     """Tuned for about 2 alerts a match."""
 
 

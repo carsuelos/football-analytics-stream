@@ -46,15 +46,18 @@ def write_feed(path: Path, events: list[MatchEvent]) -> None:
     path.write_text("".join(m.model_dump_json(exclude_none=True) + "\n" for m in messages))
 
 
-def test_labels_look_only_ahead() -> None:
-    play_s = np.array([900.0, 900.0, 1200.0, 1500.0, 1560.0])
-    team = np.array([1, 2, 1, 1, 1])
+def test_labels_look_ahead_from_30s_to_the_horizon() -> None:
+    play_s = np.array([900.0, 900.0, 1200.0, 1470.0, 1471.0, 1500.0, 1560.0])
+    team = np.array([1, 2, 1, 1, 1, 1, 1])
     y = labels(play_s, team, [(1, 1500.0)])
-    # 900 -> 1500 is 10' exactly: in (t, t + 10']; 1200 -> 1500 is 5'; at 1500 the goal is now.
+    # 900 -> 1500 is 10' exactly: in [t + 30s, t + 10']; 1200 -> 1500 is 5'; 1470 is
+    # 30s before, just in time; 1471 is too late to warn of it; at 1500 the goal is now.
     assert y.tolist() == [
         [False, True],
         [False, False],
         [True, True],
+        [True, True],
+        [False, False],
         [False, False],
         [False, False],
     ]
@@ -85,7 +88,9 @@ def test_match_rows(tmp_path: Path) -> None:
     assert set(d.match_id) == {7}
     assert d.play_s.min() == 900
     away = d.team_id == AWAY.id
-    assert d.label(10)[away & (d.play_s >= 900.5) & (d.play_s < 1500.5)].all()
+    # The goal at 1500.5 counts for ticks 30s to 10' before it (MIN_LEAD_S).
+    assert d.label(10)[away & (d.play_s >= 900.5) & (d.play_s <= 1470.5)].all()
+    assert not d.label(10)[away & (d.play_s > 1470.5)].any()
     assert not d.label(10)[~away].any()
     assert not d.label(5)[away & (d.play_s < 1200.5)].any()
     after = away & (d.play_s > 1500.5)

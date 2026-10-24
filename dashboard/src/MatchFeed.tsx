@@ -157,9 +157,13 @@ function AlertItem({
         <AlertIcon type={a.type} className="size-4 shrink-0 text-sky-300" />
         <span className="font-mono font-semibold text-slate-200 tabular-nums">{matchClock(a)}</span>
         <span>· {ALERT_NAMES[a.type]}</span>
-        {scored ? (
+        {scored?.counts ? (
           <span title={OUTCOME_HINT} className="ml-auto flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-300">
             <BallIcon className="size-3" /> Scored {minutesLater(scored.minutes)}
+          </span>
+        ) : scored ? (
+          <span title={TOO_SOON_HINT} className="ml-auto flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-slate-400">
+            <BallIcon className="size-3 opacity-60" /> Goal {minutesLater(scored.minutes)}, too soon to count
           </span>
         ) : (elapsed !== undefined && elapsed > ALERT_HORIZON_MIN) || over ? (
           <span title={OUTCOME_HINT} className="ml-auto rounded-full bg-rose-400/10 px-2 py-0.5 text-rose-300/80">
@@ -176,7 +180,11 @@ function AlertItem({
   )
 }
 
-const OUTCOME_HINT = 'Checked as the match plays on: did this team score within 10 minutes of the alert?'
+const OUTCOME_HINT =
+  'Checked as the match plays on: did this team score from 30 seconds to 10 minutes after the alert?'
+
+const TOO_SOON_HINT =
+  'The goal came less than 30 seconds after the alert: the attack was already under way, so it does not count as predicted.'
 
 /** How long after the alert, e.g. "22s later" or "4' later". */
 function minutesLater(minutes: number) {
