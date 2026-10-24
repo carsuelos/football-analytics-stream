@@ -9,6 +9,8 @@ curl 'localhost:8090/api/markets/board?league=epl'
 
 It reads only the venues' public market data, so it needs no keys.
 
+**Recording.** With `-record <dir>` (or `MARKETS_RECORD_DIR`; `make up` sets it to `data/markets`) it also writes every league's prices to a **market tape**, `<dir>/<UTC date>/<league>.jsonl` (`schema/jsonschema/market_tape.schema.json`), and polls a league every 10 s while one of its games is live or kicks off within 15 minutes, whether or not anyone is looking. Each game starts with a keyframe (its whole state, and again every 10 minutes); the lines between have only the quotes that changed or went, with the state, score and clock. A league's day is a few MB. `make tape` summarizes the tapes, and `engine.market_tape` replays them for testing trading strategies against the prices the venues really offered. The cloud deployment doesn't record.
+
 ## How it works
 
 | Path | What |
@@ -19,6 +21,7 @@ It reads only the venues' public market data, so it needs no keys.
 | `internal/novig` | Novig's public catalog: total goals, the result and team goals. It lists bids on both sides, so the Yes ask is 1 − the No bid. Its contracts pay 1¢, so its sizes are divided by 100; its fee is charged only in-game |
 | `internal/teams` | Whether two venues' names are the same team ("Bilbao", "Athletic Club", "Athletic Club Bilbao") |
 | `internal/board` | Polls the venues (every 10 s for a league someone is looking at, every 2 min otherwise), matches each game across them (same teams, kick-offs within 30 h), prices every contract (all-in = ask + fee) and marks the cheapest with contracts at its ask. A failing venue keeps its last games for 2 minutes. Keeps each game's best all-in price over time for 6 hours, in memory |
+| `internal/tape` | The market tape: appends each poll's changes to the day's file per league |
 | `internal/server` | `GET /api/markets/board?league=epl\|laliga` (a `MarketBoard`), `GET /api/markets/games/{id}/history` (a `PriceHistory`), `GET /healthz` |
 | `internal/schema` | Generated from `schema/jsonschema/` by `make gen`; do not edit |
 

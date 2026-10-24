@@ -108,6 +108,11 @@ services:
     environment:
       LOG_FORMAT: json
       OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire:18889
+      # Records every league's prices to data/markets/<UTC date>/<league>.jsonl
+      # (a market tape, for replaying strategies later). MARKETS_RECORD_DIR= turns it off.
+      MARKETS_RECORD_DIR: ${MARKETS_RECORD_DIR-/data/markets}
+    volumes:
+      - ./data/markets:/data/markets
     ports:
       - "${MARKETS_PORT:-8090}:8090"
 

@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook markets up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook markets tape up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -35,7 +35,7 @@ gen-go:
 	cd markets && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
 		--capitalization ID \
 		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/market_board.schema.json \
-		../$(SCHEMA_DIR)/price_history.schema.json ../$(SCHEMA_DIR)/common.schema.json
+		../$(SCHEMA_DIR)/price_history.schema.json ../$(SCHEMA_DIR)/market_tape.schema.json ../$(SCHEMA_DIR)/common.schema.json
 
 gen-py:
 	rm -rf $(PY_GEN)
@@ -125,6 +125,9 @@ dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine
 
 markets: ## Run the markets service on :8090: the prediction markets' prices for the dashboard's Markets page (make dashboard proxies /api/markets to it)
 	cd markets && go run ./cmd/markets $(ARGS)
+
+tape: ## Summarize the recorded market tapes (data/markets): one line per game. A contract's prices as CSV: ARGS="--game <id> --contract total-over-2.5"
+	cd engine && uv run python -m engine.market_tape ../data/markets $(ARGS)
 
 webhook: ## Run a webhook receiver on :9000 that prints the alerts it gets (for ARGS="--webhook http://localhost:9000")
 	uv run scripts/webhook_echo.py $(ARGS)

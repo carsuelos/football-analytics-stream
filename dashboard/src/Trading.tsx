@@ -135,8 +135,27 @@ const KEYS: Record<Venue, { id: string; secret: string; where: ReactNode }> = {
       </a>
     ),
   },
-  polymarket: { id: 'API key', secret: 'Secret', where: "From your Polymarket US account's API settings" },
-  novig: { id: 'Key ID', secret: 'Private key (Ed25519)', where: 'Best: a trading key on a sub-account funded with only this game’s budget' },
+  polymarket: {
+    id: 'API key',
+    secret: 'Secret',
+    where: (
+      <a href="https://polymarket.us/developer" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+        Create one on the developer page ↗
+      </a>
+    ),
+  },
+  novig: {
+    id: 'Key ID',
+    secret: 'Private key (Ed25519)',
+    where: (
+      <>
+        <a href="https://novig.com/Profile/ProfileScreen" target="_blank" rel="noreferrer" className="text-sky-300 hover:underline">
+          Create one in your profile settings ↗
+        </a>{' '}
+        — best a trading key on a sub-account funded with only this game's budget
+      </>
+    ),
+  },
 }
 
 /** Real money: each venue's key, pasted for one game and forgotten at full time. */

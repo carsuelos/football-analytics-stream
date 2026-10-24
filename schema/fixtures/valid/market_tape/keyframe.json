@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "t": "2026-10-24T17:50:40Z",
+  "league": "epl",
+  "game_id": "epl-2026-10-24-chelsea-tottenham",
+  "keyframe": true,
+  "home": "Chelsea",
+  "away": "Tottenham",
+  "kickoff": "2026-10-24T16:30:00Z",
+  "state": "live",
+  "score": { "home": 0, "away": 1 },
+  "clock": "63'",
+  "contracts": [
+    { "key": "total-over-1.5", "kind": "total", "outcome": "over", "line": 1.5 },
+    { "key": "result-draw", "kind": "result", "outcome": "draw" }
+  ],
+  "quotes": [
+    { "contract": "total-over-1.5", "venue": "kalshi", "bid": 0.47, "ask": 0.48, "ask_size": 120, "fee": 0.0175 },
+    { "contract": "total-over-1.5", "venue": "novig", "bid": 0.47, "ask": 0.49, "ask_size": 30, "fee": 0.015 },
+    { "contract": "result-draw", "venue": "polymarket", "bid": 0.22, "ask": 0.23, "fee": 0.0123 }
+  ]
+}

@@ -125,7 +125,11 @@ it('shows how it will trade, on paper or with real money, all off until the live
   expect(within(trading).getByRole('note')).toHaveTextContent('Runs only on your own machine')
   for (const venue of ['Kalshi', 'Polymarket', 'Novig']) expect(within(keys).getByRole('group', { name: `${venue} key` })).toBeInTheDocument()
   expect(within(keys).getByLabelText('Private key (RSA, PEM)')).toHaveAttribute('type', 'password')
-  expect(within(keys).getByRole('link', { name: /Create one/ })).toHaveAttribute('href', 'https://kalshi.com/account/profile')
+  expect(within(keys).getAllByRole('link', { name: /Create one/ }).map((a) => a.getAttribute('href'))).toEqual([
+    'https://kalshi.com/account/profile',
+    'https://polymarket.us/developer',
+    'https://novig.com/Profile/ProfileScreen',
+  ])
   expect(within(keys).getByRole('button', { name: 'Start real trading' })).toBeDisabled()
 })
 

@@ -32,6 +32,8 @@ func newTarget(t *testing.T, kind string) any {
 		return &Incident{}
 	case "market_board":
 		return &MarketBoard{}
+	case "market_tape":
+		return &MarketTapeRecord{}
 	case "match_list":
 		return &MatchList{}
 	case "match_reset":

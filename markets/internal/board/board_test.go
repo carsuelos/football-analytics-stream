@@ -181,6 +181,40 @@ func TestAFailingVenueKeepsItsLastGamesForAWhile(t *testing.T) {
 	}
 }
 
+func TestEachPollGoesToOnBoard(t *testing.T) {
+	ev := chelsea()
+	b := New([]venue.Source{&source{v: schema.VenueKalshi, events: ev[schema.VenueKalshi]}}, nil)
+	b.Now = func() time.Time { return kickoff.Add(time.Hour) }
+	var got []schema.MarketBoard
+	b.OnBoard = func(board schema.MarketBoard) { got = append(got, board) }
+	b.Refresh(context.Background(), schema.LeagueEpl)
+	b.Refresh(context.Background(), schema.LeagueEpl)
+	if len(got) != 2 || got[0].League != schema.LeagueEpl || len(got[0].Games) != 1 {
+		t.Errorf("boards %+v", got)
+	}
+}
+
+func TestBusyWhileAGameIsLiveOrAboutToStart(t *testing.T) {
+	now := kickoff
+	game := func(state schema.GameState, kickoff time.Time) schema.MarketBoard {
+		return schema.MarketBoard{Games: []schema.MarketGame{{State: state, Kickoff: kickoff}}}
+	}
+	for _, c := range []struct {
+		board schema.MarketBoard
+		want  bool
+	}{
+		{game(schema.GameStateLive, now.Add(-time.Hour)), true},
+		{game(schema.GameStateScheduled, now.Add(10*time.Minute)), true},
+		{game(schema.GameStateScheduled, now.Add(time.Hour)), false},
+		{game(schema.GameStateEnded, now.Add(-2*time.Hour)), false},
+		{schema.MarketBoard{}, false},
+	} {
+		if got := busy(c.board, now); got != c.want {
+			t.Errorf("busy(%+v) = %v", c.board.Games, got)
+		}
+	}
+}
+
 func TestHistoryKeepsEachChangeAndAQuietPointAMinute(t *testing.T) {
 	h := NewHistory(time.Hour, 3)
 	board := func(at time.Duration, price float64) schema.MarketBoard {
