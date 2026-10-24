@@ -44,7 +44,7 @@ export function AnalyticsPage() {
     <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
         <AlertToasts toasts={announced.toasts} teams={teams} onDismiss={announced.dismiss} />
         <div className="flex items-center justify-end gap-2">
-          <NotifySettings system={notify} sound={sound} onSound={setSound} />
+          <NotifySettings system={notify} sound={sound} onSound={setSound} onTest={announced.test} />
           <StatusBar connection={match.connection} status={match.status} />
         </div>
         <div className={`grid gap-4 ${simulator ? 'xl:grid-cols-2' : ''}`}>
