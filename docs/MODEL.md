@@ -328,8 +328,8 @@ The curved model now runs live as a fourth detector, `goal_chance`, next to the 
 | `features`, `minute_knots` | The 43 feature names in order, and the knots of the 6 hinge terms (`max(0, minute − k)`) appended after them |
 | `mean`, `scale` | The standardization of each of the 49 terms |
 | `coef`, `intercept` | The weights, in log-odds per standard deviation |
-| `threshold`, `alerts_per_match` | The alert threshold (0.195) and the volume it was picked for (5 a match) |
-| `base_rate`, `horizon_min`, `warmup_s` | 13.5% of training rows score within 10'; predictions start at 15' |
+| `threshold`, `alerts_per_match` | The alert threshold (0.184 since step 6; 0.195 before) and the volume it was picked for (5 a match) |
+| `base_rate`, `horizon_min`, `warmup_s` | 12.7% of training rows score from 30s to 10' later (13.5% within 10' before step 6); predictions start at 15' |
 | `xt_grid`, `xt_grid_sha256` | The xT grid the features were computed with, and its digest |
 | `training`, `test` | Cross-validated and World Cup scores, for the record |
 
@@ -425,7 +425,7 @@ Goal threat was already a logistic score, `sigmoid(bias + a · pressure / sp + b
 
 3. A one-feature logistic regression on the mixed score sets the bias and slope, so the score **is the chance the team scores in the next 10'**.
 
-The result: `sigmoid(−2.03 + 0.0412 · pressure / 6.94 + 0.124 · xT velocity / 0.0196)`, firing at **0.185**: a team whose chance has reached 18.5%, against 13.5% on average. The alert's message ("goal threat 22%") now means what it says. Getting the ball into dangerous places (xT velocity) predicts goals better than pressure does, but a little pressure in the mix helps.
+The result: `sigmoid(−2.03 + 0.0412 · pressure / 6.94 + 0.124 · xT velocity / 0.0196)`, firing at **0.185**: a team whose chance has reached 18.5%, against 13.5% on average. The alert's message ("goal threat 22%") now means what it says. Getting the ball into dangerous places (xT velocity) predicts goals better than pressure does, but a little pressure in the mix helps. (Step 6 reversed this: once a goal has to come 30 seconds after the alert, xT velocity adds nothing, and goal threat is pressure alone.)
 
 ### Momentum: a margin, not a z-score
 
@@ -514,6 +514,57 @@ After Phase 3 the live engine went from a tick every 30s of play to every 5s, so
 | **5s** | 662 | 1.7 | 42.7% | 268, 1.9 | 394, 1.6 |
 
 About 8% more alerts at the same lift, a few seconds sooner. Momentum moves the most (1.5 → 1.3, on about 140 alerts), as its baseline now takes 6 times the samples; goal threat improves (1.6 → 1.8), as it can catch a dangerous spell at its peak. These are within the intervals of Step 5. Retuning the thresholds on 5s ticks (`model.rules` with `TICK_S = 5`) would bring the volume back to 2 a rule a match, at about 6 times the recording time; it isn't worth it yet. `make evaluate` replays at the live engine's tick (about 15 s instead of 5).
+
+## Step 6: a warning must come 30 seconds ahead
+
+### Why
+
+Until now a goal one second after an alert counted as predicted. But an alert that close is the attack that scored, already under way: on the dashboard it read "Scored 1s later", which is a description, not a warning. How far ahead were the alerts that came true? Of the 662 on the World Cup, 140 were followed by the team's goal within 10':
+
+| Alert to goal | Alerts |
+| --- | ---: |
+| 0–5 seconds | 15 |
+| 5–15 seconds | 2 |
+| 15–30 seconds | 4 |
+| 30–60 seconds | 8 |
+| 1–10 minutes | 111 |
+
+There is a cluster in the last 5 seconds and little between 5 and 30, so the line could be drawn anywhere from 5 to 30 seconds with the same result. 30 seconds (`engine.backtest.MIN_LEAD_S`) is the cleanest: the move that leads to a goal usually unfolds within it.
+
+### What changed
+
+A goal counts for a moment `t` only if it comes in `[t + 30s, t + 10']`, everywhere goals are judged:
+
+- the **training labels** (`model.dataset.labels`), so the model learns to predict goals it could warn of, not the one in progress;
+- the **rules' tuning** (`model.rules`, whose recorded inputs now carry the lead time, so a change rebuilds them);
+- the **evaluation** (`make evaluate`), for both the alerts and the base rate they are compared with;
+- the **dashboard**: an alert is "Scored 37s later" only from 30 seconds on; sooner, it says "Goal 3s later, too soon to count";
+- the **smoke test**: the final's check wants an alert for Argentina from 10' to 30 seconds before Messi's goal.
+
+The base rate falls a little, since fewer goals count: 13.5% → 12.7% of training rows score within 10'.
+
+### Results
+
+**The model**, retrained (`make dataset`, `make train`, `make export-model`): the same ranking (curved ≥ boosted > logistic > game state), and the curved model as good as before: World Cup AUC 0.617 (was 0.616), skill 0.020 (0.021), calibration 0.99. Its threshold for 5 alerts a match is now 0.184 (was 0.195). Its World Cup alerts: 255, the team scoring from 30 seconds to 10' later 19.5% of the time, lift 1.65 (95% 1.24–2.21 at 5 a match in `make train`).
+
+**The rules**, retuned (`make rules`). Momentum and control shift keep their settings. **Goal threat loses xT velocity**: its best mix on the training set is now pressure alone, and every step towards xT is worse:
+
+| xT share of the score | 0 | 0.25 | 0.5 | 0.75 | 1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Train 10' lift, 2 a match | **1.40** | 1.39 | 1.36 | 1.32 | 1.29 |
+
+So xT velocity mostly foretold the goal of an attack already under way: a team moving the ball into dangerous places scores *now*, not a minute later. Pressure (recoveries, box entries, shots, sustained attacks) is what lasts. The new settings are `sigmoid(−2.12 + 0.167 · pressure / 6.94)`, firing at 0.177.
+
+On the training set, the new goal threat beats the old one on the new labels (10' lift 1.40, 95% 1.32–1.47, against 1.33, 1.25–1.41). On the World Cup it looks worse (1.21, 0.72–1.68, against 1.51, 0.97–2.08), but its 64 matches can't separate the two, where the 2,552 training matches can, and choosing on the test set would overfit it. The simpler rule, the better on 40 times the data, is the one shipped.
+
+**The scorecard** (`make evaluate`, World Cup), on the new definition:
+
+| | Alerts | 10' lift (all) | Goals covered (from 10' to 30s before) |
+| --- | ---: | ---: | ---: |
+| Step 5's detectors and model | 661 | 1.6 | 38.9% |
+| **Retrained and retuned** | 697 | 1.5 | 36.3% |
+
+The numbers are lower than step 5's (lift 1.7, 42.7% covered) because the bar is higher: the alerts that only described the goal no longer count. They are the honest ones to improve on.
 
 ## Next steps
 

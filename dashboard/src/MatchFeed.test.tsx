@@ -8,7 +8,7 @@ import { timeline } from './timeline'
 const TEAMS = [ARGENTINA, FRANCE]
 const axis = timeline([])
 
-const control = alert({ id: 'a', team_id: ARGENTINA.id, period: 1, match_clock_s: 35 * 60, message: 'Argentina in control' })
+const control = alert({ id: 'a', team_id: ARGENTINA.id, period: 1, match_clock_s: 34 * 60 + 45, message: 'Argentina in control' })
 const threat = alert({ id: 'b', type: 'goal_threat', team_id: FRANCE.id, period: 1, match_clock_s: 20 * 60, message: 'France goal threat 20%' })
 const goal = incident()
 
@@ -25,7 +25,7 @@ describe('MatchFeed', () => {
     expect(items.map((li) => li.textContent)).toEqual([
       "36:00· MomentumWatching · 6' leftFrance momentum",
       '35:22· Argentina2–0Goal · Ángel Di María',
-      '35:00· Control Scored 23s laterArgentina in control',
+      '34:45· Control Scored 38s laterArgentina in control',
       "20:00· Goal threatNo goal in 10'France goal threat 20%",
     ])
     expect(items.map((li) => li.className.match(/border-(home|away)/)?.[1])).toEqual(['away', 'home', 'home', 'away'])
@@ -41,7 +41,7 @@ describe('MatchFeed', () => {
     expect(screen.getByRole('button', { name: /^Cards/ })).toHaveAttribute('aria-pressed', 'false')
     expect(screen.getAllByRole('listitem').map((li) => li.textContent)).toEqual([
       '35:22· Argentina2–0Goal · Ángel Di María',
-      '35:00· Control Scored 23s laterArgentina in control',
+      '34:45· Control Scored 38s laterArgentina in control',
     ])
 
     await userEvent.click(screen.getByRole('button', { name: /^Cards/ }))
@@ -62,6 +62,13 @@ describe('MatchFeed', () => {
       "117:00· ControlNo goal by full timeFrance late on",
       "20:00· Goal threatNo goal in 10'France goal threat 20%",
     ])
+  })
+
+  it('says when the goal came too soon after the alert to count', () => {
+    const late = alert({ id: 'z', team_id: ARGENTINA.id, period: 1, match_clock_s: 35 * 60 + 20, message: 'Argentina goal threat' })
+    render(<MatchFeed teams={TEAMS} alerts={[late]} incidents={[goal]} axis={axis} now={40} />)
+    expect(screen.getByText(/Goal \ds later, too soon to count/)).toBeInTheDocument()
+    expect(screen.queryByText(/Scored/)).toBeNull()
   })
 
   it('shows a disallowed goal struck through, and an alert before it unscored', () => {

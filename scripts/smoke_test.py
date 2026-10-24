@@ -355,11 +355,12 @@ def final_checks(r: Replay) -> list[str]:
         problems.append(f"Argentina's first-half 10' field tilt averaged {tilt:.0%}, not over 50%")
 
     # Alerts should warn before a team scores, not after: Argentina were on top for the
-    # few minutes before Messi's extra-time goal. (With the tuned thresholds, about
-    # 2 alerts a rule a match, nothing warns of France's penalty at 79:24.)
-    since, goal = clock(3, 97, 58), clock(4, 107, 58)
-    if not any(a["team_id"] == ARGENTINA and since < when(a) < goal for a in r.alerts):
-        problems.append(f"no alert for Argentina in the 10' before their goal at {at(goal)}")
+    # few minutes before Messi's extra-time goal. A warning counts from 30s before
+    # (engine.backtest.MIN_LEAD_S). (With the tuned thresholds, about 2 alerts a rule a
+    # match, nothing warns of France's penalty at 79:24.)
+    since, goal, latest = clock(3, 97, 58), clock(4, 107, 58), clock(4, 107, 28)
+    if not any(a["team_id"] == ARGENTINA and since < when(a) <= latest for a in r.alerts):
+        problems.append(f"no alert for Argentina from 10' to 30s before their goal at {at(goal)}")
     return problems
 
 

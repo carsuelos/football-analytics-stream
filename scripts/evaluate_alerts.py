@@ -7,13 +7,14 @@ Replays exported feeds (make export) through the engine offline, exactly as it
 runs live (see engine.backtest), then compares each alert with the goals that
 followed:
 
-- how often the alerted team scores in the next 5 or 10 minutes, against how
-  often a team scores in any 5 or 10 minutes of play (the lift: 1.0 is no
-  better than chance);
+- how often the alerted team scores in the next 5 or 10 minutes (from 30
+  seconds on: a goal sooner is the attack already under way, not one the alert
+  warned of; see engine.backtest.MIN_LEAD_S), against how often a team scores
+  in any such stretch of play (the lift: 1.0 is no better than chance);
 - how often the opponent scores in the next 10 minutes instead;
 - how often the alert comes within 5 minutes after the team scored, so it
   reacts rather than predicts;
-- how many goals the scorer had an alert for in the 10 minutes before.
+- how many goals the scorer had an alert for from 10 minutes to 30 seconds before.
 
 The rules (momentum, goal threat, control shift) are scored together as well as
 one by one, and so is everything including the goal model's goal_chance alerts
@@ -34,7 +35,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from engine.backtest import Replay, replay_files
+from engine.backtest import MIN_LEAD_S, Replay, replay_files
 from engine.detectors import GoalModel
 from engine.detectors.goal_chance import add_goal_model_args, grid_mismatch
 from engine.metrics.xt import DEFAULT_GRID_PATH
@@ -70,7 +71,11 @@ class Match:
         return self.teams[1] if team_id == self.teams[0] else self.teams[0]
 
     def scores(self, team_id: int, after_s: float, minutes: int) -> bool:
-        return any(t == team_id and after_s < s <= after_s + minutes * 60 for t, s in self.goals)
+        """Whether the team scores from MIN_LEAD_S to minutes after after_s."""
+        return any(
+            t == team_id and after_s + MIN_LEAD_S <= s <= after_s + minutes * 60
+            for t, s in self.goals
+        )
 
     def scored(self, team_id: int, before_s: float, minutes: int) -> bool:
         return any(t == team_id and before_s - minutes * 60 <= s <= before_s for t, s in self.goals)
@@ -118,7 +123,7 @@ class Evaluation:
             before = {
                 type
                 for type, team, at in timed
-                if team == scorer and scored_s - longest * 60 <= at < scored_s
+                if team == scorer and scored_s - longest * 60 <= at <= scored_s - MIN_LEAD_S
             }
             groups = {name for name, types in GROUPS.items() if before & set(types)}
             for type in before | groups:
