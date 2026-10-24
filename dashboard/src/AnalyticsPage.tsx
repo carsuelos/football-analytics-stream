@@ -5,6 +5,8 @@ import { EventStrip } from './EventStrip'
 import { MatchFeed } from './MatchFeed'
 import { MatchPicker } from './MatchPicker'
 import { MetricCharts } from './MetricCharts'
+import { useAlertNotifications, useNotifySetting } from './notifications'
+import { NotifyToggle } from './NotifyToggle'
 import { Scoreboard } from './Scoreboard'
 import { StatusBar } from './StatusBar'
 import { timeline, type Position } from './timeline'
@@ -32,10 +34,13 @@ export function AnalyticsPage() {
   // Play is over in the shootout and at full time: every alert's outcome is known.
   const over = period === 5 || match.status?.state === 'ended'
   const now = position ? axis.x(position) : period === 5 ? axis.domain[1] : undefined
+  const notify = useNotifySetting()
+  useAlertNotifications(notify.on, match.alerts, match.status, teams)
 
   return (
     <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-end gap-2">
+          <NotifyToggle setting={notify} />
           <StatusBar connection={match.connection} status={match.status} />
         </div>
         <div className={`grid gap-4 ${simulator ? 'xl:grid-cols-2' : ''}`}>
