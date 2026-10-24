@@ -141,7 +141,7 @@ up: ## Build and start the whole stack in Docker; the dashboard is on http://loc
 down: ## Stop the Docker stack
 	docker compose down
 
-dock-app: ## macOS: build "Football Analytics Launcher" in ~/Applications, a Dock icon that runs make up, opens the dashboard's web app (Safari > File > Add to Dock), and make down when you quit it. KEEP_RECORDING=1 keeps recording prices after
+dock-app: ## macOS: build "Football Analytics Launcher" (or update it where it is: /Applications or ~/Applications), a Dock icon that runs make up, opens the dashboard's web app (Safari > File > Add to Dock), and make down when you quit it. KEEP_RECORDING=1 keeps recording prices after
 	scripts/macos/build-app.sh $(ARGS)
 
 logs: ## Follow the Docker stack's logs

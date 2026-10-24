@@ -1,17 +1,21 @@
 #!/bin/bash
-# Builds "Football Analytics Launcher.app" in ~/Applications (make dock-app):
-# a Dock icon that runs scripts/macos/launch.sh for this checkout.
+# Builds "Football Analytics Launcher.app" (make dock-app): a Dock icon that
+# runs scripts/macos/launch.sh for this checkout. It replaces the app where it
+# already is (/Applications or ~/Applications), so the Dock keeps pointing at
+# it; a first build goes to ~/Applications.
 #
 #   scripts/macos/build-app.sh [web app name]      KEEP_RECORDING=1 to keep recording prices on close
 set -euo pipefail
 
 REPO=$(cd "$(dirname "$0")/../.." && pwd)
 WEBAPP=${1:-Football Analytics}
-APP="$HOME/Applications/Football Analytics Launcher.app"
+NAME="Football Analytics Launcher.app"
+APP="$HOME/Applications/$NAME"
+[ -d "/Applications/$NAME" ] && APP="/Applications/$NAME"
 LOG="$HOME/Library/Logs/football-analytics-launcher.log"
 q() { printf "'%s'" "${1//\'/\'\\\'\'}"; } # shell-quote
 
-mkdir -p "$HOME/Applications"
+mkdir -p "$(dirname "$APP")"
 rm -rf "$APP"
 cmd="KEEP_RECORDING=${KEEP_RECORDING:-0} nohup $(q "$REPO/scripts/macos/launch.sh") $(q "$REPO") $(q "$WEBAPP") >> $(q "$LOG") 2>&1 &"
 osacompile -o "$APP" -e "do shell script \"${cmd//\"/\\\"}\""
@@ -40,4 +44,4 @@ touch "$APP"
 
 echo "Built $APP"
 echo "  It runs make up, opens \"$WEBAPP\" (Safari > File > Add to Dock), and runs make down when you quit it."
-echo "  Drag it to the Dock (open ~/Applications). Log: $LOG"
+echo "  Drag it to the Dock (open $(dirname "$APP")). Log: $LOG"
