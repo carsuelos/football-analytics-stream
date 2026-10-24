@@ -308,6 +308,111 @@
      }
     }
    ]
+  },
+  {
+   "marketId": "01a1553c-2eba-7303-b188-b559e5835278",
+   "description": "Bournemouth MONEYLINE_3_WAY_WIN",
+   "eventId": "01a1553c-2e2c-7131-ae31-8102061b6a93",
+   "marketType": "MONEYLINE_3_WAY_WIN",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b56fbc57a6b3",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.315",
+     "bid": {
+      "price": "0.31",
+      "qty": 19000
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b570f9d31744",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.685",
+     "bid": {
+      "price": "0.685",
+      "qty": 479406
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2eba-7303-b188-b52b87b25d33",
+   "description": "Bournemouth @ Man Utd MONEYLINE_3_WAY_DRAW",
+   "eventId": "01a1553c-2e2c-7131-ae31-8102061b6a93",
+   "marketType": "MONEYLINE_3_WAY_DRAW",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b536e211a077",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.27",
+     "bid": {
+      "price": "0.26",
+      "qty": 192652
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b54b5dc4e65a",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.73",
+     "bid": {
+      "price": "0.73",
+      "qty": 499166
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2eba-7303-b188-b4f5789b7fb2",
+   "description": "Man Utd MONEYLINE_3_WAY_WIN",
+   "eventId": "01a1553c-2e2c-7131-ae31-8102061b6a93",
+   "marketType": "MONEYLINE_3_WAY_WIN",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b50fbd4d947c",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.435",
+     "bid": {
+      "price": "0.43",
+      "qty": 10000
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2eba-7303-b188-b51dfb908de1",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.565",
+     "bid": {
+      "price": "0.565",
+      "qty": 223916
+     }
+    }
+   ]
   }
  ],
  "next": null

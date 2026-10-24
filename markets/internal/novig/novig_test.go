@@ -130,3 +130,27 @@ func TestStrikeAsNumberOrString(t *testing.T) {
 		}
 	}
 }
+
+func TestEventsMatchAResultsShortTeamNames(t *testing.T) {
+	events, err := fake(t).Events(context.Background(), schema.LeagueEpl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if e.Home.Name != "Manchester United FC" {
+			continue
+		}
+		// "Man Utd" and "Bournemouth" in the markets; the event says "AFC Bournemouth @ Manchester United FC".
+		got := map[schema.Outcome]bool{}
+		for _, q := range e.Quotes {
+			if q.Kind == schema.ContractKindResult {
+				got[q.Outcome] = true
+			}
+		}
+		if !got[schema.OutcomeHome] || !got[schema.OutcomeAway] || !got[schema.OutcomeDraw] {
+			t.Errorf("results %v", got)
+		}
+		return
+	}
+	t.Fatal("no Manchester United game")
+}

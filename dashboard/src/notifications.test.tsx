@@ -1,8 +1,9 @@
-import { act, render, renderHook, screen } from '@testing-library/react'
+import { act, render, renderHook, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { useAlertNotifications, useNotifySetting } from './notifications'
-import { NotifyToggle } from './NotifyToggle'
+import { AlertToasts } from './AlertToasts'
+import { MAX_TOASTS, TOAST_MS, useAlertNotifications, useNotifySetting } from './notifications'
+import { NotifySettings } from './NotifySettings'
 import type { Alert } from './schema/alert.schema'
 import type { EngineStatus } from './schema/engine_status.schema'
 import { alert, ARGENTINA, FRANCE, status } from './test/factories'
@@ -22,87 +23,130 @@ class FakeNotification {
   }
 }
 
+/** Counts the dings. */
+class FakeAudio {
+  static notes = 0
+  currentTime = 0
+  destination = {}
+  createOscillator() {
+    FakeAudio.notes++
+    return { type: '', frequency: { value: 0 }, connect: (n: unknown) => n, start() {}, stop() {} }
+  }
+  createGain() {
+    const node = { gain: { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} }, connect: (n: unknown) => n }
+    return node
+  }
+}
+
 let focused = false
 
 beforeEach(() => {
   FakeNotification.permission = 'granted'
   FakeNotification.shown = []
+  FakeAudio.notes = 0
   focused = false
   vi.stubGlobal('Notification', FakeNotification)
+  vi.stubGlobal('AudioContext', FakeAudio)
   vi.spyOn(document, 'hasFocus').mockImplementation(() => focused)
 })
 
 afterEach(() => {
+  vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
 })
 
 const teams = [ARGENTINA, FRANCE]
 const at = (match_clock_s: number, overrides: Partial<EngineStatus> = {}) => status({ period: 2, match_clock_s, ...overrides })
+const both = { system: true, sound: true }
 
-function notifying(alerts: Alert[], s: EngineStatus, on = true) {
-  return renderHook(({ alerts, s, on }) => useAlertNotifications(on, alerts, s, teams), { initialProps: { alerts, s, on } })
+function announcing(alerts: Alert[], s: EngineStatus, settings = both) {
+  return renderHook(({ alerts, s, settings }) => useAlertNotifications(settings, alerts, s, teams), { initialProps: { alerts, s, settings } })
 }
 
-it('notifies of an alert as it happens, once, with its team and moment', () => {
+it('pops up, dings and notifies the Mac of a new alert, once, with its team and moment', () => {
   const a = alert()
-  const { rerender } = notifying([a], at(4950))
+  const { result, rerender } = announcing([a], at(4950))
+  expect(result.current.toasts).toEqual([{ id: a.id, alert: a, title: 'Control · France', body: `82:27 · ${a.message}` }])
+  expect(FakeAudio.notes).toBe(2)
+  expect(FakeNotification.shown.map((n) => n.title)).toEqual(['Control · France'])
+  rerender({ alerts: [a], s: at(4960), settings: both })
+  expect(result.current.toasts).toHaveLength(1)
   expect(FakeNotification.shown).toHaveLength(1)
-  const [n] = FakeNotification.shown
-  expect(n.title).toBe('Control · France')
-  expect(n.options.body).toBe(`82:27 · ${a.message}`)
-  rerender({ alerts: [a], s: at(4960), on: true })
-  expect(FakeNotification.shown).toHaveLength(1)
-  n.onclick!()
-  expect(n.close).toHaveBeenCalled()
+  FakeNotification.shown[0].onclick!()
+  expect(FakeNotification.shown[0].close).toHaveBeenCalled()
 })
 
-it("doesn't notify of the history sent on a connect or seek, or while rebuilding", () => {
-  notifying([alert({ match_clock_s: 4000 }), alert({ id: 'other-half', period: 1, match_clock_s: 4940 })], at(4950))
-  notifying([alert({ id: 'b' })], at(4950, { state: 'rebuilding' }))
-  expect(FakeNotification.shown).toHaveLength(0)
+it('leaves the full-time part of a message to the feed', () => {
+  const a = alert({ message: "Argentina: 19% in the next 10'. By full time: 63% to score again" })
+  const { result } = announcing([a], at(4950))
+  expect(result.current.toasts[0].body).toBe("82:27 · Argentina: 19% in the next 10'")
 })
 
-it("doesn't notify while this window is focused, nor later for that alert", () => {
+it("doesn't announce the history sent on a connect or seek, or while rebuilding", () => {
+  const { result } = announcing([alert({ match_clock_s: 4000 }), alert({ id: 'other-half', period: 1, match_clock_s: 4940 })], at(4950))
+  const rebuilding = announcing([alert({ id: 'b' })], at(4950, { state: 'rebuilding' }))
+  expect(result.current.toasts).toEqual([])
+  expect(rebuilding.result.current.toasts).toEqual([])
+  expect(FakeAudio.notes + FakeNotification.shown.length).toBe(0)
+})
+
+it('only pops up while the window is focused, and is silent with the sound off', () => {
   focused = true
-  const { rerender } = notifying([alert()], at(4950))
-  focused = false
-  rerender({ alerts: [alert()], s: at(4955), on: true })
+  const { result } = announcing([alert()], at(4950), { system: true, sound: false })
+  expect(result.current.toasts).toHaveLength(1)
   expect(FakeNotification.shown).toHaveLength(0)
+  expect(FakeAudio.notes).toBe(0)
 })
 
-it("doesn't notify when off or without permission", () => {
-  notifying([alert()], at(4950), false)
-  FakeNotification.permission = 'denied'
-  expect(FakeNotification.shown).toHaveLength(0)
+it('keeps the latest few pop-ups, which close by themselves or when closed', async () => {
+  vi.useFakeTimers()
+  const alerts = Array.from({ length: MAX_TOASTS + 1 }, (_, i) => alert({ id: `a${i}`, match_clock_s: 4940 + i }))
+  const { result, rerender } = announcing(alerts, at(4950))
+  expect(result.current.toasts.map((t) => t.id)).toEqual(['a1', 'a2', 'a3'])
+  const { rerender: show } = render(<AlertToasts toasts={result.current.toasts} teams={teams} onDismiss={result.current.dismiss} />)
+  act(() => screen.getAllByRole('button', { name: 'Close' })[0].click())
+  rerender({ alerts, s: at(4951), settings: both })
+  expect(result.current.toasts.map((t) => t.id)).toEqual(['a2', 'a3'])
+  show(<AlertToasts toasts={result.current.toasts} teams={teams} onDismiss={result.current.dismiss} />)
+  expect(within(screen.getByRole('list', { name: 'New alerts' })).getAllByRole('listitem')).toHaveLength(2)
+  act(() => vi.advanceTimersByTime(TOAST_MS))
+  expect(result.current.toasts).toEqual([])
 })
 
-it('asks for permission when turned on, and remembers the choice', async () => {
+it('announces the latest alert, or a sample, on test, Mac notification included', () => {
+  focused = true
+  const { result } = announcing([], at(4950))
+  act(() => result.current.test())
+  expect(result.current.toasts[0].body).toMatch(/A test/)
+  expect(FakeNotification.shown).toHaveLength(1)
+  expect(FakeAudio.notes).toBe(2)
+})
+
+function Settings({ sound = true }: { sound?: boolean }) {
+  return <NotifySettings system={useNotifySetting()} sound={sound} onSound={() => {}} onTest={() => {}} />
+}
+
+it('asks for permission when Mac notifications are turned on, and remembers the choice', async () => {
   FakeNotification.permission = 'default'
   FakeNotification.requestPermission.mockImplementationOnce(async () => {
     FakeNotification.permission = 'granted'
     return 'granted'
   })
-  function Toggle() {
-    return <NotifyToggle setting={useNotifySetting()} />
-  }
-  const { unmount } = render(<Toggle />)
+  const { unmount } = render(<Settings />)
   const toggle = screen.getByRole('switch', { name: 'Notify me' })
   expect(toggle).not.toBeChecked()
+  expect(screen.getByRole('switch', { name: 'Sound' })).toBeChecked()
   await userEvent.click(toggle)
   expect(FakeNotification.requestPermission).toHaveBeenCalled()
   expect(toggle).toBeChecked()
   unmount()
-  render(<Toggle />)
+  render(<Settings />)
   expect(screen.getByRole('switch', { name: 'Notify me' })).toBeChecked()
-  await userEvent.click(screen.getByRole('switch', { name: 'Notify me' }))
-  expect(screen.getByRole('switch', { name: 'Notify me' })).not.toBeChecked()
 })
 
 it('says when the browser blocks notifications', () => {
-  FakeNotification.permission = 'denied'
-  act(() => {
-    render(<NotifyToggle setting={{ on: false, permission: 'denied', toggle: async () => {} }} />)
-  })
+  render(<NotifySettings system={{ on: false, permission: 'denied', toggle: async () => {} }} sound={false} onSound={() => {}} onTest={() => {}} />)
   expect(screen.getByRole('switch', { name: 'Notifications blocked' })).toBeDisabled()
+  expect(screen.getByRole('switch', { name: 'Sound' })).not.toBeChecked()
 })

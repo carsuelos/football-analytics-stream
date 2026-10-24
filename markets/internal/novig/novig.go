@@ -206,13 +206,14 @@ func quote(m market, ev venue.Event, live bool) (venue.Quote, bool) {
 	case "MONEYLINE_3_WAY_DRAW":
 		q.Kind, q.Outcome = schema.ContractKindResult, schema.OutcomeDraw
 	case "MONEYLINE_3_WAY_WIN":
-		// "Chelsea MONEYLINE_3_WAY_WIN": the team it's for.
+		// "Man Utd MONEYLINE_3_WAY_WIN": the team it's for, often shorter than
+		// the event's name for it ("Manchester United FC").
 		team := strings.TrimSpace(strings.TrimSuffix(m.Description, m.MarketType))
 		q.Kind = schema.ContractKindResult
 		switch {
-		case strings.HasPrefix(ev.Home.Name, team):
+		case strings.HasPrefix(ev.Home.Name, team) || teams.Same(team, ev.Home.Name):
 			q.Outcome = schema.OutcomeHome
-		case strings.HasPrefix(ev.Away.Name, team):
+		case strings.HasPrefix(ev.Away.Name, team) || teams.Same(team, ev.Away.Name):
 			q.Outcome = schema.OutcomeAway
 		default:
 			return q, false
