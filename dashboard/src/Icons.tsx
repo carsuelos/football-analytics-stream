@@ -141,3 +141,12 @@ export function ChevronIcon({ className = 'size-4' }: SvgProps) {
     </svg>
   )
 }
+
+/** Six dots: something that can be dragged. */
+export function GripIcon({ className = 'size-4' }: SvgProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="currentColor">
+      {[6, 12, 18].map((y) => [9, 15].map((x) => <circle key={`${x}-${y}`} cx={x} cy={y} r="1.6" />))}
+    </svg>
+  )
+}

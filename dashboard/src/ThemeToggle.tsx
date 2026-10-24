@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useStoredFlag } from './useStoredFlag'
+import { useStoredFlag } from './useStored'
 
 /** Where the choice is kept; index.html reads it too, to paint the right theme first. */
 export const THEME_KEY = 'theme.light'
