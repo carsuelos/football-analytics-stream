@@ -9,8 +9,9 @@ COPY . .
 RUN pnpm build
 
 FROM nginxinc/nginx-unprivileged:1.29-alpine
-# The official image fills ${ENGINE_URL} into the template at start-up.
-ENV ENGINE_URL=http://engine:8000
+# The official image fills ${ENGINE_URL} into the template at start-up, and
+# ${NGINX_LOCAL_RESOLVERS} with the nameservers in /etc/resolv.conf.
+ENV ENGINE_URL=http://engine:8000 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080

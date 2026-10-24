@@ -1,13 +1,21 @@
+# Look the engine up on each request (for at most 10s), not once at start-up:
+# when it is replaced it comes back at another address. The resolver is the
+# container's own (from /etc/resolv.conf: Docker's, or Azure's).
+resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
+
 server {
     listen 8080;
     root /usr/share/nginx/html;
 
     # The engine's API, including the /api/stream server-sent events.
     location /api/ {
-        proxy_pass ${ENGINE_URL};
+        # A variable makes nginx resolve the name through the resolver above.
+        set $engine ${ENGINE_URL};
+        proxy_pass $engine;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
-        proxy_set_header Host $host;
+        # The engine's own host name: Azure Container Apps routes by it.
+        proxy_set_header Host $proxy_host;
         # Pass each event on as it comes, and keep a quiet stream open.
         proxy_buffering off;
         proxy_cache off;
