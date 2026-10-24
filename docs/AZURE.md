@@ -37,6 +37,7 @@ It's the Compose stack, service for service:
 | `simulator`, `engine`, `notifier` | Container Apps | Same images, one replica each. The engine's state is in memory, so it never scales out. |
 | `dashboard` | Container App | Same nginx image. It's the only app reachable from the internet, and it asks for the password. |
 | `webhook` | Container App | Prints the alerts in its logs. It's used only when `ALERT_WEBHOOKS` isn't set (see below). |
+| `markets` | Container App | Reads the venues' public APIs; internal ingress, reached through the dashboard's `/api/markets`. |
 | `aspire` | Application Insights | Where traces go. |
 | `./data` mounted | Azure Files share `data`, mounted at `/data` | Read-only. |
 

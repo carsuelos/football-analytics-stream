@@ -1,0 +1,166 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MarketBoard",
+  "description": "A league's games on the prediction markets (Kalshi, Polymarket US, Novig): each game matched across the venues that list it, its live state when a venue reports one, and every venue's price for the same contracts, with the cheapest all-in. Served by the markets service.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "league": { "$ref": "#/definitions/League" },
+    "updated_at": {
+      "description": "When the board was last rebuilt.",
+      "type": "string",
+      "format": "date-time"
+    },
+    "venues": {
+      "description": "How each venue's last poll went.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/VenueStatus" }
+    },
+    "games": {
+      "description": "Live games first, then by kick-off.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/MarketGame" }
+    }
+  },
+  "required": ["schema_version", "league", "updated_at", "venues", "games"],
+  "additionalProperties": false,
+  "definitions": {
+    "League": {
+      "title": "League",
+      "type": "string",
+      "enum": ["epl", "laliga"]
+    },
+    "Venue": {
+      "title": "Venue",
+      "type": "string",
+      "enum": ["kalshi", "polymarket", "novig"]
+    },
+    "VenueStatus": {
+      "title": "VenueStatus",
+      "type": "object",
+      "properties": {
+        "venue": { "$ref": "#/definitions/Venue" },
+        "ok": { "description": "Whether its last poll succeeded.", "type": "boolean" },
+        "error": { "description": "Why it failed, if it did.", "type": "string" },
+        "updated_at": {
+          "description": "When its prices were last read.",
+          "type": "string",
+          "format": "date-time"
+        },
+        "games": { "description": "How many of the league's games it lists.", "type": "integer", "minimum": 0 }
+      },
+      "required": ["venue", "ok", "games"],
+      "additionalProperties": false
+    },
+    "MarketTeam": {
+      "title": "MarketTeam",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "abbreviation": { "description": "e.g. CFC", "type": "string" },
+        "color": { "description": "The team's colour, as #rrggbb, if a venue gives one.", "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" }
+      },
+      "required": ["name"],
+      "additionalProperties": false
+    },
+    "GameState": {
+      "title": "GameState",
+      "description": "From the venues: live once any says so, ended once any says so.",
+      "type": "string",
+      "enum": ["scheduled", "live", "ended"]
+    },
+    "MarketScore": {
+      "title": "MarketScore",
+      "type": "object",
+      "properties": {
+        "home": { "type": "integer", "minimum": 0 },
+        "away": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["home", "away"],
+      "additionalProperties": false
+    },
+    "Listing": {
+      "title": "Listing",
+      "description": "A venue's event for the game.",
+      "type": "object",
+      "properties": {
+        "venue": { "$ref": "#/definitions/Venue" },
+        "event_id": { "type": "string", "minLength": 1 },
+        "url": { "description": "The event's page on the venue.", "type": "string" }
+      },
+      "required": ["venue", "event_id"],
+      "additionalProperties": false
+    },
+    "ContractKind": {
+      "title": "ContractKind",
+      "description": "total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation.",
+      "type": "string",
+      "enum": ["total", "result"]
+    },
+    "Outcome": {
+      "title": "Outcome",
+      "description": "What a Yes pays on: over the line (total), or a home win, a draw or an away win (result).",
+      "type": "string",
+      "enum": ["over", "home", "draw", "away"]
+    },
+    "Quote": {
+      "title": "Quote",
+      "description": "One venue's price to buy Yes, per contract that pays $1. Prices are dollars from 0 to 1.",
+      "type": "object",
+      "properties": {
+        "venue": { "$ref": "#/definitions/Venue" },
+        "market_id": { "description": "The venue's market (Kalshi ticker, Polymarket slug, Novig market id).", "type": "string", "minLength": 1 },
+        "bid": { "description": "Best price someone will pay for Yes.", "type": "number", "minimum": 0, "maximum": 1 },
+        "ask": { "description": "Best price to buy Yes now.", "type": "number", "minimum": 0, "maximum": 1 },
+        "ask_size": { "description": "Contracts available at the ask.", "type": "number", "minimum": 0 },
+        "fee": { "description": "The taker fee per contract at the ask, by the venue's schedule (0 when it charges none, e.g. Novig before kick-off).", "type": "number", "minimum": 0 },
+        "all_in": { "description": "ask + fee: what one contract costs.", "type": "number", "minimum": 0 },
+        "url": { "type": "string" }
+      },
+      "required": ["venue", "market_id"],
+      "additionalProperties": false
+    },
+    "Contract": {
+      "title": "Contract",
+      "description": "One contract, priced on every venue that lists it.",
+      "type": "object",
+      "properties": {
+        "key": { "description": "Stable within the game, e.g. total-over-2.5 or result-draw.", "type": "string", "minLength": 1 },
+        "kind": { "$ref": "#/definitions/ContractKind" },
+        "outcome": { "$ref": "#/definitions/Outcome" },
+        "line": { "description": "For total: the goals line, e.g. 2.5.", "type": "number", "minimum": 0 },
+        "label": { "description": "e.g. Over 2.5, Chelsea, Draw.", "type": "string", "minLength": 1 },
+        "quotes": { "type": "array", "items": { "$ref": "#/definitions/Quote" } },
+        "best": {
+          "description": "The venue with the lowest all-in price that has contracts at its ask, if any.",
+          "$ref": "#/definitions/Venue"
+        },
+        "implied": { "description": "The best all-in price as a probability: what the market says, after fees.", "type": "number", "minimum": 0, "maximum": 1 }
+      },
+      "required": ["key", "kind", "outcome", "label", "quotes"],
+      "additionalProperties": false
+    },
+    "MarketGame": {
+      "title": "MarketGame",
+      "type": "object",
+      "properties": {
+        "id": { "description": "Stable across polls, e.g. epl-2026-10-24-chelsea-tottenham.", "type": "string", "minLength": 1 },
+        "league": { "$ref": "#/definitions/League" },
+        "home": { "$ref": "#/definitions/MarketTeam" },
+        "away": { "$ref": "#/definitions/MarketTeam" },
+        "kickoff": { "type": "string", "format": "date-time" },
+        "kickoff_estimated": {
+          "description": "Whether kickoff is estimated: Kalshi gives no kick-off time, so a game only Kalshi lists has one worked out from its markets' close.",
+          "type": "boolean"
+        },
+        "state": { "$ref": "#/definitions/GameState" },
+        "score": { "$ref": "#/definitions/MarketScore" },
+        "clock": { "description": "The venue's match clock, e.g. 63' or HT.", "type": "string" },
+        "listings": { "type": "array", "items": { "$ref": "#/definitions/Listing" } },
+        "contracts": { "type": "array", "items": { "$ref": "#/definitions/Contract" } }
+      },
+      "required": ["id", "league", "home", "away", "kickoff", "state", "listings", "contracts"],
+      "additionalProperties": false
+    }
+  }
+}

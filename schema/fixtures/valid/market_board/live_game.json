@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "league": "epl",
+  "updated_at": "2026-10-24T17:50:40Z",
+  "venues": [
+    { "venue": "kalshi", "ok": true, "updated_at": "2026-10-24T17:50:39Z", "games": 21 },
+    { "venue": "polymarket", "ok": true, "updated_at": "2026-10-24T17:50:38Z", "games": 15 },
+    { "venue": "novig", "ok": false, "error": "429 too many requests", "games": 0 }
+  ],
+  "games": [
+    {
+      "id": "epl-2026-10-24-chelsea-tottenham",
+      "league": "epl",
+      "home": { "name": "Chelsea", "abbreviation": "CFC", "color": "#034694" },
+      "away": { "name": "Tottenham", "abbreviation": "TOT" },
+      "kickoff": "2026-10-24T16:30:00Z",
+      "state": "live",
+      "score": { "home": 0, "away": 0 },
+      "clock": "63'",
+      "listings": [
+        { "venue": "kalshi", "event_id": "KXEPLTOTAL-26OCT24CFCTOT" },
+        { "venue": "polymarket", "event_id": "164610", "url": "https://polymarket.us/event/epl-cfc-tot-2026-10-24" }
+      ],
+      "contracts": [
+        {
+          "key": "total-over-0.5",
+          "kind": "total",
+          "outcome": "over",
+          "line": 0.5,
+          "label": "Over 0.5",
+          "quotes": [
+            { "venue": "kalshi", "market_id": "KXEPLTOTAL-26OCT24CFCTOT-1", "bid": 0.75, "ask": 0.8, "ask_size": 1200, "fee": 0.0112, "all_in": 0.8112 },
+            { "venue": "novig", "market_id": "01a1553c-2d18-7d82-8ebf-b1274b516f6b", "bid": 0.77, "ask": 0.79, "ask_size": 300, "fee": 0.00995, "all_in": 0.79995 }
+          ],
+          "best": "novig",
+          "implied": 0.79995
+        },
+        {
+          "key": "result-draw",
+          "kind": "result",
+          "outcome": "draw",
+          "label": "Draw",
+          "quotes": [{ "venue": "polymarket", "market_id": "atc-epl-cfc-tot-2026-10-24-draw", "bid": 0.45, "ask": 0.46 }]
+        }
+      ]
+    }
+  ]
+}

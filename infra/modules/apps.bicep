@@ -4,6 +4,7 @@
 //   browser ─HTTPS, password─▶ dashboard ─/api─▶ engine ─▶ simulator
 //   simulator ─events─▶ Event Hubs ─events─▶ engine ─alerts, metrics─▶ Event Hubs
 //   Event Hubs ─alerts─▶ notifier ─▶ webhook (or ALERT_WEBHOOKS)
+//   dashboard ─/api/markets─▶ markets ─▶ Kalshi, Polymarket US, Novig
 param location string
 param suffix string
 param tags object
@@ -112,6 +113,23 @@ module engine 'app.bicep' = {
   }
 }
 
+module markets 'app.bicep' = {
+  name: 'app-markets'
+  params: {
+    location: location
+    tags: tags
+    environmentId: environment.id
+    identityId: identity.id
+    registryServer: registryServer
+    name: 'markets'
+    image: format(image, 'markets')
+    env: json
+    ingress: 'internal'
+    targetPort: 8090
+    readyPath: '/healthz'
+  }
+}
+
 module dashboard 'app.bicep' = {
   name: 'app-dashboard'
   params: {
@@ -127,6 +145,7 @@ module dashboard 'app.bicep' = {
       // The full name: nginx's resolver doesn't use the search domains that
       // make plain "engine" work for the other apps.
       { name: 'ENGINE_URL', value: 'http://${engine.outputs.fqdn}' }
+      { name: 'MARKETS_URL', value: 'http://${markets.outputs.fqdn}' }
       { name: 'DASHBOARD_PASSWORD', secretRef: 'password' }
     ]
     ingress: 'external'

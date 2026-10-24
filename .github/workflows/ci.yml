@@ -47,6 +47,23 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  markets:
+    name: Markets (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: markets
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: markets/go.mod
+          cache-dependency-path: markets/go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test -race ./...
+
   engine:
     name: Engine (Python)
     runs-on: ubuntu-latest

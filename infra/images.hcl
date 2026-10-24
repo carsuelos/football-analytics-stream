@@ -4,12 +4,12 @@ variable "REGISTRY" { default = "localhost" }
 variable "TAG" { default = "dev" }
 
 group "default" {
-  targets = ["simulator", "engine", "dashboard", "notifier", "webhook"]
+  targets = ["simulator", "engine", "dashboard", "notifier", "markets", "webhook"]
 }
 
 target "app" {
   name       = app
-  matrix     = { app = ["simulator", "engine", "dashboard", "notifier"] }
+  matrix     = { app = ["simulator", "engine", "dashboard", "notifier", "markets"] }
   context    = app
   tags       = ["${REGISTRY}/${app}:${TAG}"]
   platforms  = ["linux/amd64"]

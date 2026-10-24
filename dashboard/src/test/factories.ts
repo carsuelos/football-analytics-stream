@@ -1,6 +1,7 @@
 import type { Alert } from '../schema/alert.schema'
 import type { EngineStatus } from '../schema/engine_status.schema'
 import type { Incident } from '../schema/incident.schema'
+import type { MarketBoard } from '../schema/market_board.schema'
 import type { MatchReset } from '../schema/match_reset.schema'
 import type { MetricSnapshot, TeamMetrics } from '../schema/metric.schema'
 import type { MatchInfo } from '../schema/match_list.schema'
@@ -113,3 +114,76 @@ export function deferred<T>() {
   })
   return { promise, resolve, reject }
 }
+
+/** A market board: Chelsea v Tottenham live at 1-0 on all three venues, and a game tomorrow on Kalshi only. */
+export const marketBoard = (overrides: Partial<MarketBoard> = {}): MarketBoard => ({
+  schema_version: 1,
+  league: 'epl',
+  updated_at: '2026-10-24T17:50:40Z',
+  venues: [
+    { venue: 'kalshi', ok: true, updated_at: '2026-10-24T17:50:38Z', games: 2 },
+    { venue: 'polymarket', ok: true, updated_at: '2026-10-24T17:50:38Z', games: 1 },
+    { venue: 'novig', ok: false, error: '429 Too Many Requests', updated_at: '2026-10-24T17:48:00Z', games: 1 },
+  ],
+  games: [
+    {
+      id: 'epl-2026-10-24-chelsea-tottenham',
+      league: 'epl',
+      home: { name: 'Chelsea', abbreviation: 'CFC', color: '#034694' },
+      away: { name: 'Tottenham', abbreviation: 'TOT', color: '#001C58' },
+      kickoff: '2026-10-24T16:30:00Z',
+      state: 'live',
+      score: { home: 1, away: 0 },
+      clock: "63'",
+      listings: [
+        { venue: 'polymarket', event_id: '164610', url: 'https://polymarket.us/event/epl-cfc-tot-2026-10-24' },
+        { venue: 'novig', event_id: 'nv-1' },
+        { venue: 'kalshi', event_id: '26OCT24CFCTOT' },
+      ],
+      contracts: [
+        {
+          key: 'total-over-0.5',
+          kind: 'total',
+          outcome: 'over',
+          line: 0.5,
+          label: 'Over 0.5',
+          quotes: [{ venue: 'kalshi', market_id: 'K-1', bid: 0.99 }],
+        },
+        {
+          key: 'total-over-1.5',
+          kind: 'total',
+          outcome: 'over',
+          line: 1.5,
+          label: 'Over 1.5',
+          quotes: [
+            { venue: 'kalshi', market_id: 'K-2', bid: 0.47, ask: 0.48, fee: 0.01747, all_in: 0.49747 },
+            { venue: 'novig', market_id: 'N-2', bid: 0.47, ask: 0.49, fee: 0.0, all_in: 0.49 },
+          ],
+          best: 'novig',
+          implied: 0.49,
+        },
+        {
+          key: 'result-draw',
+          kind: 'result',
+          outcome: 'draw',
+          label: 'Draw',
+          quotes: [{ venue: 'polymarket', market_id: 'P-draw', bid: 0.22, ask: 0.23, fee: 0.0123, all_in: 0.2423 }],
+          best: 'polymarket',
+          implied: 0.2423,
+        },
+      ],
+    },
+    {
+      id: 'epl-2026-10-25-crystal-palace-newcastle',
+      league: 'epl',
+      home: { name: 'Crystal Palace' },
+      away: { name: 'Newcastle' },
+      kickoff: '2026-10-25T14:00:00Z',
+      kickoff_estimated: true,
+      state: 'scheduled',
+      listings: [{ venue: 'kalshi', event_id: '26OCT25CRYNEW' }],
+      contracts: [],
+    },
+  ],
+  ...overrides,
+})

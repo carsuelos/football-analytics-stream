@@ -291,6 +291,12 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 - [ ] Evaluate paid live feeds for how detailed their coordinates are.
 - [ ] Implement `LiveProviderSource` behind the same schema, published to the `events` topic; the engine runs with `--no-simulator`.
 
+### Phase 6: Prediction markets
+- [x] **Markets view** (no live event feed needed): the `markets` service reads Kalshi, Polymarket US and Novig's public market data for the Premier League and La Liga, matches each game across them, and prices the same contracts (total goals over 0.5–6.5 and the result, after 90' plus stoppage) with each venue's taker fee, marking the cheapest all-in. The dashboard's Markets page shows the games (live first, with the score and clock from Polymarket), every venue's price, the best all-in price over time, and where our model's probability and paper trading will go.
+- [ ] **Full-time goal model:** the chance of at least one more goal before full time, for pricing total-goals contracts.
+- [ ] **Paper trading** (needs a live event feed): on an alert, buy the cheapest all-in contract when our probability beats it by a margin; fill against the real book, settle at full time, track P&L.
+- [ ] **Practice orders** on Kalshi's demo and Novig's Paper exchange, then small real trades, run locally, with each venue's key pasted per game and never stored.
+
 ## Open questions
 - Azure region.
 - The detector windows (5 minutes in v1) and the alert thresholds; tune in Phase 3.

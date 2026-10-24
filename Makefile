@@ -3,8 +3,8 @@ SHELL := /bin/bash
 SCHEMA_DIR := schema/jsonschema
 SCHEMAS := $(sort $(wildcard $(SCHEMA_DIR)/*.schema.json))
 
-GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go
-GO_MODULES := simulator notifier
+GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go markets/internal/schema/schema_gen.go
+GO_MODULES := simulator notifier markets
 # CI passes --no-build to smoke-compose: it builds the images beforehand.
 COMPOSE_BUILD ?= --build
 PY_GEN := engine/src/engine/schema
@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model rules webhook markets up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -32,6 +32,10 @@ gen-go:
 	cd notifier && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
 		--capitalization ID --capitalization XG \
 		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/alert.schema.json ../$(SCHEMA_DIR)/common.schema.json
+	cd markets && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
+		--capitalization ID \
+		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/market_board.schema.json \
+		../$(SCHEMA_DIR)/price_history.schema.json ../$(SCHEMA_DIR)/common.schema.json
 
 gen-py:
 	rm -rf $(PY_GEN)
@@ -118,6 +122,9 @@ rules: export ## Retune the rules (momentum, goal threat, control shift) on the 
 
 dashboard: ## Run the dashboard dev server on :5173, proxying /api to the engine (ENGINE_URL, default http://localhost:8000)
 	cd dashboard && pnpm dev $(ARGS)
+
+markets: ## Run the markets service on :8090: the prediction markets' prices for the dashboard's Markets page (make dashboard proxies /api/markets to it)
+	cd markets && go run ./cmd/markets $(ARGS)
 
 webhook: ## Run a webhook receiver on :9000 that prints the alerts it gets (for ARGS="--webhook http://localhost:9000")
 	uv run scripts/webhook_echo.py $(ARGS)

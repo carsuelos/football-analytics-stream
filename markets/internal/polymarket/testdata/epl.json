@@ -1,0 +1,216 @@
+{
+ "events": [
+  {
+   "id": "164610",
+   "slug": "epl-cfc-tot-2026-10-24",
+   "title": "Chelsea FC vs. Tottenham Hotspur FC",
+   "startTime": "2026-10-24T16:30:00Z",
+   "live": true,
+   "ended": false,
+   "score": "0-0",
+   "period": "65'",
+   "teams": [
+    {
+     "id": 2688,
+     "name": "Chelsea FC",
+     "abbreviation": "cfc",
+     "safeName": "Chelsea",
+     "colorPrimary": "#034694"
+    },
+    {
+     "id": 2701,
+     "name": "Tottenham Hotspur FC",
+     "abbreviation": "tot",
+     "safeName": "Tottenham Hotspur",
+     "colorPrimary": "#001C58"
+    }
+   ],
+   "markets": [
+    {
+     "slug": "atc-epl-cfc-tot-2026-10-24-cfc",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will Chelsea FC win against Tottenham Hotspur FC in the Premier League match scheduled for Oct 24, 2026?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.3000",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.3100",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": 2688
+      },
+      {
+       "long": false,
+       "teamId": 2688
+      }
+     ]
+    },
+    {
+     "slug": "atc-epl-cfc-tot-2026-10-24-draw",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will the Premier League match Chelsea FC vs Tottenham Hotspur FC scheduled for Oct 24, 2026 end in a draw?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.4700",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.4800",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": null
+      },
+      {
+       "long": false,
+       "teamId": null
+      }
+     ]
+    },
+    {
+     "slug": "atc-epl-cfc-tot-2026-10-24-tot",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will Tottenham Hotspur FC win against Chelsea FC in the Premier League match scheduled for Oct 24, 2026?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.2200",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.2300",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": 2701
+      },
+      {
+       "long": false,
+       "teamId": 2701
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "166401",
+   "slug": "epl-cry-new-2026-10-25",
+   "title": "Crystal Palace FC vs. Newcastle United FC",
+   "startTime": "2026-10-25T14:00:00Z",
+   "live": null,
+   "ended": null,
+   "score": null,
+   "period": "NS",
+   "teams": [
+    {
+     "id": 2689,
+     "name": "Crystal Palace FC",
+     "abbreviation": "cry",
+     "safeName": "Crystal Palace",
+     "colorPrimary": "#1B458F"
+    },
+    {
+     "id": 2695,
+     "name": "Newcastle United FC",
+     "abbreviation": "new",
+     "safeName": "Newcastle United",
+     "colorPrimary": "#274488"
+    }
+   ],
+   "markets": [
+    {
+     "slug": "atc-epl-cry-new-2026-10-25-cry",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will Crystal Palace FC win against Newcastle United FC in the Premier League match scheduled for Oct 25, 2026?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.3300",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.3400",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": 2689
+      },
+      {
+       "long": false,
+       "teamId": 2689
+      }
+     ]
+    },
+    {
+     "slug": "atc-epl-cry-new-2026-10-25-draw",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will the Premier League match Crystal Palace FC vs Newcastle United FC scheduled for Oct 25, 2026 end in a draw?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.2600",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.2700",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": null
+      },
+      {
+       "long": false,
+       "teamId": null
+      }
+     ]
+    },
+    {
+     "slug": "atc-epl-cry-new-2026-10-25-new",
+     "sportsMarketType": "soccer_team_full_time_winner",
+     "question": "Will Newcastle United FC win against Crystal Palace FC in the Premier League match scheduled for Oct 25, 2026?",
+     "feeCoefficient": 0.0695,
+     "active": true,
+     "closed": false,
+     "bestBidQuote": {
+      "value": "0.4000",
+      "currency": "USD"
+     },
+     "bestAskQuote": {
+      "value": "0.4100",
+      "currency": "USD"
+     },
+     "marketSides": [
+      {
+       "long": true,
+       "teamId": 2695
+      },
+      {
+       "long": false,
+       "teamId": 2695
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

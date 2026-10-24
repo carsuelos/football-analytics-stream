@@ -1,0 +1,29 @@
+{
+ "items": [
+  {
+   "eventId": "01a1553c-2ddf-7cb3-8b3a-97a5cbb0036a",
+   "description": "Newcastle United FC @ Crystal Palace FC",
+   "sport": "SOCCER",
+   "league": "EPL",
+   "status": "OPEN_PREGAME",
+   "startsTs": 1792936800000
+  },
+  {
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "description": "Tottenham Hotspur FC @ Chelsea FC",
+   "sport": "SOCCER",
+   "league": "EPL",
+   "status": "OPEN_INGAME",
+   "startsTs": 1792859400000
+  },
+  {
+   "eventId": "01a1553c-2c63-7dc3-b1aa-7d2328f97280",
+   "description": "Fulham FC @ Coventry City FC",
+   "sport": "SOCCER",
+   "league": "EPL",
+   "status": "FINAL",
+   "startsTs": 1792850400000
+  }
+ ],
+ "next": null
+}

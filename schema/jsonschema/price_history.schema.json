@@ -1,0 +1,38 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PriceHistory",
+  "description": "How a game's contracts have been priced since the markets service started watching it: the best all-in price at each poll. Kept in memory, so it starts over when the service restarts.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "game_id": { "type": "string", "minLength": 1 },
+    "series": {
+      "type": "array",
+      "items": {
+        "title": "PriceSeries",
+        "type": "object",
+        "properties": {
+          "key": { "description": "The contract's key on the board, e.g. total-over-2.5.", "type": "string", "minLength": 1 },
+          "points": {
+            "type": "array",
+            "items": {
+              "title": "PricePoint",
+              "type": "object",
+              "properties": {
+                "t": { "type": "string", "format": "date-time" },
+                "all_in": { "description": "The best all-in price then.", "type": "number", "minimum": 0 },
+                "venue": { "$ref": "market_board.schema.json#/definitions/Venue" }
+              },
+              "required": ["t", "all_in", "venue"],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": ["key", "points"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "game_id", "series"],
+  "additionalProperties": false
+}

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "league": "epl",
+  "updated_at": "2026-10-24T17:50:40Z",
+  "venues": [],
+  "games": [
+    {
+      "id": "epl-2026-10-24-chelsea-tottenham",
+      "league": "epl",
+      "home": { "name": "Chelsea" },
+      "away": { "name": "Tottenham" },
+      "kickoff": "2026-10-24T16:30:00Z",
+      "state": "scheduled",
+      "listings": [],
+      "contracts": [
+        {
+          "key": "result-home",
+          "kind": "result",
+          "outcome": "home",
+          "label": "Chelsea",
+          "quotes": [{ "venue": "kalshi", "market_id": "KXEPLGAME-26OCT24CFCTOT-CFC", "ask": 31 }]
+        }
+      ]
+    }
+  ]
+}
