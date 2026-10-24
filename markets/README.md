@@ -9,7 +9,7 @@ curl 'localhost:8090/api/markets/board?league=epl'
 
 It reads only the venues' public market data, so it needs no keys.
 
-**Recording.** With `-record <dir>` (or `MARKETS_RECORD_DIR`; `make up` sets it to `data/markets`) it also writes every league's prices to a **market tape**, `<dir>/<UTC date>/<league>.jsonl` (`schema/jsonschema/market_tape.schema.json`), and polls a league every 10 s while one of its games is live or kicks off within 15 minutes, whether or not anyone is looking. Each game starts with a keyframe (its whole state, and again every 10 minutes); the lines between have only the quotes that changed or went, with the state, score and clock. A league's day is a few MB. `make tape` summarizes the tapes, and `engine.market_tape` replays them for testing trading strategies against the prices the venues really offered. The cloud deployment doesn't record.
+**Recording.** With `-record <dir>` (or `MARKETS_RECORD_DIR`; `make up` sets it to `data/markets`) it also writes every league's prices to a **market tape**, `<dir>/<UTC date>/<league>.jsonl` (`schema/jsonschema/market_tape.schema.json`), and polls a league every 10 s while one of its games is live or kicks off within 15 minutes, whether or not anyone is looking. Each game starts with a keyframe (its whole state, and again every 10 minutes while it's live or about to start, hourly otherwise); the lines between have only the quotes that changed or went, with the state, score and clock. A league's day is a few MB. `make tape` summarizes the tapes, and `engine.market_tape` replays them for testing trading strategies against the prices the venues really offered. The cloud deployment doesn't record.
 
 ## How it works
 

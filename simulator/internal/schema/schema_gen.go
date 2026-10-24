@@ -984,6 +984,248 @@ func (j *League) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// Request body to download a competition season's matches into the simulator's
+// data (POST /library through the engine's POST /api/library). One download at a
+// time; matches already on disk are skipped.
+type LibraryCommand struct {
+	// CompetitionID corresponds to the JSON schema field "competition_id".
+	CompetitionID int `json:"competition_id"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// SeasonID corresponds to the JSON schema field "season_id".
+	SeasonID int `json:"season_id"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LibraryCommand) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["competition_id"]; raw != nil && !ok {
+		return fmt.Errorf("field competition_id in LibraryCommand: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in LibraryCommand: required")
+	}
+	if _, ok := raw["season_id"]; raw != nil && !ok {
+		return fmt.Errorf("field season_id in LibraryCommand: required")
+	}
+	type Plain LibraryCommand
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = LibraryCommand(plain)
+	return nil
+}
+
+type LibraryDownload struct {
+	// Competition corresponds to the JSON schema field "competition".
+	Competition string `json:"competition"`
+
+	// CompetitionID corresponds to the JSON schema field "competition_id".
+	CompetitionID int `json:"competition_id"`
+
+	// Matches downloaded (or already on disk).
+	Done int `json:"done"`
+
+	// Error corresponds to the JSON schema field "error".
+	Error *string `json:"error,omitempty,omitzero"`
+
+	// Season corresponds to the JSON schema field "season".
+	Season string `json:"season"`
+
+	// SeasonID corresponds to the JSON schema field "season_id".
+	SeasonID int `json:"season_id"`
+
+	// State corresponds to the JSON schema field "state".
+	State LibraryDownloadState `json:"state"`
+
+	// Total corresponds to the JSON schema field "total".
+	Total int `json:"total"`
+}
+
+type LibraryDownloadState string
+
+const LibraryDownloadStateDone LibraryDownloadState = "done"
+const LibraryDownloadStateDownloading LibraryDownloadState = "downloading"
+const LibraryDownloadStateFailed LibraryDownloadState = "failed"
+
+var enumValues_LibraryDownloadState = []interface{}{
+	"downloading",
+	"done",
+	"failed",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LibraryDownloadState) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_LibraryDownloadState {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_LibraryDownloadState, v)
+	}
+	*j = LibraryDownloadState(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LibraryDownload) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["competition"]; raw != nil && !ok {
+		return fmt.Errorf("field competition in LibraryDownload: required")
+	}
+	if _, ok := raw["competition_id"]; raw != nil && !ok {
+		return fmt.Errorf("field competition_id in LibraryDownload: required")
+	}
+	if _, ok := raw["done"]; raw != nil && !ok {
+		return fmt.Errorf("field done in LibraryDownload: required")
+	}
+	if _, ok := raw["season"]; raw != nil && !ok {
+		return fmt.Errorf("field season in LibraryDownload: required")
+	}
+	if _, ok := raw["season_id"]; raw != nil && !ok {
+		return fmt.Errorf("field season_id in LibraryDownload: required")
+	}
+	if _, ok := raw["state"]; raw != nil && !ok {
+		return fmt.Errorf("field state in LibraryDownload: required")
+	}
+	if _, ok := raw["total"]; raw != nil && !ok {
+		return fmt.Errorf("field total in LibraryDownload: required")
+	}
+	type Plain LibraryDownload
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Done {
+		return fmt.Errorf("field %s: must be >= %v", "done", 0)
+	}
+	if 0 > plain.Total {
+		return fmt.Errorf("field %s: must be >= %v", "total", 0)
+	}
+	*j = LibraryDownload(plain)
+	return nil
+}
+
+type LibrarySeason struct {
+	// e.g. UEFA Women's Euro.
+	Competition string `json:"competition"`
+
+	// CompetitionID corresponds to the JSON schema field "competition_id".
+	CompetitionID int `json:"competition_id"`
+
+	// Country corresponds to the JSON schema field "country".
+	Country *string `json:"country,omitempty,omitzero"`
+
+	// Matches of this season on disk.
+	Downloaded int `json:"downloaded"`
+
+	// Gender corresponds to the JSON schema field "gender".
+	Gender LibrarySeasonGender `json:"gender"`
+
+	// Matches StatsBomb has for it, once its list has been downloaded.
+	Matches *int `json:"matches,omitempty,omitzero"`
+
+	// e.g. 2025 or 2015/2016.
+	Season string `json:"season"`
+
+	// SeasonID corresponds to the JSON schema field "season_id".
+	SeasonID int `json:"season_id"`
+
+	// Youth corresponds to the JSON schema field "youth".
+	Youth *bool `json:"youth,omitempty,omitzero"`
+}
+
+type LibrarySeasonGender string
+
+const LibrarySeasonGenderFemale LibrarySeasonGender = "female"
+const LibrarySeasonGenderMale LibrarySeasonGender = "male"
+
+var enumValues_LibrarySeasonGender = []interface{}{
+	"male",
+	"female",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LibrarySeasonGender) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_LibrarySeasonGender {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_LibrarySeasonGender, v)
+	}
+	*j = LibrarySeasonGender(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *LibrarySeason) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["competition"]; raw != nil && !ok {
+		return fmt.Errorf("field competition in LibrarySeason: required")
+	}
+	if _, ok := raw["competition_id"]; raw != nil && !ok {
+		return fmt.Errorf("field competition_id in LibrarySeason: required")
+	}
+	if _, ok := raw["downloaded"]; raw != nil && !ok {
+		return fmt.Errorf("field downloaded in LibrarySeason: required")
+	}
+	if _, ok := raw["gender"]; raw != nil && !ok {
+		return fmt.Errorf("field gender in LibrarySeason: required")
+	}
+	if _, ok := raw["season"]; raw != nil && !ok {
+		return fmt.Errorf("field season in LibrarySeason: required")
+	}
+	if _, ok := raw["season_id"]; raw != nil && !ok {
+		return fmt.Errorf("field season_id in LibrarySeason: required")
+	}
+	type Plain LibrarySeason
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Competition)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "competition", 1)
+	}
+	if 0 > plain.Downloaded {
+		return fmt.Errorf("field %s: must be >= %v", "downloaded", 0)
+	}
+	if plain.Matches != nil && 0 > *plain.Matches {
+		return fmt.Errorf("field %s: must be >= %v", "matches", 0)
+	}
+	if utf8.RuneCountInString(string(plain.Season)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "season", 1)
+	}
+	*j = LibrarySeason(plain)
+	return nil
+}
+
 // A venue's event for the game.
 type Listing struct {
 	// EventID corresponds to the JSON schema field "event_id".
@@ -1803,6 +2045,46 @@ func (j *MatchInfo) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be >= %v", "home_score", 0)
 	}
 	*j = MatchInfo(plain)
+	return nil
+}
+
+// The matches the simulator can download: every competition season in StatsBomb's
+// open data, how many of its matches are already on disk, and the download in
+// progress, if any. Served by the simulator (GET /library) through the engine (GET
+// /api/library).
+type MatchLibrary struct {
+	// Download corresponds to the JSON schema field "download".
+	Download *LibraryDownload `json:"download,omitempty,omitzero"`
+
+	// Why the list of seasons couldn't be refreshed from StatsBomb (the last one
+	// known is shown).
+	Error *string `json:"error,omitempty,omitzero"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Newest first.
+	Seasons []LibrarySeason `json:"seasons"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MatchLibrary) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in MatchLibrary: required")
+	}
+	if _, ok := raw["seasons"]; raw != nil && !ok {
+		return fmt.Errorf("field seasons in MatchLibrary: required")
+	}
+	type Plain MatchLibrary
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = MatchLibrary(plain)
 	return nil
 }
 

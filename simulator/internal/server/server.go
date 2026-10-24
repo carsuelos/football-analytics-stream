@@ -23,6 +23,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/library"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
@@ -39,6 +40,8 @@ type Server struct {
 	catalog     match.Catalog
 	log         *slog.Logger
 	feeds       sync.WaitGroup // open /feed connections
+	// Library, if set, serves GET and POST /library: downloading more matches.
+	Library *library.Library
 }
 
 func New(broadcaster *broadcast.Broadcaster, catalog match.Catalog, log *slog.Logger) *Server {
@@ -74,6 +77,8 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("GET /status", s.status)
 	mux.HandleFunc("POST /control", s.control)
 	mux.HandleFunc("GET /feed", s.feed)
+	mux.HandleFunc("GET /library", s.library)
+	mux.HandleFunc("POST /library", s.download)
 	return mux
 }
 
@@ -175,6 +180,39 @@ func write(ctx context.Context, conn *websocket.Conn, msg schema.FeedMessage) er
 // fail maps an error to an HTTP status. Unexpected errors are logged, and the
 // client gets a generic message so internal details (such as file paths) stay
 // private.
+func (s *Server) library(w http.ResponseWriter, r *http.Request) {
+	if s.Library == nil {
+		writeError(w, http.StatusNotFound, "this simulator can't download matches")
+		return
+	}
+	writeJSON(w, http.StatusOK, s.Library.Get(r.Context()))
+}
+
+func (s *Server) download(w http.ResponseWriter, r *http.Request) {
+	if s.Library == nil {
+		writeError(w, http.StatusNotFound, "this simulator can't download matches")
+		return
+	}
+	var cmd schema.LibraryCommand
+	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxCommandBytes)).Decode(&cmd); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid command: "+err.Error())
+		return
+	}
+	switch _, err := s.Library.Start(r.Context(), cmd.CompetitionID, cmd.SeasonID); {
+	case errors.Is(err, library.ErrBusy):
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	case errors.Is(err, library.ErrUnknownSeason):
+		writeError(w, http.StatusNotFound, err.Error())
+		return
+	case err != nil:
+		s.fail(w, err)
+		return
+	}
+	s.log.Info("download started", "competition_id", cmd.CompetitionID, "season_id", cmd.SeasonID)
+	writeJSON(w, http.StatusAccepted, s.Library.Get(r.Context()))
+}
+
 func (s *Server) fail(w http.ResponseWriter, err error) {
 	code := http.StatusInternalServerError
 	switch {

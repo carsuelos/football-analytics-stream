@@ -19,6 +19,8 @@ export interface Broadcast {
   pending: boolean
   /** Sends a command; resolves to whether it succeeded (a failure sets error). */
   send: (command: BroadcastAction) => Promise<boolean>
+  /** Fetches the match list again, e.g. after downloading more. */
+  refreshMatches: () => void
 }
 
 /**
@@ -71,15 +73,18 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
     void track(getBroadcast(), { probe: true })
   }, [engineState, track])
 
-  const loaded = matches !== null
-  useEffect(() => {
-    if (!loaded) {
+  const loadMatches = useCallback(
+    () =>
       getMatches().then(
         (list) => setMatches(list.matches),
         (e: unknown) => (noSimulator(e) ? setControllable(false) : setError(messageOf(e))),
-      )
-    }
-  }, [engineState, loaded])
+      ),
+    [],
+  )
+  const loaded = matches !== null
+  useEffect(() => {
+    if (!loaded) void loadMatches()
+  }, [engineState, loaded, loadMatches])
 
   const send = useCallback(
     async (command: BroadcastAction) => {
@@ -93,7 +98,9 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
     [track],
   )
 
-  return { controllable, matches, status, error, pending: inFlight > 0, send }
+  const refreshMatches = useCallback(() => void loadMatches(), [loadMatches])
+
+  return { controllable, matches, status, error, pending: inFlight > 0, send, refreshMatches }
 }
 
 const noSimulator = (e: unknown) => e instanceof ApiError && e.status === 404

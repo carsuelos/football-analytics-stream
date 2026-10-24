@@ -3,7 +3,8 @@
 //
 // Each league's games go to <dir>/<UTC date>/<league>.jsonl, one
 // MarketTapeRecord a line. A game's first line in a file, and one every
-// KeyframeEvery after, is a keyframe with its whole state; the lines between
+// KeyframeEvery after while it's live or about to start (IdleKeyframeEvery
+// otherwise), is a keyframe with its whole state; the lines between
 // have only what changed (quotes that moved, quotes no longer listed, and the
 // game's state, score and clock). A game whose prices haven't changed since
 // its last line gets no line. Reading a game back: from a keyframe, apply each
@@ -26,8 +27,9 @@ import (
 // Recorder writes boards to a directory. Create it with New; it's safe to use
 // from several goroutines.
 type Recorder struct {
-	Dir           string
-	KeyframeEvery time.Duration
+	Dir               string
+	KeyframeEvery     time.Duration // games live or about to start
+	IdleKeyframeEvery time.Duration // the others: days away, most of a tape otherwise
 
 	mu    sync.Mutex
 	files map[string]*file // by path
@@ -53,9 +55,13 @@ type quoteKey struct {
 	venue    schema.Venue
 }
 
-// New returns a recorder writing under dir, with a keyframe every 10 minutes.
+// soon is how long before kick-off a game gets keyframes as often as a live one.
+const soon = 15 * time.Minute
+
+// New returns a recorder writing under dir, with a keyframe every 10 minutes
+// for a game live or about to start, and every hour for the others.
 func New(dir string) *Recorder {
-	return &Recorder{Dir: dir, KeyframeEvery: 10 * time.Minute, files: map[string]*file{}}
+	return &Recorder{Dir: dir, KeyframeEvery: 10 * time.Minute, IdleKeyframeEvery: time.Hour, files: map[string]*file{}}
 }
 
 // Record appends what changed on a league's board since the last call.
@@ -69,7 +75,11 @@ func (r *Recorder) Record(b schema.MarketBoard) error {
 		return err
 	}
 	for _, g := range b.Games {
-		rec, ok := f.next(g, b.League, t, r.KeyframeEvery)
+		every := r.IdleKeyframeEvery
+		if g.State == schema.GameStateLive || (g.State == schema.GameStateScheduled && g.Kickoff.Sub(t) < soon) {
+			every = r.KeyframeEvery
+		}
+		rec, ok := f.next(g, b.League, t, every)
 		if !ok {
 			continue
 		}

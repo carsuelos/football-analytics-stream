@@ -1,6 +1,7 @@
 import type { BroadcastCommand } from './schema/broadcast_command.schema'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
 import type { EngineStatus } from './schema/engine_status.schema'
+import type { MatchLibrary } from './schema/match_library.schema'
 import type { MatchList } from './schema/match_list.schema'
 import type { ViewerCommand } from './schema/viewer_command.schema'
 
@@ -21,6 +22,12 @@ export type BroadcastAction = Omit<BroadcastCommand, 'schema_version'>
 export const getMatches = () => request<MatchList>('/matches')
 
 export const getBroadcast = () => request<BroadcastStatus>('/broadcast')
+
+/** The matches the simulator can download from StatsBomb's open data, and its download's progress. */
+export const getLibrary = () => request<MatchLibrary>('/library')
+
+/** Has the simulator download a competition season's matches (in the background). */
+export const downloadSeason = (competition_id: number, season_id: number) => post<MatchLibrary>('/library', { competition_id, season_id })
 
 /** Sends a broadcast command to the simulator (through the engine) and returns the new broadcast status. */
 export const sendBroadcast = (command: BroadcastAction) => post<BroadcastStatus>('/broadcast', command)

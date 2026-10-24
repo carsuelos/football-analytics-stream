@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "seasons": [
+    { "competition_id": 53, "season_id": 315, "competition": "UEFA Women's Euro", "season": "2025", "country": "Europe", "gender": "female", "youth": false, "downloaded": 12, "matches": 31 },
+    { "competition_id": 43, "season_id": 106, "competition": "FIFA World Cup", "season": "2022", "country": "International", "gender": "male", "downloaded": 64, "matches": 64 }
+  ],
+  "download": { "competition_id": 53, "season_id": 315, "competition": "UEFA Women's Euro", "season": "2025", "state": "downloading", "done": 12, "total": 31 }
+}

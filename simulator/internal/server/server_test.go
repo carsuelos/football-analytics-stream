@@ -18,6 +18,7 @@ import (
 	"github.com/coder/websocket/wsjson"
 
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/library"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/schema"
 )
@@ -337,5 +338,45 @@ func decode(t *testing.T, code int, body string, v any) {
 	}
 	if err := json.Unmarshal([]byte(body), v); err != nil {
 		t.Fatalf("decode %s: %v", body, err)
+	}
+}
+
+func TestLibrary(t *testing.T) {
+	statsbomb := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/competitions.json":
+			w.Write([]byte(`[{"competition_id": 53, "season_id": 315, "competition_name": "UEFA Women's Euro", "season_name": "2025", "competition_gender": "female"}]`))
+		case "/matches/53/315.json":
+			w.Write([]byte(`[{"match_id": 7}]`))
+		default:
+			w.Write([]byte(`[]`))
+		}
+	}))
+	defer statsbomb.Close()
+	srv, api, _ := startShutdownable(t)
+
+	if code, _ := get(t, srv.URL+"/library"); code != http.StatusNotFound {
+		t.Errorf("without a library: %d", code)
+	}
+	api.Library = library.New(t.TempDir(), nil)
+	api.Library.BaseURL = statsbomb.URL
+
+	code, body := get(t, srv.URL+"/library")
+	if code != http.StatusOK || !strings.Contains(body, `"competition":"UEFA Women's Euro"`) {
+		t.Fatalf("GET /library: %d %s", code, body)
+	}
+	if code, body := post(t, srv.URL+"/library", `{"schema_version":1,"competition_id":53}`); code != http.StatusBadRequest {
+		t.Errorf("no season: %d %s", code, body)
+	}
+	if code, _ := post(t, srv.URL+"/library", `{"schema_version":1,"competition_id":1,"season_id":1}`); code != http.StatusNotFound {
+		t.Errorf("unknown season: %d", code)
+	}
+	code, body = post(t, srv.URL+"/library", `{"schema_version":1,"competition_id":53,"season_id":315}`)
+	if code != http.StatusAccepted || !strings.Contains(body, `"download":{`) {
+		t.Fatalf("POST /library: %d %s", code, body)
+	}
+	api.Library.Wait()
+	if _, body := get(t, srv.URL+"/library"); !strings.Contains(body, `"downloaded":1`) || !strings.Contains(body, `"state":"done"`) {
+		t.Errorf("after: %s", body)
 	}
 }

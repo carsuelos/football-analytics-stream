@@ -30,10 +30,14 @@ func newTarget(t *testing.T, kind string) any {
 		return &FeedMessage{}
 	case "incident":
 		return &Incident{}
+	case "library_command":
+		return &LibraryCommand{}
 	case "market_board":
 		return &MarketBoard{}
 	case "market_tape":
 		return &MarketTapeRecord{}
+	case "match_library":
+		return &MatchLibrary{}
 	case "match_list":
 		return &MatchList{}
 	case "match_reset":
