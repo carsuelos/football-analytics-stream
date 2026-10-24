@@ -34,8 +34,14 @@ type Board struct {
 	ActiveFor    time.Duration // how long a look keeps a league active
 	StaleAfter   time.Duration // how long a failing venue's last games are kept
 	PollTimeout  time.Duration
-	Log          *slog.Logger
-	Now          func() time.Time
+	// PollLive polls a league at Interval while one of its games is live or
+	// about to kick off, even with no one looking (for recording).
+	PollLive bool
+	// OnBoard, if set, gets each league's board after every poll (outside the
+	// board's lock).
+	OnBoard func(schema.MarketBoard)
+	Log     *slog.Logger
+	Now     func() time.Time
 
 	mu      sync.Mutex
 	leagues map[schema.League]*league
@@ -117,7 +123,7 @@ func (b *Board) Run(ctx context.Context) {
 			b.mu.Lock()
 			now := b.Now()
 			every := b.IdleInterval
-			if now.Sub(s.viewed) < b.ActiveFor {
+			if now.Sub(s.viewed) < b.ActiveFor || (b.PollLive && s.board != nil && busy(*s.board, now)) {
 				every = b.Interval
 			}
 			due := now.Sub(s.polled) >= every
@@ -132,6 +138,19 @@ func (b *Board) Run(ctx context.Context) {
 		case <-tick.C:
 		}
 	}
+}
+
+// soon is how long before kick-off a game counts as busy.
+const soon = 15 * time.Minute
+
+// busy says whether a board has a game live or about to kick off.
+func busy(board schema.MarketBoard, now time.Time) bool {
+	for _, g := range board.Games {
+		if g.State == schema.GameStateLive || (g.State == schema.GameStateScheduled && g.Kickoff.Sub(now) < soon) {
+			return true
+		}
+	}
+	return false
 }
 
 // Refresh polls every venue for the league at once and rebuilds its board.
@@ -159,7 +178,6 @@ func (b *Board) Refresh(ctx context.Context, l schema.League) {
 	}
 
 	b.mu.Lock()
-	defer b.mu.Unlock()
 	now := b.Now()
 	s.polled = now
 	for _, r := range got {
@@ -201,6 +219,10 @@ func (b *Board) Refresh(ctx context.Context, l schema.League) {
 	board.Venues = statuses
 	s.board = &board
 	b.history.Record(board)
+	b.mu.Unlock()
+	if b.OnBoard != nil {
+		b.OnBoard(board)
+	}
 }
 
 // Build matches the venues' events into games and prices each contract.

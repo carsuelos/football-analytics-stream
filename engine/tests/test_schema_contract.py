@@ -18,6 +18,7 @@ from engine.schema.event_schema import MatchEvent
 from engine.schema.feed_schema import FeedMessage
 from engine.schema.incident_schema import Incident
 from engine.schema.market_board_schema import MarketBoard
+from engine.schema.market_tape_schema import MarketTapeRecord
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
@@ -37,6 +38,7 @@ MODELS: dict[str, type[BaseModel]] = {
     "feed": FeedMessage,
     "incident": Incident,
     "market_board": MarketBoard,
+    "market_tape": MarketTapeRecord,
     "match_list": MatchList,
     "match_reset": MatchReset,
     "metric": MetricSnapshot,

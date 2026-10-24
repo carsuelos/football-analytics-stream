@@ -195,7 +195,7 @@ The dashboard's **Markets** page (http://localhost:3000/#/markets with `make up`
 - each venue's price to buy each contract (total goals over 0.5 to 6.5, the result, and each team's goals over 0.5 to 3.5, all after 90' plus stoppage), with its bid and fee; each kind folds away;
 - the cheapest all-in price (the ask plus the venue's fee), and how it has moved.
 
-It reads the venues' public data through the `markets` service, so it needs no accounts or keys. Our model's probability and paper trading join it with a live event feed. Outside Docker: `make markets`, then `make dashboard`.
+It reads the venues' public data through the `markets` service, so it needs no accounts or keys. While `make up` runs, it also records every game's prices to `data/markets` (every 10 s while a game is live), so trading strategies can be replayed later against real prices: `make tape` lists what's recorded, and `make tape ARGS="--game <id> --contract total-over-2.5"` prints a contract's prices as CSV. Our model's probability and paper trading join it with a live event feed. Outside Docker: `make markets`, then `make dashboard`.
 
 ### Running it in Azure
 

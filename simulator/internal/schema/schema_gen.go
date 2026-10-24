@@ -1230,6 +1230,103 @@ func (j *MarketScore) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+// One line of a market tape: the markets service's record of a game's prices on
+// every venue, written to data/markets/<UTC date>/<league>.jsonl while it runs
+// with recording on, so trading strategies can be replayed against real prices. A
+// keyframe has the game's whole state; the lines after it until the next keyframe
+// have only what changed (quotes that moved, and quotes no longer listed).
+// Replaying a game: start from a keyframe and apply each line in order. Prices are
+// dollars from 0 to 1 for a contract paying $1.
+type MarketTapeRecord struct {
+	// Keyframes only.
+	Away *string `json:"away,omitempty,omitzero"`
+
+	// The venue's clock, e.g. 63' or HT.
+	Clock *string `json:"clock,omitempty,omitzero"`
+
+	// Keyframes only: what each contract key in the quotes is.
+	Contracts []TapeContract `json:"contracts,omitempty,omitzero"`
+
+	// The board's game id, e.g. epl-2026-10-24-chelsea-tottenham.
+	GameID string `json:"game_id"`
+
+	// Quotes listed in the line before and not any more.
+	Gone []TapeGone `json:"gone,omitempty,omitzero"`
+
+	// Keyframes only.
+	Home *string `json:"home,omitempty,omitzero"`
+
+	// Whether this line has the game's whole state; otherwise only what changed since
+	// the line before.
+	Keyframe bool `json:"keyframe"`
+
+	// Keyframes only.
+	Kickoff *time.Time `json:"kickoff,omitempty,omitzero"`
+
+	// League corresponds to the JSON schema field "league".
+	League League `json:"league"`
+
+	// A keyframe's every quote, or the quotes that changed.
+	Quotes []TapeQuote `json:"quotes"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Score corresponds to the JSON schema field "score".
+	Score *MarketScore `json:"score,omitempty,omitzero"`
+
+	// State corresponds to the JSON schema field "state".
+	State GameState `json:"state"`
+
+	// When the board was built from the venues' replies.
+	T time.Time `json:"t"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MarketTapeRecord) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["game_id"]; raw != nil && !ok {
+		return fmt.Errorf("field game_id in MarketTapeRecord: required")
+	}
+	if _, ok := raw["keyframe"]; raw != nil && !ok {
+		return fmt.Errorf("field keyframe in MarketTapeRecord: required")
+	}
+	if _, ok := raw["league"]; raw != nil && !ok {
+		return fmt.Errorf("field league in MarketTapeRecord: required")
+	}
+	if _, ok := raw["quotes"]; raw != nil && !ok {
+		return fmt.Errorf("field quotes in MarketTapeRecord: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in MarketTapeRecord: required")
+	}
+	if _, ok := raw["state"]; raw != nil && !ok {
+		return fmt.Errorf("field state in MarketTapeRecord: required")
+	}
+	if _, ok := raw["t"]; raw != nil && !ok {
+		return fmt.Errorf("field t in MarketTapeRecord: required")
+	}
+	type Plain MarketTapeRecord
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Away != nil && utf8.RuneCountInString(string(*plain.Away)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "away", 1)
+	}
+	if utf8.RuneCountInString(string(plain.GameID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "game_id", 1)
+	}
+	if plain.Home != nil && utf8.RuneCountInString(string(*plain.Home)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "home", 1)
+	}
+	*j = MarketTapeRecord(plain)
+	return nil
+}
+
 type MarketTeam struct {
 	// e.g. CFC
 	Abbreviation *string `json:"abbreviation,omitempty,omitzero"`
@@ -2216,6 +2313,144 @@ func (j *ShotDetail) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be >= %v", "xg", 0)
 	}
 	*j = ShotDetail(plain)
+	return nil
+}
+
+type TapeContract struct {
+	// Key corresponds to the JSON schema field "key".
+	Key string `json:"key"`
+
+	// Kind corresponds to the JSON schema field "kind".
+	Kind ContractKind `json:"kind"`
+
+	// Line corresponds to the JSON schema field "line".
+	Line *float64 `json:"line,omitempty,omitzero"`
+
+	// Outcome corresponds to the JSON schema field "outcome".
+	Outcome Outcome `json:"outcome"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *TapeContract) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in TapeContract: required")
+	}
+	if _, ok := raw["kind"]; raw != nil && !ok {
+		return fmt.Errorf("field kind in TapeContract: required")
+	}
+	if _, ok := raw["outcome"]; raw != nil && !ok {
+		return fmt.Errorf("field outcome in TapeContract: required")
+	}
+	type Plain TapeContract
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Key)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "key", 1)
+	}
+	if plain.Line != nil && 0 > *plain.Line {
+		return fmt.Errorf("field %s: must be >= %v", "line", 0)
+	}
+	*j = TapeContract(plain)
+	return nil
+}
+
+type TapeGone struct {
+	// Contract corresponds to the JSON schema field "contract".
+	Contract string `json:"contract"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *TapeGone) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["contract"]; raw != nil && !ok {
+		return fmt.Errorf("field contract in TapeGone: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in TapeGone: required")
+	}
+	type Plain TapeGone
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Contract)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "contract", 1)
+	}
+	*j = TapeGone(plain)
+	return nil
+}
+
+type TapeQuote struct {
+	// Ask corresponds to the JSON schema field "ask".
+	Ask *float64 `json:"ask,omitempty,omitzero"`
+
+	// Contracts at the ask.
+	AskSize *float64 `json:"ask_size,omitempty,omitzero"`
+
+	// Bid corresponds to the JSON schema field "bid".
+	Bid *float64 `json:"bid,omitempty,omitzero"`
+
+	// Contract corresponds to the JSON schema field "contract".
+	Contract string `json:"contract"`
+
+	// The taker fee per contract at the ask.
+	Fee *float64 `json:"fee,omitempty,omitzero"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *TapeQuote) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["contract"]; raw != nil && !ok {
+		return fmt.Errorf("field contract in TapeQuote: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in TapeQuote: required")
+	}
+	type Plain TapeQuote
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Ask != nil && 1 < *plain.Ask {
+		return fmt.Errorf("field %s: must be <= %v", "ask", 1)
+	}
+	if plain.Ask != nil && 0 > *plain.Ask {
+		return fmt.Errorf("field %s: must be >= %v", "ask", 0)
+	}
+	if plain.AskSize != nil && 0 > *plain.AskSize {
+		return fmt.Errorf("field %s: must be >= %v", "ask_size", 0)
+	}
+	if plain.Bid != nil && 1 < *plain.Bid {
+		return fmt.Errorf("field %s: must be <= %v", "bid", 1)
+	}
+	if plain.Bid != nil && 0 > *plain.Bid {
+		return fmt.Errorf("field %s: must be >= %v", "bid", 0)
+	}
+	if utf8.RuneCountInString(string(plain.Contract)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "contract", 1)
+	}
+	if plain.Fee != nil && 0 > *plain.Fee {
+		return fmt.Errorf("field %s: must be >= %v", "fee", 0)
+	}
+	*j = TapeQuote(plain)
 	return nil
 }
 

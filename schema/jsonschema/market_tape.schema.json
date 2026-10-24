@@ -1,0 +1,69 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MarketTapeRecord",
+  "description": "One line of a market tape: the markets service's record of a game's prices on every venue, written to data/markets/<UTC date>/<league>.jsonl while it runs with recording on, so trading strategies can be replayed against real prices. A keyframe has the game's whole state; the lines after it until the next keyframe have only what changed (quotes that moved, and quotes no longer listed). Replaying a game: start from a keyframe and apply each line in order. Prices are dollars from 0 to 1 for a contract paying $1.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "t": { "description": "When the board was built from the venues' replies.", "type": "string", "format": "date-time" },
+    "league": { "$ref": "market_board.schema.json#/definitions/League" },
+    "game_id": { "description": "The board's game id, e.g. epl-2026-10-24-chelsea-tottenham.", "type": "string", "minLength": 1 },
+    "keyframe": { "description": "Whether this line has the game's whole state; otherwise only what changed since the line before.", "type": "boolean" },
+    "home": { "description": "Keyframes only.", "type": "string", "minLength": 1 },
+    "away": { "description": "Keyframes only.", "type": "string", "minLength": 1 },
+    "kickoff": { "description": "Keyframes only.", "type": "string", "format": "date-time" },
+    "state": { "$ref": "market_board.schema.json#/definitions/GameState" },
+    "score": { "$ref": "market_board.schema.json#/definitions/MarketScore" },
+    "clock": { "description": "The venue's clock, e.g. 63' or HT.", "type": "string" },
+    "contracts": {
+      "description": "Keyframes only: what each contract key in the quotes is.",
+      "type": "array",
+      "items": {
+        "title": "TapeContract",
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "minLength": 1 },
+          "kind": { "$ref": "market_board.schema.json#/definitions/ContractKind" },
+          "outcome": { "$ref": "market_board.schema.json#/definitions/Outcome" },
+          "line": { "type": "number", "minimum": 0 }
+        },
+        "required": ["key", "kind", "outcome"],
+        "additionalProperties": false
+      }
+    },
+    "quotes": {
+      "description": "A keyframe's every quote, or the quotes that changed.",
+      "type": "array",
+      "items": {
+        "title": "TapeQuote",
+        "type": "object",
+        "properties": {
+          "contract": { "type": "string", "minLength": 1 },
+          "venue": { "$ref": "market_board.schema.json#/definitions/Venue" },
+          "bid": { "type": "number", "minimum": 0, "maximum": 1 },
+          "ask": { "type": "number", "minimum": 0, "maximum": 1 },
+          "ask_size": { "description": "Contracts at the ask.", "type": "number", "minimum": 0 },
+          "fee": { "description": "The taker fee per contract at the ask.", "type": "number", "minimum": 0 }
+        },
+        "required": ["contract", "venue"],
+        "additionalProperties": false
+      }
+    },
+    "gone": {
+      "description": "Quotes listed in the line before and not any more.",
+      "type": "array",
+      "items": {
+        "title": "TapeGone",
+        "type": "object",
+        "properties": {
+          "contract": { "type": "string", "minLength": 1 },
+          "venue": { "$ref": "market_board.schema.json#/definitions/Venue" }
+        },
+        "required": ["contract", "venue"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["schema_version", "t", "league", "game_id", "keyframe", "state", "quotes"],
+  "additionalProperties": false
+}

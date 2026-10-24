@@ -13,6 +13,7 @@ func TestFixtures(t *testing.T) {
 	for kind, newValue := range map[string]func() any{
 		"market_board":  func() any { return &MarketBoard{} },
 		"price_history": func() any { return &PriceHistory{} },
+		"market_tape":   func() any { return &MarketTapeRecord{} },
 	} {
 		for _, set := range []string{"valid", "invalid"} {
 			paths, err := filepath.Glob(filepath.Join("../../../schema/fixtures", set, kind, "*.json"))

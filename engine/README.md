@@ -24,5 +24,6 @@ uv run engine --help    # or `make engine` from the repo root
 | `telemetry.py` | Text or JSON (`LOG_FORMAT=json`) logs with the span's ids, and OTLP tracing when `OTEL_EXPORTER_OTLP_ENDPOINT` is set: a live event read from Kafka continues the simulator's trace, an alert continues the trace of the event that raised it, and its Kafka message carries the context on to the notifier |
 | `features.py` | The goal model's features for each team at a tick (`FeatureTracker`): game state, 5' and 10' window stats, match totals. Trained on offline (`model/`) and served live from the same code |
 | `backtest.py` | Offline replay of exported feeds (`make export`): the same pipeline, ticker and detectors as the run loop, one match per process, with the goals, alerts (with play time) and optionally every snapshot; `python -m engine.backtest` prints a line per match |
+| `market_tape.py` | Reads the market tapes the markets service records (`data/markets`) and replays each game's prices on every venue, line by line, for testing trading strategies; `python -m engine.market_tape` (`make tape`) summarizes them or prints a contract's prices as CSV |
 
 `src/engine/schema/` is generated from `schema/jsonschema/` by `make gen`. Do not edit it by hand.
