@@ -83,11 +83,16 @@ func (c *Consumer) Next(ctx context.Context) (notify.Message, error) {
 				c.log.Warn("kafka: bad message", "error", e.TopicPartition.Error)
 				continue
 			}
+			headers := make(map[string]string, len(e.Headers))
+			for _, h := range e.Headers {
+				headers[h.Key] = string(h.Value)
+			}
 			return notify.Message{
 				Value:     e.Value,
 				Timestamp: e.Timestamp,
 				Partition: e.TopicPartition.Partition,
 				Offset:    int64(e.TopicPartition.Offset),
+				Headers:   headers,
 			}, nil
 		case kafka.Error:
 			if e.IsFatal() {

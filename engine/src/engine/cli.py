@@ -16,6 +16,7 @@ import httpx
 import uvicorn
 from fastapi import FastAPI
 
+from engine import telemetry
 from engine.api import create_app
 from engine.detectors import GoalModel, GoalModelError, default_detectors
 from engine.detectors.goal_chance import add_goal_model_args, grid_mismatch
@@ -282,6 +283,16 @@ def server(app: FastAPI, hub: MatchHub, host: str, port: int) -> Server:
     return Server(config, hub)
 
 
+def instrument(app: FastAPI) -> None:
+    """Trace the API's requests (not the stream, which lasts as long as the
+    connection, nor health checks) and its calls to the simulator."""
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+
+    FastAPIInstrumentor.instrument_app(app, excluded_urls="api/stream")
+    HTTPXClientInstrumentor().instrument()
+
+
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     try:
@@ -289,9 +300,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         goal_model = GoalModel.load(args.goal_model) if args.goal_model else None
     except (XTGridError, GoalModelError) as e:
         sys.exit(f"engine: {e}")
-    logging.basicConfig(
-        level=args.log_level, format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S"
-    )
+    telemetry.configure_logging(args.log_level)
+    flush_traces = telemetry.configure_tracing()
     # httpx logs every request at INFO; the webhook sink logs its own failures.
     logging.getLogger("httpx").setLevel(
         max(logging.WARNING, logging.getLevelNamesMapping()[args.log_level])
@@ -307,8 +317,14 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     hub = MatchHub()
     app = engine_app(args, grid, event_source(args), hub, on_stop=stop, goal_model=goal_model)
+    if telemetry.tracing_enabled():
+        instrument(app)
+    log.info("tracing %s", "on" if telemetry.tracing_enabled() else "off")
     srv = server(app, hub, args.host, args.port)
-    with contextlib.suppress(KeyboardInterrupt):
-        asyncio.run(srv.serve())
+    try:
+        with contextlib.suppress(KeyboardInterrupt):
+            asyncio.run(srv.serve())
+    finally:
+        flush_traces()
     if failed:
         sys.exit("engine: the run loop stopped; see the log above")

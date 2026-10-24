@@ -9,6 +9,10 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -88,12 +92,30 @@ func (pr *Producer) report(log *slog.Logger) {
 	}
 }
 
-func (pr *Producer) Write(ctx context.Context, key, value []byte) error {
+// Write queues a message, in a "send" span whose trace context goes with it in
+// the message's headers, so a consumer's work continues the same trace.
+func (pr *Producer) Write(ctx context.Context, key, value []byte) (err error) {
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "send "+pr.topic,
+		trace.WithSpanKind(trace.SpanKindProducer),
+		trace.WithAttributes(
+			semconv.MessagingSystemKafka,
+			semconv.MessagingOperationTypeSend,
+			semconv.MessagingDestinationName(pr.topic),
+			semconv.MessagingKafkaMessageKey(string(key)),
+		),
+	)
+	defer func() {
+		if err != nil {
+			span.SetStatus(codes.Error, err.Error())
+		}
+		span.End()
+	}()
 	msg := &kafka.Message{
 		TopicPartition: kafka.TopicPartition{Topic: &pr.topic, Partition: kafka.PartitionAny},
 		Key:            key,
 		Value:          value,
 	}
+	otel.GetTextMapPropagator().Inject(ctx, Headers{&msg.Headers})
 	for {
 		err := pr.p.Produce(msg, nil)
 		var kerr kafka.Error
@@ -106,6 +128,39 @@ func (pr *Producer) Write(ctx context.Context, key, value []byte) error {
 		case <-time.After(queueFullRetry):
 		}
 	}
+}
+
+const tracerName = "github.com/carsuelos/football-analytics-stream/simulator/internal/kafka"
+
+// Headers carries trace context in a Kafka message's headers: it is a
+// propagation.TextMapCarrier.
+type Headers struct{ H *[]kafka.Header }
+
+func (c Headers) Get(key string) string {
+	for _, h := range *c.H {
+		if h.Key == key {
+			return string(h.Value)
+		}
+	}
+	return ""
+}
+
+func (c Headers) Set(key, value string) {
+	for i, h := range *c.H {
+		if h.Key == key {
+			(*c.H)[i].Value = []byte(value)
+			return
+		}
+	}
+	*c.H = append(*c.H, kafka.Header{Key: key, Value: []byte(value)})
+}
+
+func (c Headers) Keys() []string {
+	keys := make([]string, len(*c.H))
+	for i, h := range *c.H {
+		keys[i] = h.Key
+	}
+	return keys
 }
 
 // Close waits up to 5 seconds for queued messages to be delivered, then closes

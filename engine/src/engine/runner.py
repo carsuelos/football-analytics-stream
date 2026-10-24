@@ -4,6 +4,7 @@ import asyncio
 import logging
 from collections.abc import Callable, Sequence
 
+from engine import telemetry
 from engine.detectors import Detectors
 from engine.dvr import Dvr
 from engine.hub import MatchHub
@@ -95,8 +96,9 @@ async def run(
                     for metric_sink in metric_sinks:
                         metric_sink.send(snap)
                 for alert in alerts:
-                    for sink in sinks:
-                        sink.send(alert)
+                    with telemetry.raising(alert, tick.item.event):
+                        for sink in sinks:
+                            sink.send(alert)
     finally:
         reporter.cancel()
         # Wait for it to finish. asyncio.wait never raises the reporter's own

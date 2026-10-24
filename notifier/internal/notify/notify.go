@@ -12,6 +12,10 @@
 // are recognized by id and skipped, and every request carries the alert id as
 // an Idempotency-Key header so a webhook can drop repeats the notifier
 // doesn't remember.
+//
+// Each delivery is a span that continues the trace the engine started when it
+// raised the alert (its context comes in the message's headers), and the
+// webhook requests are spans under it if the Client is instrumented.
 package notify
 
 import (
@@ -24,8 +28,17 @@ import (
 	"slices"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/propagation"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
+	"go.opentelemetry.io/otel/trace"
+
 	"github.com/carsuelos/football-analytics-stream/notifier/internal/schema"
 )
+
+const tracerName = "github.com/carsuelos/football-analytics-stream/notifier/internal/notify"
 
 // Message is one record from the alerts topic.
 type Message struct {
@@ -33,6 +46,8 @@ type Message struct {
 	Timestamp time.Time // when it was published
 	Partition int32
 	Offset    int64
+	// Headers holds the trace context the engine published the alert with.
+	Headers map[string]string
 }
 
 // Source is where alerts come from.
@@ -50,7 +65,9 @@ type Backoff struct {
 
 // Notifier delivers alerts from a Source to webhooks. Set the fields, then Run.
 type Notifier struct {
-	Source   Source
+	Source Source
+	// Topic names where alerts come from, for traces.
+	Topic    string
 	Webhooks []string
 	Client   *http.Client
 	Backoff  Backoff
@@ -103,22 +120,42 @@ func (n *Notifier) Run(ctx context.Context) error {
 
 // handle delivers msg to every webhook, retrying failures that may pass. It
 // returns false if ctx was done before it finished.
-func (n *Notifier) handle(ctx context.Context, msg Message) bool {
+func (n *Notifier) handle(ctx context.Context, msg Message) (finished bool) {
+	ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.MapCarrier(msg.Headers))
+	ctx, span := otel.Tracer(tracerName).Start(ctx, "process "+n.Topic,
+		trace.WithSpanKind(trace.SpanKindConsumer),
+		trace.WithAttributes(
+			semconv.MessagingSystemKafka,
+			semconv.MessagingOperationTypeProcess,
+			semconv.MessagingDestinationName(n.Topic),
+			semconv.MessagingDestinationPartitionID(fmt.Sprint(msg.Partition)),
+			semconv.MessagingKafkaOffset(int(msg.Offset)),
+		),
+	)
+	defer span.End()
 	var alert schema.Alert
 	if err := json.Unmarshal(msg.Value, &alert); err != nil {
-		n.Log.Warn("skipping a bad message", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+		n.Log.WarnContext(ctx, "skipping a bad message", "partition", msg.Partition, "offset", msg.Offset, "error", err)
+		span.SetStatus(codes.Error, "bad message")
 		return true
 	}
+	span.SetAttributes(
+		attribute.String("alert.id", alert.ID),
+		attribute.String("alert.type", string(alert.Type)),
+		attribute.Int("match.id", int(alert.MatchID)),
+	)
 	log := n.Log.With("alert", alert.ID)
 	if n.seen.has(alert.ID) {
-		log.Debug("already delivered")
+		log.DebugContext(ctx, "already delivered")
+		span.SetAttributes(attribute.Bool("alert.repeat", true))
 		return true
 	}
 	pending := slices.Clone(n.Webhooks)
 	delay := n.Backoff.Initial
 	for {
 		if age := n.Now().Sub(msg.Timestamp); n.MaxAge > 0 && age > n.MaxAge {
-			log.Warn("dropping a stale alert", "age", age.Round(time.Second), "undelivered", pending)
+			log.WarnContext(ctx, "dropping a stale alert", "age", age.Round(time.Second), "undelivered", pending)
+			span.SetStatus(codes.Error, "stale")
 			return true
 		}
 		pending = slices.DeleteFunc(pending, func(url string) bool {
@@ -126,7 +163,7 @@ func (n *Notifier) handle(ctx context.Context, msg Message) bool {
 		})
 		if len(pending) == 0 {
 			n.seen.add(alert.ID)
-			log.Info("delivered", "type", alert.Type, "match", alert.MatchID)
+			log.InfoContext(ctx, "delivered", "type", alert.Type, "match", alert.MatchID)
 			return true
 		}
 		select {
@@ -144,7 +181,7 @@ func (n *Notifier) handle(ctx context.Context, msg Message) bool {
 func (n *Notifier) post(ctx context.Context, log *slog.Logger, url, id string, body []byte) bool {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
 	if err != nil {
-		log.Error("bad webhook URL, giving up", "webhook", url, "error", err)
+		log.ErrorContext(ctx, "bad webhook URL, giving up", "webhook", url, "error", err)
 		return true
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -152,7 +189,7 @@ func (n *Notifier) post(ctx context.Context, log *slog.Logger, url, id string, b
 	resp, err := n.Client.Do(req)
 	if err != nil {
 		if ctx.Err() == nil {
-			log.Warn("webhook failed, will retry", "webhook", url, "error", err)
+			log.WarnContext(ctx, "webhook failed, will retry", "webhook", url, "error", err)
 		}
 		return false
 	}
@@ -161,10 +198,10 @@ func (n *Notifier) post(ctx context.Context, log *slog.Logger, url, id string, b
 	case status < 300:
 		return true
 	case status >= 500 || status == http.StatusTooManyRequests:
-		log.Warn("webhook failed, will retry", "webhook", url, "status", status)
+		log.WarnContext(ctx, "webhook failed, will retry", "webhook", url, "status", status)
 		return false
 	default:
-		log.Error("webhook rejected the alert, giving up", "webhook", url, "status", status)
+		log.ErrorContext(ctx, "webhook rejected the alert, giving up", "webhook", url, "status", status)
 		return true
 	}
 }

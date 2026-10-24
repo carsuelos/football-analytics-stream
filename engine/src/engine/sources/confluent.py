@@ -65,8 +65,14 @@ class ConfluentBroker:
         )
 
     def poll(self, timeout_s: float) -> list[Record | Eof]:
+        # Wait for the first message only, then take what has already arrived:
+        # consume() alone would wait out the whole timeout for a full batch,
+        # holding each live event back by up to timeout_s.
+        first = self._consumer.poll(timeout_s)
+        if first is None:
+            return []
         items: list[Record | Eof] = []
-        for msg in self._consumer.consume(BATCH, timeout=timeout_s):
+        for msg in [first, *self._consumer.consume(BATCH - 1, timeout=0)]:
             if item := _item(msg):
                 items.append(item)
         return items
@@ -83,7 +89,13 @@ def _item(msg: Message) -> Record | Eof | None:
     if error is None:
         offset = msg.offset()
         _, timestamp_ms = msg.timestamp()
-        return Record(partition, -1 if offset is None else offset, timestamp_ms, msg.value() or b"")
+        return Record(
+            partition,
+            -1 if offset is None else offset,
+            timestamp_ms,
+            msg.value() or b"",
+            _headers(msg),
+        )
     if error.code() == KafkaError._PARTITION_EOF:
         return Eof(partition)
     if error.fatal():
@@ -91,3 +103,10 @@ def _item(msg: Message) -> Record | Eof | None:
     # Most errors are transient (a broker restarting, say); librdkafka retries.
     log.warning("kafka: %s", error)
     return None
+
+
+def _headers(msg: Message) -> tuple[tuple[str, bytes], ...]:
+    """The message's headers as (name, bytes) pairs."""
+    raw = msg.headers() or []
+    pairs = raw.items() if isinstance(raw, dict) else raw
+    return tuple((k, v.encode() if isinstance(v, str) else v or b"") for k, v in pairs)

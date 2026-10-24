@@ -30,6 +30,7 @@ from typing import Protocol
 
 from pydantic import ValidationError
 
+from engine import telemetry
 from engine.schema.feed_schema import FeedMarker, FeedMessage, FeedMessageKind
 
 log = logging.getLogger(__name__)
@@ -61,6 +62,8 @@ class Record:
     offset: int
     timestamp_ms: int
     value: bytes
+    headers: tuple[tuple[str, bytes], ...] = ()
+    """The message's headers: the trace context it was sent in, if any."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +141,15 @@ class KafkaSource:
                 log.info("reading %s from %s", self.topic, positions)
                 while True:
                     for item in await call(lambda: broker.poll(POLL_TIMEOUT_S)):
-                        for msg in follower.receive(item):
+                        msgs = follower.receive(item)
+                        # Continue the sender's trace for the record's own message,
+                        # which comes last, after any catch-up it ends.
+                        record = item if isinstance(item, Record) and item.headers else None
+                        if record and msgs and (event := msgs[-1].event):
+                            telemetry.received(
+                                event, record.headers, self.topic, record.partition, record.offset
+                            )
+                        for msg in msgs:
                             yield msg
             finally:
                 await call(broker.close)

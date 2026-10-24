@@ -8,10 +8,16 @@
 # service, which prints them). Every app takes librdkafka settings as KAFKA_*
 # variables, so pointing them at another cluster (Event Hubs, Confluent Cloud)
 # is config only.
+#
+# The apps also send traces over OTLP to the Aspire dashboard
+# (http://localhost:18888), the way they send them to Application Insights in
+# Azure: the simulator's "send events", the engine's "receive events" and the
+# alerts it raises, and the notifier's webhook calls, as one trace.
 name: football-analytics
 
-x-kafka: &kafka
+x-app-env: &app-env
   KAFKA_BOOTSTRAP_SERVERS: redpanda:9092
+  OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire:18889
 
 services:
   redpanda:
@@ -51,10 +57,18 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # A local viewer for traces (and anything else sent over OTLP).
+  aspire:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:13.6
+    environment:
+      ASPIRE_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+      - "${ASPIRE_PORT:-18888}:18888"
+
   simulator:
     build: simulator
     command: ["-jitter", "${SIM_JITTER:-0s}"]
-    environment: *kafka
+    environment: *app-env
     volumes:
       - ./data/statsbomb:/data/statsbomb:ro
     ports:
@@ -66,7 +80,7 @@ services:
   engine:
     build: engine
     command: ["--simulator", "http://simulator:8080", "--source", "kafka"]
-    environment: *kafka
+    environment: *app-env
     volumes:
       - ./data/xt:/data/xt:ro
     ports:
@@ -88,7 +102,7 @@ services:
   notifier:
     build: notifier
     command: ["-webhook", "${ALERT_WEBHOOK:-http://webhook:9000}"]
-    environment: *kafka
+    environment: *app-env
     depends_on:
       topics:
         condition: service_completed_successfully

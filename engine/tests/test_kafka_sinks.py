@@ -19,15 +19,19 @@ class FakeProducer:
     def __init__(self, config: Mapping[str, str]) -> None:
         self.config = config
         self.produced: list[tuple[str, bytes, bytes]] = []
+        self.headers: list[list[tuple[str, bytes]]] = []
         self.errors: list[Exception] = []
         self.polls = 0
         self.left = 0
         self.flushed: list[float] = []
 
-    def produce(self, topic: str, value: bytes, key: bytes) -> None:
+    def produce(
+        self, topic: str, value: bytes, key: bytes, headers: list[tuple[str, bytes]]
+    ) -> None:
         if self.errors:
             raise self.errors.pop(0)
         self.produced.append((topic, key, value))
+        self.headers.append(headers)
 
     def poll(self, timeout: float) -> int:
         self.polls += 1
