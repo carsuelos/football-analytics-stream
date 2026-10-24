@@ -276,8 +276,9 @@ def at(x: Json | Time) -> str:
     return f"P{period} {m}:{s:02}"
 
 
-def general_checks(r: Replay) -> list[str]:
-    """What should hold for any match."""
+def general_checks(r: Replay, allow_late: int = 0) -> list[str]:
+    """What should hold for any match. Up to allow_late events may be dropped as
+    too late: a feed in the provider's own order has a few (see --allow-late)."""
     problems = []
     match_id = r.match["match_id"]
     teams = {r.match["home_team"]["id"], r.match["away_team"]["id"]}
@@ -285,7 +286,9 @@ def general_checks(r: Replay) -> list[str]:
     seen = {t["id"] for t in r.status.get("teams", [])}
     if seen != teams:
         problems.append(f"the engine saw teams {sorted(seen)}, not {sorted(teams)}")
-    for counter in ("late_dropped", "duplicates", "buffered"):
+    if r.status["late_dropped"] > allow_late:
+        problems.append(f"late_dropped is {r.status['late_dropped']}, more than {allow_late}")
+    for counter in ("duplicates", "buffered"):
         if r.status[counter]:
             problems.append(f"{counter} is {r.status[counter]}")
 
@@ -423,7 +426,13 @@ def choose(args: argparse.Namespace, downloaded: dict[int, Json]) -> list[Json]:
 
 
 def check(
-    api: Api, processes: list[Process], match: Json, alerts: list[Json], *, rewatching: bool
+    api: Api,
+    processes: list[Process],
+    match: Json,
+    alerts: list[Json],
+    *,
+    rewatching: bool,
+    allow_late: int = 0,
 ) -> bool:
     """Replays a match (and rewatches it) and prints how it went. Adds the alerts the
     engine raised to alerts. Returns whether all checks passed."""
@@ -432,7 +441,7 @@ def check(
     r = replay(api, processes, match)
     alerts.extend(r.alerts)
     expected = EXPECTATIONS[match_id](r) if match_id in EXPECTATIONS else []
-    problems = general_checks(r) + expected + log_errors(processes)
+    problems = general_checks(r, allow_late) + expected + log_errors(processes)
     print(
         f"{'✗' if problems else '✓'} {name}: ended after {r.seconds:.1f}s,"
         f" {len(r.metrics)} snapshots, {len(r.alerts)} alerts",
@@ -516,6 +525,16 @@ def main() -> None:
         metavar="URL",
         help="with --external, check the notifier delivered the alerts to this webhook_echo.py",
     )
+    parser.add_argument(
+        "--allow-late",
+        type=int,
+        default=0,
+        metavar="N",
+        help="pass with up to N events dropped as too late in a match. With jitter (as the"
+        " smoke tests run the simulator) there are none; without it, the feed comes in"
+        " StatsBomb's own order, which puts a few events far out of place (2 in the final:"
+        " kick-off ball receipts indexed after the rest of their half)",
+    )
     args = parser.parse_args()
     if args.webhook and not args.external:
         parser.error("--webhook needs --external")
@@ -537,7 +556,7 @@ def main() -> None:
             raised: list[Json] = []
             # One pair of processes for every match, so switching matches is tested too.
             passed = [
-                check(api, processes, m, raised, rewatching=i == 0)
+                check(api, processes, m, raised, rewatching=i == 0, allow_late=args.allow_late)
                 for i, m in enumerate(choose(args, downloaded))
             ]
             if len(passed) > 1:

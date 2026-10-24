@@ -148,7 +148,9 @@ jobs:
       - name: Smoke test
         env:
           SMOKE_PASSWORD: ${{ secrets.DASHBOARD_PASSWORD }}
-        run: uv run scripts/smoke_test.py --external "${{ steps.apps.outputs.url }}"
+        # No jitter in Azure, so the feed is in StatsBomb's order, which the
+        # engine rightly drops 2 events of (see --allow-late).
+        run: uv run scripts/smoke_test.py --external "${{ steps.apps.outputs.url }}" --allow-late 2
 
       - name: Summary
         if: always() && steps.apps.outputs.url

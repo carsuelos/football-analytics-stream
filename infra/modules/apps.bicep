@@ -124,7 +124,9 @@ module dashboard 'app.bicep' = {
     image: format(image, 'dashboard')
     secrets: [{ name: 'password', keyVaultUrl: passwordSecret.properties.secretUri }]
     env: [
-      { name: 'ENGINE_URL', value: 'http://engine' }
+      // The full name: nginx's resolver doesn't use the search domains that
+      // make plain "engine" work for the other apps.
+      { name: 'ENGINE_URL', value: 'http://${engine.outputs.fqdn}' }
       { name: 'DASHBOARD_PASSWORD', secretRef: 'password' }
     ]
     ingress: 'external'
