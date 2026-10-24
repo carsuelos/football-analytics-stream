@@ -284,12 +284,15 @@ def server(app: FastAPI, hub: MatchHub, host: str, port: int) -> Server:
 
 
 def instrument(app: FastAPI) -> None:
-    """Trace the API's requests (not the stream, which lasts as long as the
-    connection, nor health checks) and its calls to the simulator."""
+    """Trace the API's requests and its calls to the simulator. Not the stream,
+    which lasts as long as the connection, nor the status, which probes poll,
+    nor the ASGI send and receive inside each request."""
     from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
     from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 
-    FastAPIInstrumentor.instrument_app(app, excluded_urls="api/stream")
+    FastAPIInstrumentor.instrument_app(
+        app, excluded_urls="api/stream,api/status", exclude_spans=["send", "receive"]
+    )
     HTTPXClientInstrumentor().instrument()
 
 

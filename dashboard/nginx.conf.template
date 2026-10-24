@@ -1,6 +1,8 @@
 # Look the engine up on each request (for at most 10s), not once at start-up:
 # when it is replaced it comes back at another address. The resolver is the
-# container's own (from /etc/resolv.conf: Docker's, or Azure's).
+# container's own (from /etc/resolv.conf: Docker's, or Azure's), but nginx
+# doesn't apply its search domains, so in Azure ENGINE_URL is the engine's full
+# internal name (engine.internal.<environment domain>).
 resolver ${NGINX_LOCAL_RESOLVERS} valid=10s ipv6=off;
 
 server {
