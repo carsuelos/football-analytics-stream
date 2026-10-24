@@ -28,8 +28,12 @@ schedule)
   st=$(one Microsoft.Storage/storageAccounts)
   tag=$(git -C "$REPO" rev-parse --short HEAD)$(git -C "$REPO" diff --quiet -- markets || echo -dirty)
 
-  echo "Building markets:$tag in $acr (about 2 minutes)…"
-  az acr build -r "$acr" -t "markets:$tag" "$REPO/markets" --no-logs -o none
+  image="$acr.azurecr.io/markets:$tag"
+  # Built here (ACR's own builds lack BuildKit's cache mounts), for Azure's
+  # amd64 machines, and pushed as you (az acr login).
+  echo "Building $image (linux/amd64; a few minutes the first time)…"
+  az acr login -n "$acr" -o none 2>/dev/null || az acr login -n "$acr"
+  docker buildx build --platform linux/amd64 -t "$image" --push -q "$REPO/markets" >/dev/null
   echo "Scheduling $JOB: $start $TZ_LOCAL for ${hours}h (cron \"$cron\" UTC)…"
   az deployment group create -g "$RG" -n football-recorder -f "$REPO/infra/recorder.bicep" -o none -p \
     environmentName="$env" storageAccountName="$st" registryServer="$acr.azurecr.io" \
