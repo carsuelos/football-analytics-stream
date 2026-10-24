@@ -209,6 +209,105 @@
      }
     }
    ]
+  },
+  {
+   "marketId": "01a1563a-3f2c-7313-9b6b-e31369ee2106",
+   "description": "Newcastle United FC 0.5 TEAM_TOTAL",
+   "eventId": "01a1553c-2ddf-7cb3-8b3a-97a5cbb0036a",
+   "marketType": "TEAM_TOTAL",
+   "strike": "0.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1563a-3f2c-7313-9b6b-e328d7244f7a",
+     "name": "Over 0.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.77",
+      "qty": 11100
+     }
+    },
+    {
+     "outcomeId": "01a1563a-3f2c-7313-9b6b-e33dada43d4f",
+     "name": "Under 0.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.13",
+      "qty": 53400
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2e28-7001-8ea7-c6969f43a43a",
+   "description": "Crystal Palace FC 1.5 TEAM_TOTAL",
+   "eventId": "01a1553c-2ddf-7cb3-8b3a-97a5cbb0036a",
+   "marketType": "TEAM_TOTAL",
+   "strike": "1.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2e28-7001-8ea7-c6aa2c1c3d56",
+     "name": "Over 1.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.34",
+      "qty": 51200
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2e28-7001-8ea7-c6b9efea370c",
+     "name": "Under 1.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.45",
+      "qty": 38700
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2e28-7001-8ea7-c63603085d0d",
+   "description": "Newcastle United FC 1.5 TEAM_TOTAL",
+   "eventId": "01a1553c-2ddf-7cb3-8b3a-97a5cbb0036a",
+   "marketType": "TEAM_TOTAL",
+   "strike": "1.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2e28-7001-8ea7-c6416fc3f279",
+     "name": "Over 1.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.41",
+      "qty": 42500
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2e28-7001-8ea7-c6510c7e749d",
+     "name": "Under 1.5",
+     "status": "TBD",
+     "bid": {
+      "price": "0.40",
+      "qty": 45400
+     }
+    }
+   ]
   }
  ],
  "next": null

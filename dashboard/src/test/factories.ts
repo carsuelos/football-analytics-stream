@@ -171,6 +171,27 @@ export const marketBoard = (overrides: Partial<MarketBoard> = {}): MarketBoard =
           best: 'polymarket',
           implied: 0.2423,
         },
+        {
+          key: 'team-home-over-0.5',
+          kind: 'team_total',
+          outcome: 'home',
+          line: 0.5,
+          label: 'Chelsea over 0.5',
+          quotes: [{ venue: 'kalshi', market_id: 'K-CFC1', bid: 0.99 }],
+        },
+        {
+          key: 'team-away-over-0.5',
+          kind: 'team_total',
+          outcome: 'away',
+          line: 0.5,
+          label: 'Tottenham over 0.5',
+          quotes: [
+            { venue: 'kalshi', market_id: 'K-TOT1', bid: 0.3, ask: 0.32, ask_size: 50, fee: 0.0152, all_in: 0.3352 },
+            { venue: 'polymarket', market_id: 'P-TOT1', bid: 0.31, ask: 0.33, fee: 0.0154, all_in: 0.3454 },
+          ],
+          best: 'kalshi',
+          implied: 0.3352,
+        },
       ],
     },
     {

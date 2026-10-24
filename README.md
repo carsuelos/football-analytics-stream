@@ -131,7 +131,7 @@ The dashboard has two kinds of controls, kept apart on purpose:
 - **Simulator** (the dashed panel at the top): the simulator stands in for a live feed, so this is the "TV studio". Choose a match and its broadcast starts, in real time; pick 60× to play a half in under a minute, or Pause to hold it. A real feed can't be paused or sped up, so when the engine has no simulator (`--no-simulator`) the panel is hidden and the match is whatever the feed is playing.
 - **Viewer**: your view of the broadcast, as on a TV box. These work on any feed: pause, rewind to any minute up to the live edge (the engine rebuilds the charts and alerts up to there), catch up at a faster speed, or jump back to live. The badge shows "LIVE" or how far behind it you are.
 
-A compact scoreboard heads the match timeline: the score (and the shootout's), the clock to the second and each team's goals and red cards. The timeline puts every goal, card, penalty and alert along the match; hover a marker for what it is. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes, with goals and alerts marked. The match feed on the right lists events and alerts together (toggle alerts, goals, cards and penalties) and says, for each alert, whether that team went on to score within 10 minutes. That verdict comes later, as the match plays on: the engine only ever sends what has happened up to the viewer's position, so after a seek back the later goals are gone until they are replayed. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
+A compact scoreboard heads the match timeline: the score (and the shootout's), the clock to the second and each team's goals and red cards. The timeline puts every goal, card, penalty and alert along the match, in one compact row until clicked (it then stacks markers that are close); hover a marker for what it is. The charts show each team's field tilt, xT added and pressure index over the last 5 or 10 minutes, with goals and alerts marked. The match feed on the right lists events and alerts together (toggle alerts, goals, cards and penalties) and says, for each alert, whether that team went on to score within 10 minutes. That verdict comes later, as the match plays on: the engine only ever sends what has happened up to the viewer's position, so after a seek back the later goals are gone until they are replayed. Stop the engine and restart it: it catches up with the broadcast, and the dashboard reconnects by itself.
 
 ### Running it all in Docker
 
@@ -192,7 +192,7 @@ notifier             HTTP POST     (the webhook)
 The dashboard's **Markets** page (http://localhost:3000/#/markets with `make up`) shows the Premier League's and La Liga's games as Kalshi, Polymarket US and Novig list them:
 - which venues list each game;
 - the live score and clock;
-- each venue's price to buy each contract (total goals over 0.5 to 6.5, and the result, both after 90' plus stoppage), with its bid and fee;
+- each venue's price to buy each contract (total goals over 0.5 to 6.5, the result, and each team's goals over 0.5 to 3.5, all after 90' plus stoppage), with its bid and fee; each kind folds away;
 - the cheapest all-in price (the ask plus the venue's fee), and how it has moved.
 
 It reads the venues' public data through the `markets` service, so it needs no accounts or keys. Our model's probability and paper trading join it with a live event feed. Outside Docker: `make markets`, then `make dashboard`.

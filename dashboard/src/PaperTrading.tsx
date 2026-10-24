@@ -41,8 +41,9 @@ export function PaperTrading() {
           </button>
         </div>
       </fieldset>
-      <p className="text-xs text-slate-500">
-        Real trades come later and run on your machine: each venue's key is pasted for one game, held in memory only, and never stored.
+      <p role="note" className="rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2 text-xs text-amber-100/80">
+        <span className="font-semibold text-amber-200">Real money runs only on your own machine</span> (<code>make up</code>), never in the cloud
+        deployment: each venue's key is pasted for one game, held in memory only, and never stored.
       </p>
     </section>
   )

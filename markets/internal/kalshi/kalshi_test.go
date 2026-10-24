@@ -2,6 +2,8 @@ package kalshi
 
 import (
 	"context"
+	"fmt"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -33,13 +35,13 @@ func fake(t *testing.T) (*Client, *int) {
 	return &Client{BaseURL: srv.URL, HTTP: srv.Client()}, n
 }
 
-func TestEventsJoinTheTotalAndResultSeriesOfAGame(t *testing.T) {
+func TestEventsJoinTheSeriesOfAGame(t *testing.T) {
 	c, n := fake(t)
 	events, err := c.Events(context.Background(), schema.LeagueEpl)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if *n != 2 || len(events) != 2 {
+	if *n != 3 || len(events) != 2 {
 		t.Fatalf("%d requests, %d events", *n, len(events))
 	}
 	e := events[0]
@@ -67,6 +69,25 @@ func TestEventsJoinTheTotalAndResultSeriesOfAGame(t *testing.T) {
 		if byKey[key] != ask {
 			t.Errorf("%s ask = %v, want %v (all: %v)", key, byKey[key], ask, byKey)
 		}
+	}
+}
+
+func TestEventsReadEachTeamsGoals(t *testing.T) {
+	c, _ := fake(t)
+	events, err := c.Events(context.Background(), schema.LeagueEpl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	e := events[1] // Crystal Palace v Newcastle
+	got := map[string]float64{}
+	for _, q := range e.Quotes {
+		if q.Kind == schema.ContractKindTeamTotal {
+			got[fmt.Sprintf("%s-%g", q.Outcome, q.Line)] = *q.Ask
+		}
+	}
+	want := map[string]float64{"home-0.5": 0.80, "home-1.5": 0.46, "home-2.5": 0.20, "away-0.5": 0.84, "away-1.5": 0.52, "away-2.5": 0.25}
+	if !maps.Equal(got, want) {
+		t.Errorf("team totals = %v, want %v", got, want)
 	}
 }
 

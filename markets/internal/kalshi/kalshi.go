@@ -1,10 +1,11 @@
 // Package kalshi reads Kalshi's soccer markets: per game, total goals (over
-// 0.5 to 6.5) and the result (each team, and a tie), both settled on 90
-// minutes plus stoppage time. Reading needs no key.
+// 0.5 to 6.5), the result (each team, and a tie) and each team's goals (over
+// 0.5 to 2.5), all settled on 90 minutes plus stoppage time. Reading needs no
+// key.
 //
 // Kalshi lists each kind of market as its own series of events (for the
-// Premier League, KXEPLTOTAL and KXEPLGAME), so a game is the events of the
-// series that share a suffix: KXEPLTOTAL-26OCT24CFCTOT and
+// Premier League, KXEPLTOTAL, KXEPLGAME and KXEPLTEAMTOTAL), so a game is the
+// events of the series that share a suffix: KXEPLTOTAL-26OCT24CFCTOT and
 // KXEPLGAME-26OCT24CFCTOT are Chelsea v Tottenham on Oct 24, 2026. Kalshi
 // gives no kick-off time; it is estimated from when the markets are expected
 // to close.
@@ -30,14 +31,14 @@ const DefaultBaseURL = "https://api.elections.kalshi.com/trade-api/v2"
 // contract (the series' fee_multiplier is 1 for these).
 const FeeCoefficient = 0.07
 
-// series are each league's total-goals and result series.
-var series = map[schema.League]struct{ total, game string }{
-	schema.LeagueEpl:    {"KXEPLTOTAL", "KXEPLGAME"},
-	schema.LeagueLaliga: {"KXLALIGATOTAL", "KXLALIGAGAME"},
+// series are each league's total-goals, result and team-goals series.
+var series = map[schema.League]struct{ total, game, teamTotal string }{
+	schema.LeagueEpl:    {"KXEPLTOTAL", "KXEPLGAME", "KXEPLTEAMTOTAL"},
+	schema.LeagueLaliga: {"KXLALIGATOTAL", "KXLALIGAGAME", "KXLALIGATEAMTOTAL"},
 }
 
 // How long after kick-off each series' markets are expected to close, which
-// is how kick-off is estimated.
+// is how kick-off is estimated. (Team goals close with the result.)
 const (
 	totalCloses = 4 * time.Hour
 	gameCloses  = 3 * time.Hour
@@ -81,7 +82,7 @@ type market struct {
 	RulesPrimary           string    `json:"rules_primary"`
 }
 
-// Events returns the league's open games, with both series' markets.
+// Events returns the league's open games, with all three series' markets.
 func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Event, error) {
 	s, ok := series[league]
 	if !ok {
@@ -89,7 +90,10 @@ func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Even
 	}
 	games := map[string]*venue.Event{}
 	var order []string
-	for _, ticker := range []string{s.total, s.game} {
+	for _, ticker := range []string{s.total, s.game, s.teamTotal} {
+		kind := map[string]schema.ContractKind{
+			s.total: schema.ContractKindTotal, s.game: schema.ContractKindResult, s.teamTotal: schema.ContractKindTeamTotal,
+		}[ticker]
 		events, err := c.events(ctx, ticker)
 		if err != nil {
 			return nil, err
@@ -116,13 +120,13 @@ func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Even
 				if m.Status != "active" {
 					continue
 				}
-				q, ok := quote(ticker == s.total, m, g)
+				q, ok := quote(kind, m, g)
 				if !ok {
 					continue
 				}
 				g.Quotes = append(g.Quotes, q)
 				closes := gameCloses
-				if ticker == s.total {
+				if kind == schema.ContractKindTotal {
 					closes = totalCloses
 				}
 				if !m.ExpectedExpirationTime.IsZero() {
@@ -192,7 +196,7 @@ func date(key string) (time.Time, bool) {
 	return d.Add(12 * time.Hour), true
 }
 
-func quote(total bool, m market, g *venue.Event) (venue.Quote, bool) {
+func quote(kind schema.ContractKind, m market, g *venue.Event) (venue.Quote, bool) {
 	q := venue.Quote{
 		MarketID:       m.Ticker,
 		Bid:            price(m.YesBid),
@@ -201,15 +205,31 @@ func quote(total bool, m market, g *venue.Event) (venue.Quote, bool) {
 		FeeCoefficient: FeeCoefficient,
 		FeeCharged:     true,
 	}
-	if total {
+	suffix := m.Ticker[strings.LastIndex(m.Ticker, "-")+1:]
+	switch kind {
+	case schema.ContractKindTotal:
 		if m.FloorStrike == nil || m.StrikeType != "greater" {
 			return q, false
 		}
-		q.Kind, q.Outcome, q.Line = schema.ContractKindTotal, schema.OutcomeOver, *m.FloorStrike
+		q.Kind, q.Outcome, q.Line = kind, schema.OutcomeOver, *m.FloorStrike
+		return q, true
+	case schema.ContractKindTeamTotal:
+		// CFC2: Chelsea over 1.5.
+		if m.FloorStrike == nil || m.StrikeType != "greater" {
+			return q, false
+		}
+		q.Kind, q.Line = kind, *m.FloorStrike
+		switch strings.TrimRight(suffix, "0123456789") {
+		case g.Home.Abbreviation:
+			q.Outcome = schema.OutcomeHome
+		case g.Away.Abbreviation:
+			q.Outcome = schema.OutcomeAway
+		default:
+			return q, false
+		}
 		return q, true
 	}
 	q.Kind = schema.ContractKindResult
-	suffix := m.Ticker[strings.LastIndex(m.Ticker, "-")+1:]
 	switch {
 	case suffix == "TIE":
 		q.Outcome = schema.OutcomeDraw

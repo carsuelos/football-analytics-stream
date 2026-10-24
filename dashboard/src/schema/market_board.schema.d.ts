@@ -7,11 +7,11 @@ export type Venue = "kalshi" | "polymarket" | "novig";
  */
 export type GameState = "scheduled" | "live" | "ended";
 /**
- * total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation.
+ * total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation. team_total: one team scores over line goals in regulation.
  */
-export type ContractKind = "total" | "result";
+export type ContractKind = "total" | "result" | "team_total";
 /**
- * What a Yes pays on: over the line (total), or a home win, a draw or an away win (result).
+ * What a Yes pays on: over the line (total); a home win, a draw or an away win (result); or the home or away team over the line (team_total).
  */
 export type Outcome = "over" | "home" | "draw" | "away";
 /**
@@ -113,17 +113,17 @@ export interface Listing {
  */
 export interface Contract {
   /**
-   * Stable within the game, e.g. total-over-2.5 or result-draw.
+   * Stable within the game, e.g. total-over-2.5, result-draw or team-home-over-1.5.
    */
   key: string;
   kind: ContractKind;
   outcome: Outcome;
   /**
-   * For total: the goals line, e.g. 2.5.
+   * For total and team_total: the goals line, e.g. 2.5.
    */
   line?: number;
   /**
-   * e.g. Over 2.5, Chelsea, Draw.
+   * e.g. Over 2.5, Chelsea, Draw, Chelsea over 1.5.
    */
   label: string;
   quotes: Quote[];

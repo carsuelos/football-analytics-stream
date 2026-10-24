@@ -28,8 +28,11 @@ func chelsea() map[schema.Venue][]venue.Event {
 			Kickoff: kickoff.Add(30 * time.Minute), KickoffEstimated: true,
 			Quotes: []venue.Quote{
 				q(schema.ContractKindTotal, schema.OutcomeOver, 0.5, 0.75, 0.80, 0.07),
+				q(schema.ContractKindTeamTotal, schema.OutcomeAway, 0.5, 0.55, 0.58, 0.07),
 				q(schema.ContractKindTotal, schema.OutcomeOver, 1.5, 0.30, 0.37, 0.07),
 				q(schema.ContractKindResult, schema.OutcomeDraw, 0, 0.45, 0.46, 0.07),
+				q(schema.ContractKindTeamTotal, schema.OutcomeHome, 1.5, 0.40, 0.42, 0.07),
+				q(schema.ContractKindTeamTotal, schema.OutcomeHome, 4.5, 0.01, 0.02, 0.07),
 			},
 		}},
 		schema.VenuePolymarket: {{
@@ -67,7 +70,9 @@ func TestBuildMatchesAGameAcrossTheVenues(t *testing.T) {
 	for _, c := range g.Contracts {
 		keys = append(keys, c.Key)
 	}
-	if want := []string{"total-over-0.5", "total-over-1.5", "result-draw"}; !slices.Equal(keys, want) {
+	// Totals, the result, then each team's goals; past 3.5 a team's line isn't shown.
+	want := []string{"total-over-0.5", "total-over-1.5", "result-draw", "team-home-over-1.5", "team-away-over-0.5"}
+	if !slices.Equal(keys, want) {
 		t.Errorf("contracts %v, want %v", keys, want)
 	}
 	over := g.Contracts[0]
@@ -79,6 +84,9 @@ func TestBuildMatchesAGameAcrossTheVenues(t *testing.T) {
 	// Polymarket 0.455 + 0.0695*0.455*0.545 = 0.47223; Kalshi 0.46 + 0.07*0.46*0.54 = 0.47739; Novig 0.465 + 0.01493.
 	if len(draw.Quotes) != 3 || *draw.Best != schema.VenuePolymarket || draw.Label != "Draw" {
 		t.Errorf("draw: best %v quotes %+v", *draw.Best, draw.Quotes)
+	}
+	if c := g.Contracts[3]; c.Kind != schema.ContractKindTeamTotal || c.Label != "Chelsea over 1.5" || *c.Line != 1.5 {
+		t.Errorf("team total %+v", c)
 	}
 }
 

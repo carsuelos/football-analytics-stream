@@ -132,3 +132,12 @@ export function PauseIcon({ className = 'size-3.5' }: SvgProps) {
     </svg>
   )
 }
+
+/** Points down; rotate it to point elsewhere. */
+export function ChevronIcon({ className = 'size-4' }: SvgProps) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  )
+}

@@ -1,4 +1,7 @@
+import { useId } from 'react'
+import { ChevronIcon } from './Icons'
 import type { Contract, MarketGame, Quote } from './schema/market_board.schema'
+import { useStoredFlag } from './useStoredFlag'
 import { cents, percent, VENUE_ORDER, VENUES } from './venues'
 
 interface Props {
@@ -16,6 +19,7 @@ interface Props {
 export function GameMarkets({ game: g, selected, onSelect }: Props) {
   const totals = g.contracts.filter((c) => c.kind === 'total')
   const results = g.contracts.filter((c) => c.kind === 'result')
+  const teamTotals = g.contracts.filter((c) => c.kind === 'team_total')
   const goals = g.score ? g.score.home + g.score.away : 0
   return (
     <div className="flex flex-col gap-5">
@@ -33,6 +37,14 @@ export function GameMarkets({ game: g, selected, onSelect }: Props) {
         note="Yes pays $1 on that result after 90' plus stoppage time."
         contracts={results}
         decided={() => false}
+        selected={selected}
+        onSelect={onSelect}
+      />
+      <ContractTable
+        title="Team goals"
+        note="Yes pays $1 if that team scores more than the line after 90' plus stoppage time."
+        contracts={teamTotals}
+        decided={(c) => c.line !== undefined && g.score !== undefined && c.line < (c.outcome === 'home' ? g.score.home : g.score.away)}
         selected={selected}
         onSelect={onSelect}
       />
@@ -110,17 +122,36 @@ interface TableProps {
   onSelect: (key: string) => void
 }
 
+/** A kind of contract: collapsible, and remembered collapsed across games and visits. */
 function ContractTable({ title, note, contracts, decided, selected, onSelect }: TableProps) {
+  const [open, setOpen] = useStoredFlag(`markets.open.${title}`, true)
+  const body = useId()
   return (
     <section aria-label={title} className="card overflow-hidden">
-      <header className="flex flex-wrap items-baseline justify-between gap-2 px-4 pt-4 pb-2">
-        <h3 className="font-semibold">{title}</h3>
-        <p className="text-xs text-slate-500">{note}</p>
+      <header className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-3 ${open ? 'pb-2' : 'pb-3'}`}>
+        <h3>
+          <button
+            type="button"
+            aria-expanded={open}
+            aria-controls={body}
+            onClick={() => setOpen(!open)}
+            className="-ml-1.5 flex items-center gap-1.5 rounded-lg px-1.5 py-1 font-semibold transition hover:bg-white/[0.04]"
+          >
+            <ChevronIcon className={`size-4 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
+            {title}{' '}
+            <span className="text-xs font-normal text-slate-500 tabular-nums">
+              {contracts.length} <span className="sr-only">contracts</span>
+            </span>
+          </button>
+        </h3>
+        {open && <p className="text-xs text-slate-500">{note}</p>}
       </header>
-      {contracts.length === 0 ? (
-        <p className="px-4 pb-4 text-sm text-slate-400">No venue lists these for this game.</p>
+      {!open ? null : contracts.length === 0 ? (
+        <p id={body} className="px-4 pb-4 text-sm text-slate-400">
+          No venue lists these for this game.
+        </p>
       ) : (
-        <div className="overflow-x-auto">
+        <div id={body} className="overflow-x-auto">
           <table className="w-full min-w-[40rem] text-sm">
             <thead>
               <tr className="text-left text-[11px] tracking-wider text-slate-500 uppercase">

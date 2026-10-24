@@ -79,16 +79,17 @@ class Listing(BaseModel):
 
 class ContractKind(StrEnum):
     """
-    total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation.
+    total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation. team_total: one team scores over line goals in regulation.
     """
 
     total = "total"
     result = "result"
+    team_total = "team_total"
 
 
 class Outcome(StrEnum):
     """
-    What a Yes pays on: over the line (total), or a home win, a draw or an away win (result).
+    What a Yes pays on: over the line (total); a home win, a draw or an away win (result); or the home or away team over the line (team_total).
     """
 
     over = "over"
@@ -146,15 +147,19 @@ class Contract(BaseModel):
     key: Annotated[
         str,
         Field(
-            description="Stable within the game, e.g. total-over-2.5 or result-draw.", min_length=1
+            description="Stable within the game, e.g. total-over-2.5, result-draw or team-home-over-1.5.",
+            min_length=1,
         ),
     ]
     kind: ContractKind
     outcome: Outcome
     line: Annotated[
-        float | None, Field(description="For total: the goals line, e.g. 2.5.", ge=0.0)
+        float | None,
+        Field(description="For total and team_total: the goals line, e.g. 2.5.", ge=0.0),
     ] = None
-    label: Annotated[str, Field(description="e.g. Over 2.5, Chelsea, Draw.", min_length=1)]
+    label: Annotated[
+        str, Field(description="e.g. Over 2.5, Chelsea, Draw, Chelsea over 1.5.", min_length=1)
+    ]
     quotes: list[Quote]
     best: Annotated[
         Venue | None,

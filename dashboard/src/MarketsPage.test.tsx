@@ -62,6 +62,26 @@ it('prices each contract on each venue and marks the cheapest all-in', async () 
   expect(within(result).getAllByRole('row')[1]).toHaveTextContent('Draw—23¢bid 22¢ · fee 1.2¢—24.2¢24% · Polymarket—')
 })
 
+it("prices each team's goals, and folds a kind of contract away until it's opened again", async () => {
+  render(<MarketsPage />)
+  const teams = await screen.findByRole('region', { name: 'Team goals' })
+  const [, home, away] = within(teams).getAllByRole('row')
+  expect(home).toHaveTextContent('Chelsea over 0.5already over')
+  expect(away).toHaveTextContent('Tottenham over 0.5')
+  expect(away).not.toHaveTextContent('already over')
+  expect(within(away).getAllByRole('cell')[3]).toHaveTextContent('33.5¢34% · Kalshi')
+
+  const toggle = within(teams).getByRole('button', { name: 'Team goals 2 contracts' })
+  expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  await userEvent.click(toggle)
+  expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  expect(within(teams).queryByRole('table')).toBeNull()
+  // Still folded on the next visit.
+  expect(localStorage.getItem('markets.open.Team goals')).toBe('0')
+  await userEvent.click(toggle)
+  expect(within(teams).getByRole('table')).toBeInTheDocument()
+})
+
 it('follows the contract the market is least sure of, or the one clicked', async () => {
   render(<MarketsPage />)
   const chart = await screen.findByRole('region', { name: 'Price over time' })
