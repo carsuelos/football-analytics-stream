@@ -1,0 +1,57 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "MatchLibrary",
+  "description": "The matches the simulator can download: every competition season in StatsBomb's open data, how many of its matches are already on disk, and the download in progress, if any. Served by the simulator (GET /library) through the engine (GET /api/library).",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "seasons": {
+      "description": "Newest first.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/LibrarySeason" }
+    },
+    "download": { "$ref": "#/definitions/LibraryDownload" },
+    "error": {
+      "description": "Why the list of seasons couldn't be refreshed from StatsBomb (the last one known is shown).",
+      "type": "string"
+    }
+  },
+  "required": ["schema_version", "seasons"],
+  "additionalProperties": false,
+  "definitions": {
+    "LibrarySeason": {
+      "title": "LibrarySeason",
+      "type": "object",
+      "properties": {
+        "competition_id": { "type": "integer" },
+        "season_id": { "type": "integer" },
+        "competition": { "description": "e.g. UEFA Women's Euro.", "type": "string", "minLength": 1 },
+        "season": { "description": "e.g. 2025 or 2015/2016.", "type": "string", "minLength": 1 },
+        "country": { "type": "string" },
+        "gender": { "type": "string", "enum": ["male", "female"] },
+        "youth": { "type": "boolean" },
+        "in_training": { "description": "The goal and full-time models were trained on this season (every men's senior season from 2003, except the 2022 World Cup they're tested on), so its matches aren't a fair test of them.", "type": "boolean" },
+        "downloaded": { "description": "Matches of this season on disk.", "type": "integer", "minimum": 0 },
+        "matches": { "description": "Matches StatsBomb has for it, once its list has been downloaded.", "type": "integer", "minimum": 0 }
+      },
+      "required": ["competition_id", "season_id", "competition", "season", "gender", "downloaded"],
+      "additionalProperties": false
+    },
+    "LibraryDownload": {
+      "title": "LibraryDownload",
+      "type": "object",
+      "properties": {
+        "competition_id": { "type": "integer" },
+        "season_id": { "type": "integer" },
+        "competition": { "type": "string" },
+        "season": { "type": "string" },
+        "state": { "title": "LibraryDownloadState", "type": "string", "enum": ["downloading", "done", "failed"] },
+        "done": { "description": "Matches downloaded (or already on disk).", "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "minimum": 0 },
+        "error": { "type": "string" }
+      },
+      "required": ["competition_id", "season_id", "competition", "season", "state", "done", "total"],
+      "additionalProperties": false
+    }
+  }
+}

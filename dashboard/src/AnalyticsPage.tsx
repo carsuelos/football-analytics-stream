@@ -3,6 +3,7 @@ import { BroadcastControls } from './BroadcastControls'
 import { matchTeams } from './chartData'
 import { EventStrip } from './EventStrip'
 import { MatchFeed } from './MatchFeed'
+import { AddMatches } from './MatchLibrary'
 import { MatchPicker } from './MatchPicker'
 import { MetricCharts } from './MetricCharts'
 import { AlertToasts } from './AlertToasts'
@@ -64,6 +65,7 @@ export function AnalyticsPage() {
                   disabled={broadcast.pending}
                   onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
                 />
+                <AddMatches onDownloaded={broadcast.refreshMatches} />
                 <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
                 <ErrorMessage message={broadcast.error} />
               </div>

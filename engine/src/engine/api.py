@@ -10,9 +10,11 @@ POST /api/control    a viewer command for the engine's DVR: play, pause, seek...
 GET  /api/matches    the simulator's matches
 GET  /api/broadcast  the simulator's broadcast status
 POST /api/broadcast  send the simulator a broadcast command
+GET  /api/library    the matches the simulator can download, and its download's progress
+POST /api/library    have the simulator download a competition season's matches
 
 Without a simulator (a feed nobody here controls, like a real one), the last
-three are 404 {"error": "no simulator: ..."}; that is how the dashboard knows
+five are 404 {"error": "no simulator: ..."}; that is how the dashboard knows
 to hide its simulator controls.
 
 Every error has the simulator's shape: {"error": "..."}.
@@ -38,6 +40,8 @@ from engine.schema.broadcast_command_schema import BroadcastCommand
 from engine.schema.broadcast_status_schema import BroadcastStatus
 from engine.schema.engine_status_schema import EngineStatus
 from engine.schema.incident_schema import Incident
+from engine.schema.library_command_schema import LibraryCommand
+from engine.schema.match_library_schema import MatchLibrary
 from engine.schema.match_list_schema import MatchList
 from engine.schema.match_reset_schema import MatchReset
 from engine.schema.metric_schema import MetricSnapshot
@@ -198,6 +202,19 @@ def create_app(
     @app.post("/api/broadcast", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
     async def broadcast_command(command: BroadcastCommand) -> BroadcastStatus:
         return await call_simulator(BroadcastStatus, "POST", "/control", command)
+
+    @app.get("/api/library", response_model_exclude_none=True, responses=SIMULATOR_ERRORS)
+    async def library() -> MatchLibrary:
+        return await call_simulator(MatchLibrary, "GET", "/library")
+
+    @app.post(
+        "/api/library",
+        status_code=202,
+        response_model_exclude_none=True,
+        responses=SIMULATOR_ERRORS,
+    )
+    async def download(command: LibraryCommand) -> MatchLibrary:
+        return await call_simulator(MatchLibrary, "POST", "/library", command)
 
     # async, so control runs on the event loop with the DVR, not in a thread.
     @app.post("/api/control", response_model_exclude_none=True, responses=CONTROL_ERRORS)

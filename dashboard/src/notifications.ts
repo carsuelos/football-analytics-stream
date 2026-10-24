@@ -76,7 +76,7 @@ export function useAlertNotifications(settings: Settings, alerts: Alert[], statu
       setToasts((ts) => [...ts.filter((t) => t.id !== id), { id, alert: a, title, body }].slice(-MAX_TOASTS))
       if (sound) ding()
       if (system && supported() && Notification.permission === 'granted' && !document.hasFocus()) {
-        const n = new Notification(title, { body, tag: id })
+        const n = new Notification(title, { body, tag: id, icon: '/icon-192.png' })
         n.onclick = () => {
           window.focus()
           n.close()

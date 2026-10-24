@@ -108,3 +108,24 @@ func TestRecordStartsANewFileEachDayWithKeyframes(t *testing.T) {
 		t.Errorf("after a restart: %+v", got)
 	}
 }
+
+func TestAGameDaysAwayGetsAKeyframeAnHour(t *testing.T) {
+	dir := t.TempDir()
+	r := New(dir)
+	defer r.Close()
+	later := func(at time.Time, ask float64) schema.MarketBoard {
+		b := board(at, ask, true, "")
+		g := &b.Games[0]
+		g.State, g.Clock, g.Score, g.Kickoff = schema.GameStateScheduled, nil, nil, t0.Add(48*time.Hour)
+		return b
+	}
+	for _, b := range []schema.MarketBoard{later(t0, 0.48), later(t0.Add(11*time.Minute), 0.47), later(t0.Add(61*time.Minute), 0.47)} {
+		if err := r.Record(b); err != nil {
+			t.Fatal(err)
+		}
+	}
+	got := lines(t, filepath.Join(dir, "2026-10-24", "epl.jsonl"))
+	if len(got) != 3 || !got[0].Keyframe || got[1].Keyframe || !got[2].Keyframe {
+		t.Errorf("keyframes %v %v %v", got[0].Keyframe, got[1].Keyframe, got[2].Keyframe)
+	}
+}

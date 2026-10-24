@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "LibraryCommand",
+  "description": "Request body to download a competition season's matches into the simulator's data (POST /library through the engine's POST /api/library). One download at a time; matches already on disk are skipped.",
+  "type": "object",
+  "properties": {
+    "schema_version": { "$ref": "common.schema.json#/definitions/SchemaVersion" },
+    "competition_id": { "type": "integer" },
+    "season_id": { "type": "integer" }
+  },
+  "required": ["schema_version", "competition_id", "season_id"],
+  "additionalProperties": false
+}

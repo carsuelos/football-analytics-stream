@@ -22,6 +22,7 @@ from tests.test_schema_contract import FIXTURES_DIR, _validator
 
 BROADCAST = json.loads((FIXTURES_DIR / "valid/broadcast_status/playing.json").read_text())
 MATCHES = json.loads((FIXTURES_DIR / "valid/match_list/one_match.json").read_text())
+LIBRARY = json.loads((FIXTURES_DIR / "valid/match_library/downloading.json").read_text())
 PLAY = {"schema_version": 1, "command": "play"}
 
 
@@ -118,7 +119,11 @@ async def test_metrics_alerts_and_incidents_are_the_match_so_far(
 
 @pytest.mark.parametrize(
     ("path", "simulator_path", "reply"),
-    [("/api/matches", "/matches", MATCHES), ("/api/broadcast", "/status", BROADCAST)],
+    [
+        ("/api/matches", "/matches", MATCHES),
+        ("/api/broadcast", "/status", BROADCAST),
+        ("/api/library", "/library", LIBRARY),
+    ],
 )
 async def test_gets_pass_through_to_the_simulator(
     client: httpx.AsyncClient, sim: FakeSimulator, path: str, simulator_path: str, reply: Any
@@ -128,6 +133,22 @@ async def test_gets_pass_through_to_the_simulator(
     assert (r.status_code, r.json()) == (200, reply)
     [req] = sim.requests
     assert (req.method, req.url.path) == ("GET", simulator_path)
+
+
+async def test_a_download_passes_through_to_the_simulator(
+    client: httpx.AsyncClient, sim: FakeSimulator
+) -> None:
+    sim.reply = (202, LIBRARY)
+    command = {"schema_version": 1, "competition_id": 53, "season_id": 315}
+    r = await client.post("/api/library", json=command)
+    assert (r.status_code, r.json()) == (202, LIBRARY)
+    [req] = sim.requests
+    assert (req.method, req.url.path, json.loads(req.content)) == ("POST", "/library", command)
+    sim.reply = (409, {"error": "a download is already running"})
+    r = await client.post("/api/library", json=command)
+    assert (r.status_code, r.json()) == (409, {"error": "a download is already running"})
+    r = await client.post("/api/library", json={"schema_version": 1, "competition_id": 53})
+    assert r.status_code == 400
 
 
 @pytest.mark.parametrize(
@@ -372,8 +393,8 @@ async def test_the_stream_ends_when_the_client_falls_too_far_behind(
 def test_the_api_is_documented(app: FastAPI) -> None:
     paths = app.openapi()["paths"]
     assert sorted(paths) == [
-        "/api/alerts", "/api/broadcast", "/api/control", "/api/incidents", "/api/matches",
-        "/api/metrics", "/api/status", "/api/stream",
+        "/api/alerts", "/api/broadcast", "/api/control", "/api/incidents", "/api/library",
+        "/api/matches", "/api/metrics", "/api/status", "/api/stream",
     ]  # fmt: skip
     broadcast = paths["/api/broadcast"]["post"]
     assert broadcast["requestBody"]["content"]["application/json"]["schema"] == {

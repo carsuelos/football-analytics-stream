@@ -24,6 +24,7 @@ import (
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/broadcast"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/jitter"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/kafka"
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/library"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/server"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/statsbomb"
@@ -47,6 +48,7 @@ func run(args []string) error {
 	dataDir := flags.String("data", "data/statsbomb", "StatsBomb open-data directory (see make fetch-data)")
 	maxDelay := flags.Duration("jitter", 0, "deliver events up to this much match time late, e.g. 3s (0 = off)")
 	seed := flags.Uint64("seed", 1, "random seed for -jitter")
+	downloads := flags.Bool("library", true, "let the dashboard download more matches into -data (GET and POST /library)")
 	topic := flags.String("kafka-topic", "events", "Kafka topic to publish the broadcast to, if KAFKA_BOOTSTRAP_SERVERS is set")
 	flags.Parse(args) // ExitOnError: -h exits 0, a bad flag exits 2
 	if *maxDelay < 0 {
@@ -119,6 +121,9 @@ func run(args []string) error {
 		return err
 	}
 	api := server.New(broadcaster, catalog, log)
+	if *downloads {
+		api.Library = library.New(*dataDir, log)
+	}
 	srv := &http.Server{
 		Handler:           traced(api.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,

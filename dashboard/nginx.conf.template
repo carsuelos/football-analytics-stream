@@ -9,6 +9,11 @@ server {
     listen 8080;
     root /usr/share/nginx/html;
 
+    # nginx's own types don't know the web app manifest (public/manifest.webmanifest).
+    location = /manifest.webmanifest {
+        default_type application/manifest+json;
+    }
+
     # The shared password, if DASHBOARD_PASSWORD is set (see 19-basic-auth.envsh).
     auth_basic ${SIGN_IN_REALM};
     auth_basic_user_file ${SIGN_IN_USERS_FILE};

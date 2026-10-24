@@ -82,6 +82,8 @@ module simulator 'app.bicep' = {
     registryServer: registryServer
     name: 'simulator'
     image: format(image, 'simulator')
+    // The data share is mounted read-only here, so no "Add matches".
+    args: ['-library=false']
     secrets: [kafkaSecret]
     env: concat(json, kafka, producing)
     ingress: 'internal'
