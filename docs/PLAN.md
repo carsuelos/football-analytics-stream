@@ -288,7 +288,7 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
   1. build the images
   2. push them to the Container Registry
   3. run `az deployment group create`
-- [ ] Structured logging and OpenTelemetry tracing.
+- [x] Structured logging and OpenTelemetry tracing: JSON logs with trace ids, OTLP traces across all three apps (context in Kafka headers), the Aspire dashboard in `make up`.
 - [ ] Teardown and recreate scripts for the costly resources, to save credit. Check costs in the Azure pricing calculator first.
 
 ### Phase 5 (optional): Live provider

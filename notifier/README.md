@@ -24,5 +24,6 @@ Kafka settings come from `KAFKA_*` environment variables, mapped to librdkafka p
 | --- | --- |
 | `cmd/notifier` | Flags, wiring and shutdown |
 | `internal/notify` | `Notifier`: the delivery loop over a `Source` (dedupe, staleness, retries) |
-| `internal/kafka` | The consumer (`Source` on confluent-kafka-go) and `ConfigFromEnv` |
+| `internal/kafka` | The consumer (`Source` on confluent-kafka-go, passing on the trace context in each message's headers) and `ConfigFromEnv` |
+| `internal/telemetry` | Text or JSON (`LOG_FORMAT=json`) logs with the span's ids, and OTLP tracing when `OTEL_EXPORTER_OTLP_ENDPOINT` is set (shared with the simulator) |
 | `internal/schema` | The `Alert` type, generated from `schema/jsonschema/` by `make gen`; do not edit it |

@@ -168,6 +168,23 @@ The engine publishes back to the broker too: each metrics snapshot to `metrics` 
 
 The **notifier** (`notifier/`, Go) consumes `alerts` as the `notifier` consumer group and POSTs each alert as JSON to every `-webhook` (by default the `webhook` service, which prints them: `docker compose logs -f webhook`; set `ALERT_WEBHOOK` for a real one). It delivers at least once: an alert's offset is committed only once delivered, so a restart resumes where it left off. Repeats are dropped by alert id, and each request carries an `Idempotency-Key: <alert id>` header for the receiver to drop the rare repeat after a restart. A failing webhook (network error, 5xx or 429) is retried with backoff until the alert is older than `-max-age` (5 minutes), since a late alert is no use; other 4xx errors are not retried. A new consumer group starts from the earliest alert but skips the stale ones the same way.
 
+### Logs and traces
+
+Every app logs to stderr: as text by default, or one JSON object a line with `LOG_FORMAT=json` (what Azure's log collector expects). A line logged inside a traced operation carries its `trace_id` and `span_id`.
+
+Tracing is off unless `OTEL_EXPORTER_OTLP_ENDPOINT` is set. Then each app exports spans over OTLP/gRPC, configured by the standard [`OTEL_*` variables](https://opentelemetry.io/docs/languages/sdk-configuration/). The trace context travels in W3C `traceparent` headers, over HTTP and in Kafka message headers, so one alert is one trace across all three apps:
+
+```text
+simulator  send events            (the event that completed the tick)
+engine       receive events
+engine         alert momentum_shift
+engine           send alerts
+notifier           process alerts
+notifier             HTTP POST     (the webhook)
+```
+
+`make up` sends the traces to the [Aspire dashboard](https://aspire.dev/dashboard/standalone/) at http://localhost:18888 (`ASPIRE_PORT`), a free OTLP viewer. In Azure they go to Application Insights through the Container Apps OpenTelemetry agent; the code knows nothing about either. The engine's API requests and its calls to the simulator are traced too, but not the event stream (it lasts as long as the connection) or health checks.
+
 ### Smoke test
 
 `make smoke` builds the simulator, starts it and the engine on ports 18080 and 18000 (so your dev setup can keep running), and replays the 2022 final at 1000× (about 10 s). The simulator delivers events up to 3 s late, so the engine has to reorder them. Every match is checked for consistency: the right teams, nothing dropped or duplicated, field tilts adding up to 1, snapshots in match-time order, alerts at or above their thresholds, and no errors in the logs. The final is also checked against what happened: Argentina's first-half dominance, penalties, and a goal-threat alert *before* each comeback goal (France's at 79', Messi's at 108').

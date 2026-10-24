@@ -4,6 +4,8 @@
 //
 // See package server for the HTTP and WebSocket API. If KAFKA_BOOTSTRAP_SERVERS
 // is set, the broadcast also goes to a Kafka topic; see package kafka.
+// LOG_FORMAT=json logs JSON, and OTEL_EXPORTER_OTLP_ENDPOINT turns tracing on;
+// see package telemetry.
 package main
 
 import (
@@ -25,6 +27,8 @@ import (
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/match"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/server"
 	"github.com/carsuelos/football-analytics-stream/simulator/internal/statsbomb"
+	"github.com/carsuelos/football-analytics-stream/simulator/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const shutdownTimeout = 5 * time.Second
@@ -49,7 +53,18 @@ func run(args []string) error {
 		return errors.New("-jitter must not be negative")
 	}
 
-	log := slog.New(slog.NewTextHandler(os.Stderr, nil))
+	log := telemetry.Logger(os.Stderr, os.Getenv("LOG_FORMAT"), slog.LevelInfo)
+	shutdownTracing, err := telemetry.Setup(context.Background(), "simulator")
+	if err != nil {
+		return fmt.Errorf("tracing: %w", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		if err := shutdownTracing(ctx); err != nil {
+			log.Warn("flushing traces", "err", err)
+		}
+	}()
 
 	var catalog match.Catalog = statsbomb.NewCatalog(*dataDir)
 	infos, err := catalog.List()
@@ -105,7 +120,7 @@ func run(args []string) error {
 	}
 	api := server.New(broadcaster, catalog, log)
 	srv := &http.Server{
-		Handler:           api.Handler(),
+		Handler:           traced(api.Handler()),
 		ReadHeaderTimeout: 10 * time.Second,
 		// Every request context derives from ctx. Shutdown does not wait for
 		// WebSocket connections, so this is how open feeds learn to close.
@@ -113,7 +128,7 @@ func run(args []string) error {
 	}
 	serveErr := make(chan error, 1)
 	go func() { serveErr <- srv.Serve(ln) }()
-	log.Info("simulator listening", "addr", ln.Addr().String(), "matches", len(infos))
+	log.Info("simulator listening", "addr", ln.Addr().String(), "matches", len(infos), "tracing", telemetry.Enabled())
 
 	select {
 	case err := <-serveErr:
@@ -130,4 +145,17 @@ func run(args []string) error {
 	// open feeds are closed by ctx above, and WaitFeeds lets them finish
 	// saying goodbye before the process exits.
 	return errors.Join(srv.Shutdown(shutdownCtx), api.WaitFeeds(shutdownCtx))
+}
+
+// traced wraps h in a span per request, except for health checks and the
+// WebSocket feed, which lasts as long as the connection.
+func traced(h http.Handler) http.Handler {
+	return otelhttp.NewHandler(h, "simulator",
+		otelhttp.WithFilter(func(r *http.Request) bool {
+			return r.URL.Path != "/feed" && r.URL.Path != "/healthz"
+		}),
+		otelhttp.WithSpanNameFormatter(func(_ string, r *http.Request) string {
+			return r.Method + " " + r.URL.Path
+		}),
+	)
 }

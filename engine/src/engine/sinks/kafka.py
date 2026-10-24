@@ -8,7 +8,9 @@ from typing import Protocol, Self
 
 from confluent_kafka import KafkaError, KafkaException, Message
 from confluent_kafka import Producer as _Producer
+from opentelemetry.trace import SpanKind
 
+from engine import telemetry
 from engine.schema.alert_schema import Alert
 from engine.schema.metric_schema import MetricSnapshot
 
@@ -18,7 +20,9 @@ log = logging.getLogger(__name__)
 class Producer(Protocol):
     """What KafkaPublisher needs of a producer (confluent-kafka's, by default)."""
 
-    def produce(self, topic: str, value: bytes, key: bytes) -> None:
+    def produce(
+        self, topic: str, value: bytes, key: bytes, headers: list[tuple[str, bytes]]
+    ) -> None:
         """Queue a message, or raise BufferError if the queue is full."""
 
     def poll(self, timeout: float) -> int:
@@ -71,9 +75,29 @@ class KafkaPublisher:
         if left:
             log.warning("kafka: stopping with %d messages undelivered", left)
 
-    def publish(self, topic: str, match_id: int, value: str) -> None:
+    def publish(self, topic: str, match_id: int, value: str, *, traced: bool = False) -> None:
+        """Queue value for topic. If traced, in a "send" span whose context
+        goes with the message in its headers, for the consumer to continue."""
+        if not traced:
+            self._produce(topic, match_id, value, [])
+            return
+        with telemetry.tracer.start_as_current_span(
+            f"send {topic}",
+            kind=SpanKind.PRODUCER,
+            attributes={
+                "messaging.system": "kafka",
+                "messaging.operation.type": "send",
+                "messaging.destination.name": topic,
+                "messaging.kafka.message.key": str(match_id),
+            },
+        ):
+            self._produce(topic, match_id, value, telemetry.inject())
+
+    def _produce(
+        self, topic: str, match_id: int, value: str, headers: list[tuple[str, bytes]]
+    ) -> None:
         try:
-            self._producer.produce(topic, value.encode(), str(match_id).encode())
+            self._producer.produce(topic, value.encode(), str(match_id).encode(), headers)
         except BufferError:
             log.warning("kafka: queue full, dropped a message for %s", topic)
         except KafkaException as e:
@@ -93,7 +117,7 @@ class KafkaAlertSink:
         self.topic = topic
 
     def send(self, alert: Alert) -> None:
-        self.publisher.publish(self.topic, alert.match_id, alert.model_dump_json())
+        self.publisher.publish(self.topic, alert.match_id, alert.model_dump_json(), traced=True)
 
 
 class KafkaMetricSink:
@@ -115,8 +139,16 @@ class ConfluentProducer:
             {"client.id": "engine", "enable.idempotence": True, "linger.ms": 5, **config}
         )
 
-    def produce(self, topic: str, value: bytes, key: bytes) -> None:
-        self._producer.produce(topic, value, key, on_delivery=_report)
+    def produce(
+        self, topic: str, value: bytes, key: bytes, headers: list[tuple[str, bytes]]
+    ) -> None:
+        self._producer.produce(
+            topic,
+            value,
+            key,
+            headers=list[tuple[str, str | bytes | None]](headers) or None,
+            on_delivery=_report,
+        )
 
     def poll(self, timeout: float) -> int:
         return self._producer.poll(timeout)

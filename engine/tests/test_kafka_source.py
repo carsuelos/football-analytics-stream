@@ -33,14 +33,16 @@ class FakeBroker:
             for msg in msgs:
                 self.append(len(self.logs) - 1, msg)
 
-    def append(self, partition: int, msg: FeedMessage | bytes) -> None:
+    def append(
+        self, partition: int, msg: FeedMessage | bytes, headers: tuple[tuple[str, bytes], ...] = ()
+    ) -> None:
         with self._lock:
             log = self.logs[partition]
             value = (
                 msg if isinstance(msg, bytes) else msg.model_dump_json(exclude_none=True).encode()
             )
             self._clock += 1
-            log.append(Record(partition, len(log), self._clock, value))
+            log.append(Record(partition, len(log), self._clock, value, headers))
             self._eof_sent.discard(partition)
 
     def partitions(self) -> list[int]:

@@ -5,6 +5,8 @@
 // It reads the alerts topic as a member of a Kafka consumer group, configured
 // by KAFKA_* environment variables (KAFKA_BOOTSTRAP_SERVERS is required), and
 // POSTs each alert, as JSON, to every webhook. See package notify.
+// LOG_FORMAT=json logs JSON, and OTEL_EXPORTER_OTLP_ENDPOINT turns tracing on;
+// see package telemetry.
 package main
 
 import (
@@ -22,6 +24,8 @@ import (
 
 	"github.com/carsuelos/football-analytics-stream/notifier/internal/kafka"
 	"github.com/carsuelos/football-analytics-stream/notifier/internal/notify"
+	"github.com/carsuelos/football-analytics-stream/notifier/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 func main() {
@@ -64,21 +68,33 @@ func run(args, environ []string) error {
 	if *verbose {
 		level = slog.LevelDebug
 	}
-	log := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: level}))
+	log := telemetry.Logger(os.Stderr, os.Getenv("LOG_FORMAT"), level)
+	shutdownTracing, err := telemetry.Setup(context.Background(), "notifier")
+	if err != nil {
+		return fmt.Errorf("tracing: %w", err)
+	}
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := shutdownTracing(ctx); err != nil {
+			log.Warn("flushing traces", "err", err)
+		}
+	}()
 
 	consumer, err := kafka.NewConsumer(config, *topic, log)
 	if err != nil {
 		return err
 	}
 	defer consumer.Close()
-	log.Info("notifier delivering", "topic", *topic, "bootstrap_servers", config["bootstrap.servers"], "webhooks", webhooks)
+	log.Info("notifier delivering", "topic", *topic, "bootstrap_servers", config["bootstrap.servers"], "webhooks", webhooks, "tracing", telemetry.Enabled())
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	n := notify.Notifier{
 		Source:   consumer,
+		Topic:    *topic,
 		Webhooks: webhooks,
-		Client:   &http.Client{Timeout: *timeout},
+		Client:   &http.Client{Timeout: *timeout, Transport: otelhttp.NewTransport(http.DefaultTransport)},
 		Backoff:  notify.Backoff{Initial: 500 * time.Millisecond, Max: 30 * time.Second},
 		MaxAge:   *maxAge,
 		Log:      log,
