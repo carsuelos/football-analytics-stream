@@ -1,5 +1,6 @@
 import { AnalyticsPage } from './AnalyticsPage'
 import { MarketsPage } from './MarketsPage'
+import { ThemeToggle } from './ThemeToggle'
 import { hrefOf, useRoute, type Route } from './useRoute'
 
 const PAGES: { route: Route; label: string }[] = [
@@ -21,18 +22,21 @@ export default function App() {
               <p className="text-xs text-slate-500">Momentum, threat and goal chances, as they happen</p>
             </div>
           </div>
-          <nav aria-label="Pages" className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
-            {PAGES.map((p) => (
-              <a
-                key={p.route}
-                href={hrefOf(p.route)}
-                aria-current={route === p.route ? 'page' : undefined}
-                className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition hover:text-slate-100 aria-[current=page]:bg-white/10 aria-[current=page]:text-white"
-              >
-                {p.label}
-              </a>
-            ))}
-          </nav>
+          <div className="flex items-center gap-2">
+            <nav aria-label="Pages" className="flex items-center gap-1 rounded-xl border border-white/[0.06] bg-black/20 p-1">
+              {PAGES.map((p) => (
+                <a
+                  key={p.route}
+                  href={hrefOf(p.route)}
+                  aria-current={route === p.route ? 'page' : undefined}
+                  className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-400 transition hover:text-slate-100 aria-[current=page]:bg-white/10 aria-[current=page]:text-white"
+                >
+                  {p.label}
+                </a>
+              ))}
+            </nav>
+            <ThemeToggle />
+          </div>
         </div>
       </header>
       {route === 'markets' ? <MarketsPage /> : <AnalyticsPage />}

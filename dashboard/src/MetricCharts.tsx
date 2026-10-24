@@ -134,11 +134,11 @@ function MetricChart({ title, hint, metric, format, stacked, points, axis, alert
             </linearGradient>
           ))}
         </defs>
-        <CartesianGrid stroke="rgb(255 255 255 / 0.05)" vertical={false} />
+        <CartesianGrid stroke="var(--chart-grid)" vertical={false} />
         <XAxis type="number" dataKey="x" domain={axis.domain} ticks={axis.ticks} tickFormatter={axis.label} allowDataOverflow stroke="#475569" tickLine={false} axisLine={false} fontSize={11} />
         <YAxis stroke="#475569" tickLine={false} axisLine={false} fontSize={11} tickFormatter={format} {...(stacked ? { domain: [0, 1], ticks: [0, 0.5, 1] } : {})} />
         <Tooltip
-          cursor={{ stroke: 'rgb(255 255 255 / 0.25)', strokeWidth: 1 }}
+          cursor={{ stroke: 'var(--chart-line)', strokeWidth: 1 }}
           content={({ active, payload }) => {
             const point = payload?.[0]?.payload as ChartPoint | undefined
             if (!active || !point) return null
@@ -146,7 +146,7 @@ function MetricChart({ title, hint, metric, format, stacked, points, axis, alert
           }}
         />
         {axis.periodStarts.map((p) => (
-          <ReferenceLine key={p.name} x={p.x} stroke="rgb(255 255 255 / 0.15)" strokeDasharray="3 4" label={{ value: p.name, position: 'insideTopLeft', fill: '#64748b', fontSize: 10 }} />
+          <ReferenceLine key={p.name} x={p.x} stroke="var(--chart-period)" strokeDasharray="3 4" label={{ value: p.name, position: 'insideTopLeft', fill: '#64748b', fontSize: 10 }} />
         ))}
         {all.map((m) => (
           <ReferenceLine
