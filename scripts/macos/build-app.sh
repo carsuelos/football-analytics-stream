@@ -46,10 +46,12 @@ touch "$APP"
 # Safari copies a web app's icon when it's added to the Dock, and macOS won't
 # let a script change another app, so a new icon reaches the web app only by
 # adding it again.
-for web in "/Applications/$WEBAPP.app" "$HOME/Applications/$WEBAPP.app"; do
-  [ -d "$web" ] && echo "  \"$WEBAPP\" keeps the icon it had when added: to update it, delete $web, then in Safari open http://localhost:3000 and File > Add to Dock (name it \"$WEBAPP\")."
-done
+if web=$("$REPO/scripts/macos/launch.sh" "$REPO" --which 2>/dev/null); then
+  echo "  Web app: ${web% (*}. It keeps the icon it had when added: to update it, delete it, then in Safari open http://localhost:3000 and File > Add to Dock."
+else
+  echo "  No web app yet: in Safari open http://localhost:3000 (make up) and File > Add to Dock."
+fi
 
 echo "Built $APP"
-echo "  It runs make up, opens \"$WEBAPP\" (Safari > File > Add to Dock), and runs make down when you quit it."
+echo "  It runs make up, opens the dashboard's web app (Safari > File > Add to Dock, any name), and runs make down when you quit it."
 echo "  Drag it to the Dock (open $(dirname "$APP")). Log: $LOG"

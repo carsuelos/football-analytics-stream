@@ -5,6 +5,10 @@
 # the markets service keeps running (and recording prices) after the rest stops.
 #
 #   scripts/macos/launch.sh <repo> [web app name]
+#   scripts/macos/launch.sh <repo> --which         prints the web app it would open
+#
+# The web app is the one with that name, or else any Safari web app that opens
+# the dashboard (whatever it was called when added).
 #
 # Logs to ~/Library/Logs/football-analytics-launcher.log. A second launch while
 # one is running just brings the web app forward.
@@ -17,13 +21,37 @@ LOCK=${TMPDIR:-/tmp}/football-analytics-launcher.lock
 export PATH="$HOME/.docker/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 notify() { osascript -e "display notification \"$1\" with title \"Football Analytics\"" >/dev/null 2>&1 || true; }
-running() { [ "$(osascript -e "application \"$WEBAPP\" is running" 2>/dev/null)" = "true" ]; }
-webapp_installed() { [ -d "$HOME/Applications/$WEBAPP.app" ] || [ -d "/Applications/$WEBAPP.app" ]; }
 log() { echo "$(date '+%F %T') $*"; }
+
+# find_webapp sets APP_PATH and APP_ID to the dashboard's Safari web app.
+APP_PATH='' APP_ID=''
+find_webapp() {
+  local app plist id url
+  for app in "$HOME/Applications/$WEBAPP.app" "/Applications/$WEBAPP.app" "$HOME/Applications"/*.app /Applications/*.app; do
+    plist="$app/Contents/Info.plist"
+    [ -f "$plist" ] || continue
+    id=$(plutil -extract CFBundleIdentifier raw "$plist" 2>/dev/null) || continue
+    [[ $id == com.apple.Safari.WebApp.* ]] || continue
+    if [[ $(basename "$app") != "$WEBAPP.app" ]]; then
+      url=$(plutil -extract Manifest.start_url raw "$plist" 2>/dev/null || plutil -extract WKManifestURL raw "$plist" 2>/dev/null) || continue
+      [[ $url == "$URL"* ]] || continue
+    fi
+    APP_PATH=$app APP_ID=$id
+    return 0
+  done
+  return 1
+}
+running() { [ "$(osascript -e "application id \"$APP_ID\" is running" 2>/dev/null)" = "true" ]; }
+
+if [ "$WEBAPP" = --which ]; then
+  WEBAPP="Football Analytics"
+  find_webapp && echo "$APP_PATH ($APP_ID)" || { echo "no web app for $URL"; exit 1; }
+  exit 0
+fi
 
 if ! mkdir "$LOCK" 2>/dev/null; then
   log "already running; bringing the dashboard forward"
-  webapp_installed && open -a "$WEBAPP" || open "$URL"
+  if find_webapp; then open "$APP_PATH"; else open "$URL"; fi
   exit 0
 fi
 trap 'rmdir "$LOCK" 2>/dev/null' EXIT
@@ -45,23 +73,23 @@ if ! make up; then
   exit 1
 fi
 
-if ! webapp_installed; then
-  log "no $WEBAPP.app; opening $URL in the browser and leaving the stack up (make down to stop it)"
+if ! find_webapp; then
+  log "no web app for $URL; opening it in the browser and leaving the stack up (make down to stop it)"
   open "$URL"
   exit 0
 fi
 
-log "opening $WEBAPP"
-open -a "$WEBAPP"
+log "opening $APP_PATH"
+open "$APP_PATH"
 for _ in $(seq 1 30); do running && break; sleep 1; done
 while running; do sleep 5; done
 
 if [ "${KEEP_RECORDING:-0}" = 1 ]; then
-  log "$WEBAPP quit: stopping all but the price recorder"
+  log "$(basename "$APP_PATH" .app) quit: stopping all but the price recorder"
   docker compose stop $(docker compose config --services | grep -vx markets)
   notify "Stopped (still recording prices)"
 else
-  log "$WEBAPP quit: make down"
+  log "$(basename "$APP_PATH" .app) quit: make down"
   make down
   notify "Stopped"
 fi
