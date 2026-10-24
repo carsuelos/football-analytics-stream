@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape up down logs smoke-compose cloud-up cloud-down cloud-status lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape up down dock-app logs smoke-compose cloud-up cloud-down cloud-status lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -140,6 +140,9 @@ up: ## Build and start the whole stack in Docker; the dashboard is on http://loc
 
 down: ## Stop the Docker stack
 	docker compose down
+
+dock-app: ## macOS: build "Football Analytics Launcher" in ~/Applications, a Dock icon that runs make up, opens the dashboard's web app (Safari > File > Add to Dock), and make down when you quit it. KEEP_RECORDING=1 keeps recording prices after
+	scripts/macos/build-app.sh $(ARGS)
 
 logs: ## Follow the Docker stack's logs
 	docker compose logs -f
