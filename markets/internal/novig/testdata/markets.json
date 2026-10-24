@@ -1,0 +1,215 @@
+{
+ "items": [
+  {
+   "marketId": "01a15707-1931-7d60-bf1a-0660acc6e14e",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "TOTAL",
+   "description": "Tottenham @ Chelsea t0.5",
+   "strike": "0.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a15707-1931-7d60-bf1a-067dd0bbc8e9",
+     "name": "Over 0.5",
+     "status": "TBD",
+     "last": "0.73",
+     "bid": {
+      "price": "0.635",
+      "qty": 100000
+     }
+    },
+    {
+     "outcomeId": "01a15707-1931-7d60-bf1a-068ca4e083a4",
+     "name": "Under 0.5",
+     "status": "TBD",
+     "last": "0.27",
+     "bid": {
+      "price": "0.36",
+      "qty": 18002
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2d7c-75b2-abe6-53c459808672",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "TOTAL",
+   "description": "Tottenham @ Chelsea t2.5",
+   "strike": "2.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2d7c-75b2-abe6-53d7db4b0537",
+     "name": "Over 2.5",
+     "status": "TBD",
+     "last": "0.095",
+     "bid": {
+      "price": "0.07",
+      "qty": 111300
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2d7c-75b2-abe6-53eb2b94a5a5",
+     "name": "Under 2.5",
+     "status": "TBD",
+     "last": "0.905",
+     "bid": {
+      "price": "0.91",
+      "qty": 137100
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2d7c-75b2-abe6-53915cdd47ec",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "TOTAL",
+   "description": "Tottenham @ Chelsea t1.5",
+   "strike": "1.5",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2d7c-75b2-abe6-53a57b736fe8",
+     "name": "Over 1.5",
+     "status": "TBD",
+     "last": "0.36",
+     "bid": {
+      "price": "0.265",
+      "qty": 100000
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2d7c-75b2-abe6-53bdc5cb5340",
+     "name": "Under 1.5",
+     "status": "TBD",
+     "last": "0.64",
+     "bid": {
+      "price": "0.73",
+      "qty": 10802
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2d7b-7ee1-8873-8c002ba98f18",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "MONEYLINE_3_WAY_WIN",
+   "description": "Tottenham MONEYLINE_3_WAY_WIN",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8c1693b00a2d",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.237",
+     "bid": {
+      "price": "0.225",
+      "qty": 21288
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8c26eaa62322",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.763",
+     "bid": {
+      "price": "0.77",
+      "qty": 682237
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2d7b-7ee1-8873-8bdd3fe04dfa",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "MONEYLINE_3_WAY_DRAW",
+   "description": "Tottenham @ Chelsea MONEYLINE_3_WAY_DRAW",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8bea098ea629",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.445",
+     "bid": {
+      "price": "0.46",
+      "qty": 317195
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8bf8052a839f",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.555",
+     "bid": {
+      "price": "0.535",
+      "qty": 475484
+     }
+    }
+   ]
+  },
+  {
+   "marketId": "01a1553c-2d7b-7ee1-8873-8bae884781bf",
+   "eventId": "01a1553c-2d18-7d82-8ebf-b1274b516f6b",
+   "marketType": "MONEYLINE_3_WAY_WIN",
+   "description": "Chelsea MONEYLINE_3_WAY_WIN",
+   "strike": "0",
+   "status": "OPEN",
+   "fee": {
+    "coefficient": "0.06",
+    "makerCredit": "0.25",
+    "charged": "WHEN_LIVE"
+   },
+   "outcomes": [
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8bbdd0e1e873",
+     "name": "Yes",
+     "status": "TBD",
+     "last": "0.31",
+     "bid": {
+      "price": "0.305",
+      "qty": 777195
+     }
+    },
+    {
+     "outcomeId": "01a1553c-2d7b-7ee1-8873-8bc504f690b0",
+     "name": "No",
+     "status": "TBD",
+     "last": "0.69",
+     "bid": {
+      "price": "0.69",
+      "qty": 547949
+     }
+    }
+   ]
+  }
+ ],
+ "next": null
+}

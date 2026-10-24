@@ -33,6 +33,23 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals()
+  window.location.hash = ''
+})
+
+it('switches to the markets with the URL, and back', async () => {
+  render(<App />)
+  act(() => {
+    window.location.hash = '#/markets'
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+  expect(screen.getByRole('link', { name: 'Markets' })).toHaveAttribute('aria-current', 'page')
+  expect(screen.queryByRole('region', { name: 'Charts' })).toBeNull()
+  expect(await screen.findByRole('group', { name: 'League' })).toBeInTheDocument()
+  act(() => {
+    window.location.hash = '#/'
+    window.dispatchEvent(new HashChangeEvent('hashchange'))
+  })
+  expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
 })
 
 /** Waits for the stream's messages to be applied. */
@@ -41,6 +58,9 @@ const applied = () => act(() => new Promise((resolve) => setTimeout(resolve, FLU
 it('renders the layout', () => {
   render(<App />)
   expect(screen.getByRole('heading', { name: 'Live Football Analytics' })).toBeInTheDocument()
+  const pages = screen.getByRole('navigation', { name: 'Pages' })
+  expect(within(pages).getByRole('link', { name: 'Match analytics' })).toHaveAttribute('aria-current', 'page')
+  expect(within(pages).getByRole('link', { name: 'Markets' })).toHaveAttribute('href', '#/markets')
   const simulator = screen.getByRole('region', { name: 'Simulator' })
   expect(simulator).toHaveAccessibleDescription(/Stands in for the live feed/)
   expect(within(simulator).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()

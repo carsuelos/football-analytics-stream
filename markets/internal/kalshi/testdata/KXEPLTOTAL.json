@@ -1,0 +1,115 @@
+{
+ "events": [
+  {
+   "event_ticker": "KXEPLTOTAL-26OCT24CFCTOT",
+   "title": "Chelsea vs Tottenham: Total Goals",
+   "sub_title": "CFC vs TOT (Oct 24)",
+   "markets": [
+    {
+     "ticker": "KXEPLTOTAL-26OCT24CFCTOT-1",
+     "status": "active",
+     "yes_sub_title": "Over 0.5 goals scored",
+     "yes_bid_dollars": "0.6100",
+     "yes_ask_dollars": "0.6200",
+     "yes_ask_size_fp": "10903.00",
+     "floor_strike": 0.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-24T20:30:00Z",
+     "rules_primary": "If over 0.5 goals are scored in the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time "
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT24CFCTOT-2",
+     "status": "active",
+     "yes_sub_title": "Over 1.5 goals scored",
+     "yes_bid_dollars": "0.2500",
+     "yes_ask_dollars": "0.2600",
+     "yes_ask_size_fp": "21358.65",
+     "floor_strike": 1.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-24T20:30:00Z",
+     "rules_primary": "If over 1.5 goals are scored in the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time "
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT24CFCTOT-3",
+     "status": "active",
+     "yes_sub_title": "Over 2.5 goals scored",
+     "yes_bid_dollars": "0.0600",
+     "yes_ask_dollars": "0.0700",
+     "yes_ask_size_fp": "13300.00",
+     "floor_strike": 2.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-24T20:30:00Z",
+     "rules_primary": "If over 2.5 goals are scored in the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time "
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT24CFCTOT-4",
+     "status": "active",
+     "yes_sub_title": "Over 3.5 goals scored",
+     "yes_bid_dollars": "0.0100",
+     "yes_ask_dollars": "0.0200",
+     "yes_ask_size_fp": "14368.26",
+     "floor_strike": 3.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-24T20:30:00Z",
+     "rules_primary": "If over 3.5 goals are scored in the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time "
+    }
+   ]
+  },
+  {
+   "event_ticker": "KXEPLTOTAL-26OCT25CRYNEW",
+   "title": "Crystal Palace vs Newcastle: Total Goals",
+   "sub_title": "CRY vs NEW (Oct 25)",
+   "markets": [
+    {
+     "ticker": "KXEPLTOTAL-26OCT25CRYNEW-1",
+     "status": "active",
+     "yes_sub_title": "Over 0.5 goals scored",
+     "yes_bid_dollars": "0.9500",
+     "yes_ask_dollars": "0.9600",
+     "yes_ask_size_fp": "3625.00",
+     "floor_strike": 0.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T18:00:00Z",
+     "rules_primary": "If over 0.5 goals are scored in the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppag"
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT25CRYNEW-2",
+     "status": "active",
+     "yes_sub_title": "Over 1.5 goals scored",
+     "yes_bid_dollars": "0.8300",
+     "yes_ask_dollars": "0.8400",
+     "yes_ask_size_fp": "4621.00",
+     "floor_strike": 1.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T18:00:00Z",
+     "rules_primary": "If over 1.5 goals are scored in the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppag"
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT25CRYNEW-3",
+     "status": "active",
+     "yes_sub_title": "Over 2.5 goals scored",
+     "yes_bid_dollars": "0.6200",
+     "yes_ask_dollars": "0.6300",
+     "yes_ask_size_fp": "23582.49",
+     "floor_strike": 2.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T18:00:00Z",
+     "rules_primary": "If over 2.5 goals are scored in the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppag"
+    },
+    {
+     "ticker": "KXEPLTOTAL-26OCT25CRYNEW-4",
+     "status": "active",
+     "yes_sub_title": "Over 3.5 goals scored",
+     "yes_bid_dollars": "0.3900",
+     "yes_ask_dollars": "0.4100",
+     "yes_ask_size_fp": "17706.28",
+     "floor_strike": 3.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T18:00:00Z",
+     "rules_primary": "If over 3.5 goals are scored in the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppag"
+    }
+   ]
+  }
+ ],
+ "cursor": ""
+}

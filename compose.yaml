@@ -98,6 +98,18 @@ services:
     depends_on:
       engine:
         condition: service_healthy
+      markets:
+        condition: service_started
+
+  # The prediction markets' prices (Kalshi, Polymarket US, Novig), read from
+  # their public APIs; the dashboard's Markets page.
+  markets:
+    build: markets
+    environment:
+      LOG_FORMAT: json
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://aspire:18889
+    ports:
+      - "${MARKETS_PORT:-8090}:8090"
 
   notifier:
     build: notifier

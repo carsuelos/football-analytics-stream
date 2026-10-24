@@ -21,6 +21,15 @@ server {
         return 200 "ok\n";
     }
 
+    # The markets service: the prediction markets' prices.
+    location /api/markets/ {
+        set $markets ${MARKETS_URL};
+        proxy_pass $markets;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $proxy_host;
+    }
+
     # The engine's API, including the /api/stream server-sent events.
     location /api/ {
         # A variable makes nginx resolve the name through the resolver above.

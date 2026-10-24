@@ -12,7 +12,7 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 
 | Path | Does |
 | --- | --- |
-| `src/App.tsx` | Page layout; wires the stream, broadcast and viewer hooks to the components. The simulator's controls (match and broadcast) sit in their own panel, hidden when the engine has no simulator; the viewer's DVR controls work on any feed |
+| `src/AnalyticsPage.tsx` | The match analytics page; wires the stream, broadcast and viewer hooks to the components. The simulator's controls (match and broadcast) sit in their own panel, hidden when the engine has no simulator; the viewer's DVR controls work on any feed |
 | `src/api.ts` | Typed client for `/api/matches`, `GET`/`POST /api/broadcast` (the simulator) and `POST /api/control` (the engine's DVR); failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
 | `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts, incidents) from stream events, one at a time or in a batch; a `reset` starts it over |
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, applying messages in batches every 50 ms (a reconnect's backlog is thousands of messages, which would otherwise redraw the charts thousands of times), and reconnects when the browser gives up |
@@ -31,6 +31,8 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 | `src/Icons.tsx` | Inline SVG icons: ball, cards, penalty, VAR, the alert types, play and pause |
 | `src/StatusBar.tsx` | The stream's connection and the engine's state; the last state stays on screen, dimmed, while reconnecting |
 | `nginx.conf.template`, `19-basic-auth.envsh` | The production server: the build, `/api` proxied to the engine (re-resolved, unbuffered for the stream), and a shared password by basic auth when `DASHBOARD_PASSWORD` is set (as in Azure; `/healthz` is open for probes) |
+| `src/App.tsx`, `src/useRoute.ts` | The header and the page the URL's hash names: `#/` the match analytics (`AnalyticsPage.tsx`), `#/markets` the prediction markets. Only the page shown is mounted, so only it streams or polls |
+| `src/MarketsPage.tsx` | The prediction markets for a league (`/api/markets`, the `markets` service): the venues' status, the games (`GameList.tsx`), a game's contracts priced on each venue with the cheapest all-in (`GameMarkets.tsx`), its best price over time (`PriceChart.tsx`), and the paper trading to come (`PaperTrading.tsx`). `usePolled.ts` polls, `marketsApi.ts` fetches, `venues.ts` names and formats |
 | `src/ui.ts` | Shared Tailwind classes |
 | `src/index.css` | Tailwind CSS entry point and theme: Inter (self-hosted, `@fontsource-variable/inter`), the ink palette, team colours, the `card` and `eyebrow` utilities |
 | `src/test/` | UI test setup (Testing Library matchers and cleanup) factories for API and stream messages, and a fake `EventSource` |

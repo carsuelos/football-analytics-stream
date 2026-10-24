@@ -16,6 +16,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
 | `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid, the goal model's dataset and models); see [docs/MODEL.md](docs/MODEL.md) |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
+| `markets/` | Go: the prediction markets' prices (Kalshi, Polymarket US, Novig) for Premier League and La Liga games, for the dashboard's Markets page |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
 | `data/` | Local StatsBomb cache (gitignored) |
@@ -185,6 +186,16 @@ notifier             HTTP POST     (the webhook)
 ```
 
 `make up` sends the traces to the [Aspire dashboard](https://aspire.dev/dashboard/standalone/) at http://localhost:18888 (`ASPIRE_PORT`), a free OTLP viewer. In Azure they go to Application Insights through the Container Apps OpenTelemetry agent; the code knows nothing about either. The engine's API requests and its calls to the simulator are traced too, but not the event stream (it lasts as long as the connection) or health checks.
+
+### The prediction markets
+
+The dashboard's **Markets** page (http://localhost:3000/#/markets with `make up`) shows the Premier League's and La Liga's games as Kalshi, Polymarket US and Novig list them:
+- which venues list each game;
+- the live score and clock;
+- each venue's price to buy each contract (total goals over 0.5 to 6.5, and the result, both after 90' plus stoppage), with its bid and fee;
+- the cheapest all-in price (the ask plus the venue's fee), and how it has moved.
+
+It reads the venues' public data through the `markets` service, so it needs no accounts or keys. Our model's probability and paper trading join it with a live event feed. Outside Docker: `make markets`, then `make dashboard`.
 
 ### Running it in Azure
 

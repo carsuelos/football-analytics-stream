@@ -1,4 +1,6 @@
 import { Ajv } from 'ajv'
+// A CommonJS module: its default import is module.exports, whose .default is the plugin.
+import ajvFormats from 'ajv-formats'
 import { readdirSync, readFileSync } from 'node:fs'
 import { basename, dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -14,6 +16,8 @@ const fixturesDir = join(schemaRoot, 'fixtures')
 const readJson = (path: string): unknown => JSON.parse(readFileSync(path, 'utf8'))
 
 const ajv = new Ajv({ allErrors: true })
+// date-time and the other standard formats, checked as Python and Go check them.
+ajvFormats.default(ajv)
 const schemaFiles = readdirSync(jsonschemaDir).filter((f) => f.endsWith('.schema.json'))
 for (const file of schemaFiles) {
   ajv.addSchema(readJson(join(jsonschemaDir, file)) as object, file)

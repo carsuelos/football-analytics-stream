@@ -1,0 +1,91 @@
+{
+ "events": [
+  {
+   "event_ticker": "KXEPLGAME-26OCT24CFCTOT",
+   "title": "Chelsea vs Tottenham",
+   "sub_title": "CFC vs TOT (Oct 24)",
+   "markets": [
+    {
+     "ticker": "KXEPLGAME-26OCT24CFCTOT-CFC",
+     "status": "active",
+     "yes_sub_title": "Chelsea",
+     "yes_bid_dollars": "0.3000",
+     "yes_ask_dollars": "0.3100",
+     "yes_ask_size_fp": "53131.07",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-24T19:30:00Z",
+     "rules_primary": "If Chelsea wins the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time (does not includ"
+    },
+    {
+     "ticker": "KXEPLGAME-26OCT24CFCTOT-TOT",
+     "status": "active",
+     "yes_sub_title": "Tottenham",
+     "yes_bid_dollars": "0.2200",
+     "yes_ask_dollars": "0.2300",
+     "yes_ask_size_fp": "84844.61",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-24T19:30:00Z",
+     "rules_primary": "If Tottenham wins the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time (does not incl"
+    },
+    {
+     "ticker": "KXEPLGAME-26OCT24CFCTOT-TIE",
+     "status": "active",
+     "yes_sub_title": "Tie",
+     "yes_bid_dollars": "0.4700",
+     "yes_ask_dollars": "0.4800",
+     "yes_ask_size_fp": "45169.08",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-24T19:30:00Z",
+     "rules_primary": "If Tie is the result of the Chelsea vs Tottenham professional EPL soccer game originally scheduled for Oct 24, 2026 after 90 minutes plus stoppage time (does no"
+    }
+   ]
+  },
+  {
+   "event_ticker": "KXEPLGAME-26OCT25CRYNEW",
+   "title": "Crystal Palace vs Newcastle",
+   "sub_title": "CRY vs NEW (Oct 25)",
+   "markets": [
+    {
+     "ticker": "KXEPLGAME-26OCT25CRYNEW-CRY",
+     "status": "active",
+     "yes_sub_title": "Crystal Palace",
+     "yes_bid_dollars": "0.3300",
+     "yes_ask_dollars": "0.3400",
+     "yes_ask_size_fp": "120610.83",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Crystal Palace wins the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppage time (d"
+    },
+    {
+     "ticker": "KXEPLGAME-26OCT25CRYNEW-NEW",
+     "status": "active",
+     "yes_sub_title": "Newcastle",
+     "yes_bid_dollars": "0.3900",
+     "yes_ask_dollars": "0.4000",
+     "yes_ask_size_fp": "7511.88",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Newcastle wins the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppage time (does n"
+    },
+    {
+     "ticker": "KXEPLGAME-26OCT25CRYNEW-TIE",
+     "status": "active",
+     "yes_sub_title": "Tie",
+     "yes_bid_dollars": "0.2600",
+     "yes_ask_dollars": "0.2700",
+     "yes_ask_size_fp": "70898.10",
+     "floor_strike": null,
+     "strike_type": "structured",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Tie is the result of the Crystal Palace vs Newcastle professional EPL soccer game originally scheduled for Oct 25, 2026 after 90 minutes plus stoppage time ("
+    }
+   ]
+  }
+ ],
+ "cursor": ""
+}

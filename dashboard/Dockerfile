@@ -11,7 +11,7 @@ RUN pnpm build
 FROM nginxinc/nginx-unprivileged:1.29-alpine
 # The official image fills ${ENGINE_URL} into the template at start-up, and
 # ${NGINX_LOCAL_RESOLVERS} with the nameservers in /etc/resolv.conf.
-ENV ENGINE_URL=http://engine:8000 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
+ENV ENGINE_URL=http://engine:8000 MARKETS_URL=http://markets:8090 NGINX_ENTRYPOINT_LOCAL_RESOLVERS=1
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --chmod=755 19-basic-auth.envsh /docker-entrypoint.d/
 # Without DASHBOARD_PASSWORD, 19-basic-auth.envsh leaves sign-in off and

@@ -47,6 +47,23 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  markets:
+    name: Markets (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: markets
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: markets/go.mod
+          cache-dependency-path: markets/go.sum
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test -race ./...
+
   engine:
     name: Engine (Python)
     runs-on: ubuntu-latest
@@ -118,6 +135,7 @@ jobs:
           cache-dependency-path: |
             simulator/go.sum
             notifier/go.sum
+            markets/go.sum
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: engine
@@ -167,6 +185,9 @@ jobs:
             notifier.tags=football-analytics-notifier
             notifier.cache-from=type=gha,scope=notifier
             notifier.cache-to=type=gha,scope=notifier,mode=max
+            markets.tags=football-analytics-markets
+            markets.cache-from=type=gha,scope=markets
+            markets.cache-to=type=gha,scope=markets,mode=max
             engine.tags=football-analytics-engine
             engine.cache-from=type=gha,scope=engine
             engine.cache-to=type=gha,scope=engine,mode=max

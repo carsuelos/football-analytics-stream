@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "game_id": "epl-2026-10-24-chelsea-tottenham",
+  "series": [{ "key": "total-over-0.5", "points": [{ "t": "2026-10-24T17:50:00Z", "all_in": 0.83 }] }]
+}

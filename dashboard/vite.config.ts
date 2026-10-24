@@ -3,14 +3,17 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig } from 'vite'
 
-// The dashboard only talks to the engine, through /api. In development Vite
-// proxies it, so the browser sees one origin and the engine needs no CORS.
+// The dashboard talks to the engine through /api, and to the markets service
+// through /api/markets. In development Vite proxies both, so the browser sees
+// one origin and neither needs CORS.
 const engineUrl = process.env.ENGINE_URL ?? 'http://localhost:8000'
+const marketsUrl = process.env.MARKETS_URL ?? 'http://localhost:8090'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    proxy: { '/api': engineUrl },
+    // The more specific path first: Vite matches them in order.
+    proxy: { '/api/markets': marketsUrl, '/api': engineUrl },
   },
   // Libraries go in their own chunks: they change less often than the app,
   // so browsers keep them cached across deploys. React is split from the rest

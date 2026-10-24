@@ -6,6 +6,7 @@ import "encoding/json"
 import "fmt"
 import "reflect"
 import "regexp"
+import "time"
 import "unicode/utf8"
 
 // A tactical alert raised by a detector.
@@ -310,6 +311,108 @@ func (j *BroadcastStatus) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be > %v", "speed", 0)
 	}
 	*j = BroadcastStatus(plain)
+	return nil
+}
+
+// One contract, priced on every venue that lists it.
+type Contract struct {
+	// The venue with the lowest all-in price that has contracts at its ask, if any.
+	Best *Venue `json:"best,omitempty,omitzero"`
+
+	// The best all-in price as a probability: what the market says, after fees.
+	Implied *float64 `json:"implied,omitempty,omitzero"`
+
+	// Stable within the game, e.g. total-over-2.5 or result-draw.
+	Key string `json:"key"`
+
+	// Kind corresponds to the JSON schema field "kind".
+	Kind ContractKind `json:"kind"`
+
+	// e.g. Over 2.5, Chelsea, Draw.
+	Label string `json:"label"`
+
+	// For total: the goals line, e.g. 2.5.
+	Line *float64 `json:"line,omitempty,omitzero"`
+
+	// Outcome corresponds to the JSON schema field "outcome".
+	Outcome Outcome `json:"outcome"`
+
+	// Quotes corresponds to the JSON schema field "quotes".
+	Quotes []Quote `json:"quotes"`
+}
+
+type ContractKind string
+
+const ContractKindResult ContractKind = "result"
+const ContractKindTotal ContractKind = "total"
+
+var enumValues_ContractKind = []interface{}{
+	"total",
+	"result",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *ContractKind) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_ContractKind {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_ContractKind, v)
+	}
+	*j = ContractKind(v)
+	return nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Contract) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in Contract: required")
+	}
+	if _, ok := raw["kind"]; raw != nil && !ok {
+		return fmt.Errorf("field kind in Contract: required")
+	}
+	if _, ok := raw["label"]; raw != nil && !ok {
+		return fmt.Errorf("field label in Contract: required")
+	}
+	if _, ok := raw["outcome"]; raw != nil && !ok {
+		return fmt.Errorf("field outcome in Contract: required")
+	}
+	if _, ok := raw["quotes"]; raw != nil && !ok {
+		return fmt.Errorf("field quotes in Contract: required")
+	}
+	type Plain Contract
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Implied != nil && 1 < *plain.Implied {
+		return fmt.Errorf("field %s: must be <= %v", "implied", 1)
+	}
+	if plain.Implied != nil && 0 > *plain.Implied {
+		return fmt.Errorf("field %s: must be >= %v", "implied", 0)
+	}
+	if utf8.RuneCountInString(string(plain.Key)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "key", 1)
+	}
+	if utf8.RuneCountInString(string(plain.Label)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "label", 1)
+	}
+	if plain.Line != nil && 0 > *plain.Line {
+		return fmt.Errorf("field %s: must be >= %v", "line", 0)
+	}
+	*j = Contract(plain)
 	return nil
 }
 
@@ -660,6 +763,38 @@ func (j *FeedMessage) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type GameState string
+
+const GameStateEnded GameState = "ended"
+const GameStateLive GameState = "live"
+const GameStateScheduled GameState = "scheduled"
+
+var enumValues_GameState = []interface{}{
+	"scheduled",
+	"live",
+	"ended",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *GameState) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_GameState {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_GameState, v)
+	}
+	*j = GameState(v)
+	return nil
+}
+
 // A key moment of the match (a goal, a card, a penalty), with the score after it.
 // Derived by the engine from the event feed.
 type Incident struct {
@@ -817,6 +952,72 @@ func (j *Incident) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type League string
+
+const LeagueEpl League = "epl"
+const LeagueLaliga League = "laliga"
+
+var enumValues_League = []interface{}{
+	"epl",
+	"laliga",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *League) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_League {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_League, v)
+	}
+	*j = League(v)
+	return nil
+}
+
+// A venue's event for the game.
+type Listing struct {
+	// EventID corresponds to the JSON schema field "event_id".
+	EventID string `json:"event_id"`
+
+	// The event's page on the venue.
+	Url *string `json:"url,omitempty,omitzero"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Listing) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["event_id"]; raw != nil && !ok {
+		return fmt.Errorf("field event_id in Listing: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in Listing: required")
+	}
+	type Plain Listing
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.EventID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "event_id", 1)
+	}
+	*j = Listing(plain)
+	return nil
+}
+
 // The latest point of the broadcast received so far: the viewer can seek up to
 // here.
 type LiveEdge struct {
@@ -860,6 +1061,207 @@ func (j *LiveEdge) UnmarshalJSON(value []byte) error {
 		return fmt.Errorf("field %s: must be >= %v", "play_s", 0)
 	}
 	*j = LiveEdge(plain)
+	return nil
+}
+
+// A league's games on the prediction markets (Kalshi, Polymarket US, Novig): each
+// game matched across the venues that list it, its live state when a venue reports
+// one, and every venue's price for the same contracts, with the cheapest all-in.
+// Served by the markets service.
+type MarketBoard struct {
+	// Live games first, then by kick-off.
+	Games []MarketGame `json:"games"`
+
+	// League corresponds to the JSON schema field "league".
+	League League `json:"league"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// When the board was last rebuilt.
+	UpdatedAt time.Time `json:"updated_at"`
+
+	// How each venue's last poll went.
+	Venues []VenueStatus `json:"venues"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MarketBoard) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["games"]; raw != nil && !ok {
+		return fmt.Errorf("field games in MarketBoard: required")
+	}
+	if _, ok := raw["league"]; raw != nil && !ok {
+		return fmt.Errorf("field league in MarketBoard: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in MarketBoard: required")
+	}
+	if _, ok := raw["updated_at"]; raw != nil && !ok {
+		return fmt.Errorf("field updated_at in MarketBoard: required")
+	}
+	if _, ok := raw["venues"]; raw != nil && !ok {
+		return fmt.Errorf("field venues in MarketBoard: required")
+	}
+	type Plain MarketBoard
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	*j = MarketBoard(plain)
+	return nil
+}
+
+type MarketGame struct {
+	// Away corresponds to the JSON schema field "away".
+	Away MarketTeam `json:"away"`
+
+	// The venue's match clock, e.g. 63' or HT.
+	Clock *string `json:"clock,omitempty,omitzero"`
+
+	// Contracts corresponds to the JSON schema field "contracts".
+	Contracts []Contract `json:"contracts"`
+
+	// Home corresponds to the JSON schema field "home".
+	Home MarketTeam `json:"home"`
+
+	// Stable across polls, e.g. epl-2026-10-24-chelsea-tottenham.
+	ID string `json:"id"`
+
+	// Kickoff corresponds to the JSON schema field "kickoff".
+	Kickoff time.Time `json:"kickoff"`
+
+	// Whether kickoff is estimated: Kalshi gives no kick-off time, so a game only
+	// Kalshi lists has one worked out from its markets' close.
+	KickoffEstimated *bool `json:"kickoff_estimated,omitempty,omitzero"`
+
+	// League corresponds to the JSON schema field "league".
+	League League `json:"league"`
+
+	// Listings corresponds to the JSON schema field "listings".
+	Listings []Listing `json:"listings"`
+
+	// Score corresponds to the JSON schema field "score".
+	Score *MarketScore `json:"score,omitempty,omitzero"`
+
+	// State corresponds to the JSON schema field "state".
+	State GameState `json:"state"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MarketGame) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["away"]; raw != nil && !ok {
+		return fmt.Errorf("field away in MarketGame: required")
+	}
+	if _, ok := raw["contracts"]; raw != nil && !ok {
+		return fmt.Errorf("field contracts in MarketGame: required")
+	}
+	if _, ok := raw["home"]; raw != nil && !ok {
+		return fmt.Errorf("field home in MarketGame: required")
+	}
+	if _, ok := raw["id"]; raw != nil && !ok {
+		return fmt.Errorf("field id in MarketGame: required")
+	}
+	if _, ok := raw["kickoff"]; raw != nil && !ok {
+		return fmt.Errorf("field kickoff in MarketGame: required")
+	}
+	if _, ok := raw["league"]; raw != nil && !ok {
+		return fmt.Errorf("field league in MarketGame: required")
+	}
+	if _, ok := raw["listings"]; raw != nil && !ok {
+		return fmt.Errorf("field listings in MarketGame: required")
+	}
+	if _, ok := raw["state"]; raw != nil && !ok {
+		return fmt.Errorf("field state in MarketGame: required")
+	}
+	type Plain MarketGame
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.ID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "id", 1)
+	}
+	*j = MarketGame(plain)
+	return nil
+}
+
+type MarketScore struct {
+	// Away corresponds to the JSON schema field "away".
+	Away int `json:"away"`
+
+	// Home corresponds to the JSON schema field "home".
+	Home int `json:"home"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MarketScore) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["away"]; raw != nil && !ok {
+		return fmt.Errorf("field away in MarketScore: required")
+	}
+	if _, ok := raw["home"]; raw != nil && !ok {
+		return fmt.Errorf("field home in MarketScore: required")
+	}
+	type Plain MarketScore
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Away {
+		return fmt.Errorf("field %s: must be >= %v", "away", 0)
+	}
+	if 0 > plain.Home {
+		return fmt.Errorf("field %s: must be >= %v", "home", 0)
+	}
+	*j = MarketScore(plain)
+	return nil
+}
+
+type MarketTeam struct {
+	// e.g. CFC
+	Abbreviation *string `json:"abbreviation,omitempty,omitzero"`
+
+	// The team's colour, as #rrggbb, if a venue gives one.
+	Color *string `json:"color,omitempty,omitzero"`
+
+	// Name corresponds to the JSON schema field "name".
+	Name string `json:"name"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *MarketTeam) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["name"]; raw != nil && !ok {
+		return fmt.Errorf("field name in MarketTeam: required")
+	}
+	type Plain MarketTeam
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.Color != nil {
+		if matched, _ := regexp.MatchString(`^#[0-9a-fA-F]{6}$`, string(*plain.Color)); !matched {
+			return fmt.Errorf("field %s pattern match: must match %s", "Color", `^#[0-9a-fA-F]{6}$`)
+		}
+	}
+	if utf8.RuneCountInString(string(plain.Name)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "name", 1)
+	}
+	*j = MarketTeam(plain)
 	return nil
 }
 
@@ -1458,6 +1860,40 @@ func (j *Offset) UnmarshalJSON(value []byte) error {
 	return nil
 }
 
+type Outcome string
+
+const OutcomeAway Outcome = "away"
+const OutcomeDraw Outcome = "draw"
+const OutcomeHome Outcome = "home"
+const OutcomeOver Outcome = "over"
+
+var enumValues_Outcome = []interface{}{
+	"over",
+	"home",
+	"draw",
+	"away",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Outcome) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_Outcome {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_Outcome, v)
+	}
+	*j = Outcome(v)
+	return nil
+}
+
 // 1-2 regular halves, 3-4 extra time, 5 penalty shootout.
 type Period int
 
@@ -1510,6 +1946,191 @@ func (j *Player) UnmarshalJSON(value []byte) error {
 // Pitch coordinates [x, y] on a 120x80 pitch, oriented so the acting team attacks
 // towards x = 120.
 type Point []float64
+
+// How a game's contracts have been priced since the markets service started
+// watching it: the best all-in price at each poll. Kept in memory, so it starts
+// over when the service restarts.
+type PriceHistory struct {
+	// GameID corresponds to the JSON schema field "game_id".
+	GameID string `json:"game_id"`
+
+	// SchemaVersion corresponds to the JSON schema field "schema_version".
+	SchemaVersion SchemaVersion `json:"schema_version"`
+
+	// Series corresponds to the JSON schema field "series".
+	Series []PriceSeries `json:"series"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *PriceHistory) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["game_id"]; raw != nil && !ok {
+		return fmt.Errorf("field game_id in PriceHistory: required")
+	}
+	if _, ok := raw["schema_version"]; raw != nil && !ok {
+		return fmt.Errorf("field schema_version in PriceHistory: required")
+	}
+	if _, ok := raw["series"]; raw != nil && !ok {
+		return fmt.Errorf("field series in PriceHistory: required")
+	}
+	type Plain PriceHistory
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.GameID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "game_id", 1)
+	}
+	*j = PriceHistory(plain)
+	return nil
+}
+
+type PricePoint struct {
+	// The best all-in price then.
+	AllIn float64 `json:"all_in"`
+
+	// T corresponds to the JSON schema field "t".
+	T time.Time `json:"t"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *PricePoint) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["all_in"]; raw != nil && !ok {
+		return fmt.Errorf("field all_in in PricePoint: required")
+	}
+	if _, ok := raw["t"]; raw != nil && !ok {
+		return fmt.Errorf("field t in PricePoint: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in PricePoint: required")
+	}
+	type Plain PricePoint
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.AllIn {
+		return fmt.Errorf("field %s: must be >= %v", "all_in", 0)
+	}
+	*j = PricePoint(plain)
+	return nil
+}
+
+type PriceSeries struct {
+	// The contract's key on the board, e.g. total-over-2.5.
+	Key string `json:"key"`
+
+	// Points corresponds to the JSON schema field "points".
+	Points []PricePoint `json:"points"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *PriceSeries) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["key"]; raw != nil && !ok {
+		return fmt.Errorf("field key in PriceSeries: required")
+	}
+	if _, ok := raw["points"]; raw != nil && !ok {
+		return fmt.Errorf("field points in PriceSeries: required")
+	}
+	type Plain PriceSeries
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if utf8.RuneCountInString(string(plain.Key)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "key", 1)
+	}
+	*j = PriceSeries(plain)
+	return nil
+}
+
+// One venue's price to buy Yes, per contract that pays $1. Prices are dollars from
+// 0 to 1.
+type Quote struct {
+	// ask + fee: what one contract costs.
+	AllIn *float64 `json:"all_in,omitempty,omitzero"`
+
+	// Best price to buy Yes now.
+	Ask *float64 `json:"ask,omitempty,omitzero"`
+
+	// Contracts available at the ask.
+	AskSize *float64 `json:"ask_size,omitempty,omitzero"`
+
+	// Best price someone will pay for Yes.
+	Bid *float64 `json:"bid,omitempty,omitzero"`
+
+	// The taker fee per contract at the ask, by the venue's schedule (0 when it
+	// charges none, e.g. Novig before kick-off).
+	Fee *float64 `json:"fee,omitempty,omitzero"`
+
+	// The venue's market (Kalshi ticker, Polymarket slug, Novig market id).
+	MarketID string `json:"market_id"`
+
+	// Url corresponds to the JSON schema field "url".
+	Url *string `json:"url,omitempty,omitzero"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Quote) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["market_id"]; raw != nil && !ok {
+		return fmt.Errorf("field market_id in Quote: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in Quote: required")
+	}
+	type Plain Quote
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if plain.AllIn != nil && 0 > *plain.AllIn {
+		return fmt.Errorf("field %s: must be >= %v", "all_in", 0)
+	}
+	if plain.Ask != nil && 1 < *plain.Ask {
+		return fmt.Errorf("field %s: must be <= %v", "ask", 1)
+	}
+	if plain.Ask != nil && 0 > *plain.Ask {
+		return fmt.Errorf("field %s: must be >= %v", "ask", 0)
+	}
+	if plain.AskSize != nil && 0 > *plain.AskSize {
+		return fmt.Errorf("field %s: must be >= %v", "ask_size", 0)
+	}
+	if plain.Bid != nil && 1 < *plain.Bid {
+		return fmt.Errorf("field %s: must be <= %v", "bid", 1)
+	}
+	if plain.Bid != nil && 0 > *plain.Bid {
+		return fmt.Errorf("field %s: must be >= %v", "bid", 0)
+	}
+	if plain.Fee != nil && 0 > *plain.Fee {
+		return fmt.Errorf("field %s: must be >= %v", "fee", 0)
+	}
+	if utf8.RuneCountInString(string(plain.MarketID)) < 1 {
+		return fmt.Errorf("field %s length: must be >= %d", "market_id", 1)
+	}
+	*j = Quote(plain)
+	return nil
+}
 
 // Wire-format version. Bump only for breaking changes.
 type SchemaVersion int
@@ -1717,6 +2338,82 @@ func (j *Team) UnmarshalJSON(value []byte) error {
 		return err
 	}
 	*j = Team(plain)
+	return nil
+}
+
+type Venue string
+
+const VenueKalshi Venue = "kalshi"
+const VenueNovig Venue = "novig"
+const VenuePolymarket Venue = "polymarket"
+
+type VenueStatus struct {
+	// Why it failed, if it did.
+	Error *string `json:"error,omitempty,omitzero"`
+
+	// How many of the league's games it lists.
+	Games int `json:"games"`
+
+	// Whether its last poll succeeded.
+	Ok bool `json:"ok"`
+
+	// When its prices were last read.
+	UpdatedAt *time.Time `json:"updated_at,omitempty,omitzero"`
+
+	// Venue corresponds to the JSON schema field "venue".
+	Venue Venue `json:"venue"`
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *VenueStatus) UnmarshalJSON(value []byte) error {
+	var raw map[string]interface{}
+	if err := json.Unmarshal(value, &raw); err != nil {
+		return err
+	}
+	if _, ok := raw["games"]; raw != nil && !ok {
+		return fmt.Errorf("field games in VenueStatus: required")
+	}
+	if _, ok := raw["ok"]; raw != nil && !ok {
+		return fmt.Errorf("field ok in VenueStatus: required")
+	}
+	if _, ok := raw["venue"]; raw != nil && !ok {
+		return fmt.Errorf("field venue in VenueStatus: required")
+	}
+	type Plain VenueStatus
+	var plain Plain
+	if err := json.Unmarshal(value, &plain); err != nil {
+		return err
+	}
+	if 0 > plain.Games {
+		return fmt.Errorf("field %s: must be >= %v", "games", 0)
+	}
+	*j = VenueStatus(plain)
+	return nil
+}
+
+var enumValues_Venue = []interface{}{
+	"kalshi",
+	"polymarket",
+	"novig",
+}
+
+// UnmarshalJSON implements json.Unmarshaler.
+func (j *Venue) UnmarshalJSON(value []byte) error {
+	var v string
+	if err := json.Unmarshal(value, &v); err != nil {
+		return err
+	}
+	var ok bool
+	for _, expected := range enumValues_Venue {
+		if reflect.DeepEqual(v, expected) {
+			ok = true
+			break
+		}
+	}
+	if !ok {
+		return fmt.Errorf("invalid value (expected one of %#v): %#v", enumValues_Venue, v)
+	}
+	*j = Venue(v)
 	return nil
 }
 
