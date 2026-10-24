@@ -11,7 +11,11 @@ grouped by match whenever the data is split.
 
 Labels look at goals after the tick, [t + 30s, t + horizon] (MIN_LEAD_S: a
 goal sooner than that is the attack already under way, not something to warn
-of); features only at events released by then. A match ends when it ends: a
+of); features only at events released by then. The full-time labels (`ft`,
+for the full-time model, docs/MODEL.md step 7) are what a prediction market's
+"another goal" contract pays on: a goal after the tick and by the end of
+regulation (90 minutes plus stoppage; extra time doesn't count), by the team
+and by either team. A match ends when it ends: a
 tick at 88' has 2 minutes left to score in, and is labelled as such, exactly
 like the rules' evaluation (scripts/evaluate_alerts.py).
 """
@@ -45,6 +49,7 @@ TICK_S = 30.0
 but rows 5s apart are near-copies of each other: more of them would make
 training slower, not better. The features are the same at any tick."""
 HORIZONS_MIN = (5, 10)
+LAST_REGULATION_PERIOD = 2
 
 
 @dataclass(frozen=True)
@@ -61,6 +66,14 @@ class Dataset:
     names: tuple[str, ...] = FEATURE_NAMES
     meta: dict[str, str] = field(default_factory=dict)
     """How it was built, e.g. the xT grid's digest (see main)."""
+    ft: np.ndarray = field(default_factory=lambda: np.zeros((0, 2), dtype=bool))
+    """Whether, after the tick and by the end of regulation, the team scores
+    (column 0) and anyone scores (column 1). False for rows in extra time,
+    which `regulation` leaves out."""
+
+    def __post_init__(self) -> None:
+        if len(self.ft) != len(self.y):
+            object.__setattr__(self, "ft", np.zeros((len(self.y), 2), dtype=bool))
 
     def __len__(self) -> int:
         return len(self.y)
@@ -70,6 +83,23 @@ class Dataset:
 
     def column(self, name: str) -> np.ndarray:
         return self.x[:, self.names.index(name)]
+
+    @property
+    def regulation(self) -> np.ndarray:
+        """Rows in the 90 minutes plus stoppage time (not extra time)."""
+        return np.asarray(self.column("extra_time") == 0)
+
+    def subset(self, rows: np.ndarray) -> "Dataset":
+        return Dataset(
+            self.x[rows],
+            self.y[rows],
+            self.match_id[rows],
+            self.team_id[rows],
+            self.play_s[rows],
+            self.names,
+            self.meta,
+            self.ft[rows],
+        )
 
     def save(self, path: Path, **meta: str) -> None:
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -84,6 +114,7 @@ class Dataset:
             names=np.array(self.names),
             horizons=np.array(HORIZONS_MIN),
             meta=np.array(json.dumps(meta)),
+            ft=self.ft,
         )
         tmp.replace(path)
 
@@ -91,10 +122,12 @@ class Dataset:
     def load(cls, path: Path) -> "Dataset":
         with np.load(path) as f:
             names = tuple(str(n) for n in f["names"])
-            if names != FEATURE_NAMES or tuple(f["horizons"]) != HORIZONS_MIN:
+            if names != FEATURE_NAMES or tuple(f["horizons"]) != HORIZONS_MIN or "ft" not in f:
                 raise SystemExit(f"{path} is out of date with the engine's features; rebuild it")
             meta = json.loads(str(f["meta"])) if "meta" in f else {}
-            return cls(f["x"], f["y"], f["match_id"], f["team_id"], f["play_s"], names, meta)
+            return cls(
+                f["x"], f["y"], f["match_id"], f["team_id"], f["play_s"], names, meta, f["ft"]
+            )
 
     @classmethod
     def concat(cls, parts: Sequence["Dataset"]) -> "Dataset":
@@ -104,6 +137,7 @@ class Dataset:
             np.concatenate([p.match_id for p in parts]),
             np.concatenate([p.team_id for p in parts]),
             np.concatenate([p.play_s for p in parts]),
+            ft=np.concatenate([p.ft for p in parts]),
         )
 
 
@@ -111,8 +145,12 @@ def match_rows(path: Path, grid_path: Path = DEFAULT_GRID_PATH) -> Dataset:
     """Every row of one match's feed."""
     tracker = FeatureTracker()
     rows: list[tuple[float, int, list[float]]] = []
+    regulation_end = 0.0
 
     def on_step(_: Pipeline, step: Step) -> None:
+        nonlocal regulation_end
+        if step.item.event.period <= LAST_REGULATION_PERIOD:
+            regulation_end = max(regulation_end, step.item.play_s)
         if step.tick is None:
             return
         features = tracker.observe(step.tick)  # every tick, to keep the match totals
@@ -124,9 +162,13 @@ def match_rows(path: Path, grid_path: Path = DEFAULT_GRID_PATH) -> Dataset:
     )
     play_s = np.array([t for t, _, _ in rows], dtype=np.float64)
     team_id = np.array([team for _, team, _ in rows], dtype=np.int64)
-    y = labels(play_s, team_id, [(g.team_id, g.play_s) for g in r.goals])
+    goals = [(g.team_id, g.play_s) for g in r.goals]
+    y = labels(play_s, team_id, goals)
     x = np.array([f for _, _, f in rows], dtype=np.float64).reshape(len(rows), len(FEATURE_NAMES))
-    return Dataset(x, y, np.full(len(rows), r.match_id, dtype=np.int64), team_id, play_s)
+    extra = x[:, FEATURE_NAMES.index("extra_time")] > 0
+    ft = fulltime_labels(play_s, team_id, goals, regulation_end) & ~extra[:, None]
+    match_id = np.full(len(rows), r.match_id, dtype=np.int64)
+    return Dataset(x, y, match_id, team_id, play_s, ft=ft)
 
 
 def labels(
@@ -140,6 +182,20 @@ def labels(
         for j, h in enumerate(HORIZONS_MIN):
             y[:, j] |= (team_id == team) & (play_s + MIN_LEAD_S <= at) & (at <= play_s + h * 60)
     return y
+
+
+def fulltime_labels(
+    play_s: np.ndarray, team_id: np.ndarray, goals: Sequence[tuple[int, float]], end_s: float
+) -> np.ndarray:
+    """For each row, whether its team (column 0) and anyone (column 1) scores in
+    (play_s, end_s]: after the tick, by the end of regulation. Any goal after
+    buying pays an "over" contract, so there's no MIN_LEAD_S here."""
+    ft = np.zeros((len(play_s), 2), dtype=bool)
+    for team, at in goals:
+        later = (play_s < at) & (at <= end_s)
+        ft[:, 0] |= later & (team_id == team)
+        ft[:, 1] |= later
+    return ft
 
 
 def quiet() -> None:
@@ -177,7 +233,12 @@ def train_paths(feeds: Path = TRAIN_FEEDS) -> list[Path]:
 def describe(name: str, d: Dataset) -> str:
     matches = len(np.unique(d.match_id))
     rates = ", ".join(f"{h}' {d.label(h).mean():.1%}" for h in HORIZONS_MIN)
-    return f"{name}: {len(d):,} rows from {matches:,} matches; a team scores within {rates}"
+    reg = d.regulation
+    ft = (
+        f"; by full time, the team scores again {d.ft[reg, 0].mean():.1%},"
+        f" anyone {d.ft[reg, 1].mean():.1%}"
+    )
+    return f"{name}: {len(d):,} rows from {matches:,} matches; a team scores within {rates}{ft}"
 
 
 def univariate(train: Dataset, test: Dataset, horizon_min: int = 10) -> str:

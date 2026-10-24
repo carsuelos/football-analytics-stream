@@ -13,11 +13,18 @@ turns them into `Alert`s.
 from engine.detectors.baseline import Ewma
 from engine.detectors.control_shift import ControlShift, ControlShiftConfig
 from engine.detectors.core import Detector, DetectorConfig, Detectors, Signal
+from engine.detectors.fulltime import (
+    DEFAULT_FULLTIME_PATH,
+    FullTime,
+    FullTimeModel,
+    FullTimeModelError,
+)
 from engine.detectors.goal_chance import DEFAULT_MODEL_PATH, GoalChance, GoalModel, GoalModelError
 from engine.detectors.goal_threat import GoalThreat, GoalThreatConfig
 from engine.detectors.momentum import Momentum, MomentumConfig
 
 __all__ = [
+    "DEFAULT_FULLTIME_PATH",
     "DEFAULT_MODEL_PATH",
     "ControlShift",
     "ControlShiftConfig",
@@ -25,6 +32,9 @@ __all__ = [
     "DetectorConfig",
     "Detectors",
     "Ewma",
+    "FullTime",
+    "FullTimeModel",
+    "FullTimeModelError",
     "GoalChance",
     "GoalModel",
     "GoalModelError",
@@ -37,7 +47,19 @@ __all__ = [
 ]
 
 
-def default_detectors(goal_model: GoalModel | None = None) -> Detectors:
-    """The live engine's detectors: the rules, and goal chance if given a model."""
+def default_detectors(
+    goal_model: GoalModel | None = None, fulltime: FullTimeModel | None = None
+) -> Detectors:
+    """The live engine's detectors: the rules, and goal chance if given a model
+    (with the shipped full-time model unless another is given)."""
     rules: list[Detector] = [Momentum(), GoalThreat(), ControlShift()]
-    return Detectors(rules + ([GoalChance(goal_model)] if goal_model else []))
+    if not goal_model:
+        return Detectors(rules)
+    return Detectors([*rules, GoalChance(goal_model, fulltime=fulltime or _shipped_fulltime())])
+
+
+def _shipped_fulltime() -> FullTimeModel | None:
+    try:
+        return FullTimeModel.load(DEFAULT_FULLTIME_PATH)
+    except FullTimeModelError:
+        return None
