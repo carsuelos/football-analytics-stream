@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { GameList } from './GameList'
 import { GameMarkets } from './GameMarkets'
 import { getBoard, getHistory } from './marketsApi'
-import { PaperTrading } from './PaperTrading'
+import { Trading } from './Trading'
 import { PriceChart } from './PriceChart'
 import type { League, MarketBoard, VenueStatus } from './schema/market_board.schema'
 import { usePolled } from './usePolled'
@@ -72,10 +72,8 @@ export function MarketsPage() {
           {game ? (
             <div className="flex min-w-0 flex-col gap-5">
               <GameMarkets game={game} selected={contract?.key} onSelect={setChosenContract} />
-              <div className="grid gap-5 xl:grid-cols-2">
-                <PriceChart contract={contract} history={history.data} />
-                <PaperTrading />
-              </div>
+              <PriceChart contract={contract} history={history.data} />
+              <Trading />
               <p className="text-xs text-slate-500">
                 All-in = the ask plus the venue's taker fee per contract: Kalshi {VENUES.kalshi.fee}, Polymarket {VENUES.polymarket.fee}, Novig{' '}
                 {VENUES.novig.fee}. Every price is for a contract paying $1 (Novig's pay 1¢, so its sizes are divided by 100).

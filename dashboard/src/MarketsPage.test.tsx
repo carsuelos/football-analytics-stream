@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { BOARD_POLL_MS, MarketsPage } from './MarketsPage'
@@ -110,9 +110,51 @@ it('keeps the last prices on screen while the service is unreachable, and polls 
   expect(screen.getByRole('region', { name: 'Total goals' })).toBeInTheDocument()
 })
 
-it('says when the paper trading arrives, with its controls off', async () => {
+it('shows how it will trade, on paper or with real money, all off until the live feed', async () => {
   render(<MarketsPage />)
-  const paper = await screen.findByRole('region', { name: 'Paper trading' })
-  expect(paper).toHaveTextContent('Coming with the live feed')
-  expect(within(paper).getByRole('button', { name: 'Start paper trading' })).toBeDisabled()
+  const trading = await screen.findByRole('region', { name: 'Trading' })
+  expect(trading).toHaveTextContent('Off until the live feed')
+  expect(within(trading).getByRole('group', { name: 'Strategy' })).toBeDisabled()
+  expect(within(trading).getByRole('combobox', { name: 'Buy' })).toHaveValue('best')
+  expect(within(trading).getByRole('button', { name: 'Start paper trading' })).toBeDisabled()
+  expect(within(trading).queryByRole('group', { name: 'Venue keys' })).toBeNull()
+
+  await userEvent.click(within(trading).getByRole('button', { name: 'Real money' }))
+  const keys = within(trading).getByRole('group', { name: 'Venue keys' })
+  expect(keys).toBeDisabled()
+  expect(within(trading).getByRole('note')).toHaveTextContent('Runs only on your own machine')
+  for (const venue of ['Kalshi', 'Polymarket', 'Novig']) expect(within(keys).getByRole('group', { name: `${venue} key` })).toBeInTheDocument()
+  expect(within(keys).getByLabelText('Private key (RSA, PEM)')).toHaveAttribute('type', 'password')
+  expect(within(keys).getByRole('link', { name: /Create one/ })).toHaveAttribute('href', 'https://kalshi.com/account/profile')
+  expect(within(keys).getByRole('button', { name: 'Start real trading' })).toBeDisabled()
+})
+
+const sections = () => screen.getAllByRole('region').map((r) => r.getAttribute('aria-label')).filter((n) => ['Result', 'Total goals', 'Team goals'].includes(n!))
+
+it('orders the sections result, total goals, team goals, and moves them by their handles', async () => {
+  render(<MarketsPage />)
+  await screen.findByRole('region', { name: 'Result' })
+  expect(sections()).toEqual(['Result', 'Total goals', 'Team goals'])
+
+  // With the keyboard: focus a handle, then the arrow keys.
+  screen.getByRole('button', { name: 'Move Team goals' }).focus()
+  await userEvent.keyboard('{ArrowUp}')
+  expect(sections()).toEqual(['Result', 'Team goals', 'Total goals'])
+  await userEvent.keyboard('{Home}')
+  expect(sections()).toEqual(['Team goals', 'Result', 'Total goals'])
+  expect(JSON.parse(localStorage.getItem('markets.sections')!)).toEqual(['team_total', 'result', 'total'])
+
+  // By dragging a handle onto another section.
+  const dataTransfer = { setData: vi.fn(), setDragImage: vi.fn(), effectAllowed: '' }
+  fireEvent.dragStart(screen.getByRole('button', { name: 'Move Total goals' }), { dataTransfer })
+  fireEvent.dragOver(screen.getByRole('region', { name: 'Team goals' }), { dataTransfer })
+  fireEvent.drop(screen.getByRole('region', { name: 'Team goals' }), { dataTransfer })
+  expect(sections()).toEqual(['Total goals', 'Team goals', 'Result'])
+})
+
+it('keeps a stored order, with any new kind of contract at the end', async () => {
+  localStorage.setItem('markets.sections', JSON.stringify(['team_total', 'gone', 'total']))
+  render(<MarketsPage />)
+  await screen.findByRole('region', { name: 'Result' })
+  expect(sections()).toEqual(['Team goals', 'Total goals', 'Result'])
 })

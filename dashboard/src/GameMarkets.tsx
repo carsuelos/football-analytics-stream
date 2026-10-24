@@ -1,7 +1,7 @@
-import { useId } from 'react'
-import { ChevronIcon } from './Icons'
-import type { Contract, MarketGame, Quote } from './schema/market_board.schema'
-import { useStoredFlag } from './useStoredFlag'
+import { useId, useRef, useState, type DragEvent, type KeyboardEvent } from 'react'
+import { ChevronIcon, GripIcon } from './Icons'
+import type { Contract, ContractKind, MarketGame, Quote } from './schema/market_board.schema'
+import { useStoredFlag, useStoredOrder } from './useStored'
 import { cents, percent, VENUE_ORDER, VENUES } from './venues'
 
 interface Props {
@@ -17,40 +17,50 @@ interface Props {
  * a trade would go. Our model's probability joins them with the live feed.
  */
 export function GameMarkets({ game: g, selected, onSelect }: Props) {
-  const totals = g.contracts.filter((c) => c.kind === 'total')
-  const results = g.contracts.filter((c) => c.kind === 'result')
-  const teamTotals = g.contracts.filter((c) => c.kind === 'team_total')
+  const [order, setOrder] = useStoredOrder('markets.sections', SECTION_IDS)
+  const [dragging, setDragging] = useState<SectionId | null>(null)
   const goals = g.score ? g.score.home + g.score.away : 0
+  const decided: Record<SectionId, (c: Contract) => boolean> = {
+    result: () => false,
+    total: (c) => c.line !== undefined && c.line < goals,
+    team_total: (c) => c.line !== undefined && g.score !== undefined && c.line < (c.outcome === 'home' ? g.score.home : g.score.away),
+  }
+  /** Puts a section where another is, shifting the rest. */
+  const move = (id: SectionId, to: number) => {
+    const next = order.filter((o) => o !== id)
+    next.splice(Math.max(0, Math.min(to, next.length)), 0, id)
+    setOrder(next)
+  }
   return (
     <div className="flex flex-col gap-5">
       <GameHeader game={g} />
-      <ContractTable
-        title="Total goals"
-        note="Yes pays $1 if there are more goals than the line after 90' plus stoppage time."
-        contracts={totals}
-        decided={(c) => c.line !== undefined && c.line < goals}
-        selected={selected}
-        onSelect={onSelect}
-      />
-      <ContractTable
-        title="Result"
-        note="Yes pays $1 on that result after 90' plus stoppage time."
-        contracts={results}
-        decided={() => false}
-        selected={selected}
-        onSelect={onSelect}
-      />
-      <ContractTable
-        title="Team goals"
-        note="Yes pays $1 if that team scores more than the line after 90' plus stoppage time."
-        contracts={teamTotals}
-        decided={(c) => c.line !== undefined && g.score !== undefined && c.line < (c.outcome === 'home' ? g.score.home : g.score.away)}
-        selected={selected}
-        onSelect={onSelect}
-      />
+      {order.map((id, index) => (
+        <ContractTable
+          key={id}
+          title={SECTIONS[id]}
+          contracts={g.contracts.filter((c) => c.kind === id)}
+          decided={decided[id]}
+          selected={selected}
+          onSelect={onSelect}
+          reorder={{
+            index,
+            count: order.length,
+            dragging: dragging !== null,
+            onDragStart: () => setDragging(id),
+            onDragEnd: () => setDragging(null),
+            onDrop: () => dragging && dragging !== id && move(dragging, index),
+            onMove: (to) => move(id, to),
+          }}
+        />
+      ))}
     </div>
   )
 }
+
+/** The kinds of contract, each a section the viewer can fold and reorder: by default the result first. */
+const SECTIONS = { result: 'Result', total: 'Total goals', team_total: 'Team goals' } as const satisfies Record<ContractKind, string>
+type SectionId = keyof typeof SECTIONS
+const SECTION_IDS = Object.keys(SECTIONS) as SectionId[]
 
 function GameHeader({ game: g }: { game: MarketGame }) {
   const kickoff = new Date(g.kickoff)
@@ -112,30 +122,87 @@ function Team({ name, color, align }: { name: string; color?: string; align: 'st
   )
 }
 
+interface Reorder {
+  index: number
+  count: number
+  /** Whether any section is being dragged (each section is then a drop target). */
+  dragging: boolean
+  onDragStart: () => void
+  onDragEnd: () => void
+  onDrop: () => void
+  /** Moves this section to a position (the arrow keys on its handle). */
+  onMove: (to: number) => void
+}
+
 interface TableProps {
   title: string
-  note: string
   contracts: Contract[]
   /** Contracts already settled by the score: a line the goals have passed. */
   decided: (c: Contract) => boolean
   selected?: string
   onSelect: (key: string) => void
+  reorder: Reorder
 }
 
-/** A kind of contract: collapsible, and remembered collapsed across games and visits. */
-function ContractTable({ title, note, contracts, decided, selected, onSelect }: TableProps) {
+/**
+ * A kind of contract: foldable, and movable by its handle (drag it, or focus
+ * it and use the arrow keys). Both are remembered across games and visits.
+ */
+function ContractTable({ title, contracts, decided, selected, onSelect, reorder: r }: TableProps) {
   const [open, setOpen] = useStoredFlag(`markets.open.${title}`, true)
+  const [over, setOver] = useState(false)
+  const section = useRef<HTMLElement>(null)
   const body = useId()
+  const dragStart = (e: DragEvent) => {
+    e.dataTransfer.effectAllowed = 'move'
+    e.dataTransfer.setData('text/plain', title)
+    if (section.current) e.dataTransfer.setDragImage(section.current, 24, 24)
+    r.onDragStart()
+  }
+  const keyDown = (e: KeyboardEvent) => {
+    const to = { ArrowUp: r.index - 1, ArrowDown: r.index + 1, Home: 0, End: r.count - 1 }[e.key]
+    if (to === undefined) return
+    e.preventDefault()
+    if (to >= 0 && to < r.count && to !== r.index) r.onMove(to)
+  }
   return (
-    <section aria-label={title} className="card overflow-hidden">
-      <header className={`flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 pt-3 ${open ? 'pb-2' : 'pb-3'}`}>
+    <section
+      ref={section}
+      aria-label={title}
+      className={`card overflow-hidden transition ${over ? 'ring-2 ring-sky-400/50' : ''}`}
+      onDragOver={(e) => {
+        if (!r.dragging) return
+        e.preventDefault()
+        setOver(true)
+      }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault()
+        setOver(false)
+        r.onDrop()
+      }}
+    >
+      <header className={`flex items-center gap-1 px-2 pt-2 ${open ? 'pb-1' : 'pb-2'}`}>
+        <button
+          type="button"
+          draggable
+          onDragStart={dragStart}
+          onDragEnd={r.onDragEnd}
+          onKeyDown={keyDown}
+          aria-label={`Move ${title}`}
+          aria-description={`Position ${r.index + 1} of ${r.count}. Drag, or use the up and down arrow keys.`}
+          title="Drag to reorder (or focus and use ↑ ↓)"
+          className="grid size-7 cursor-grab place-items-center rounded-md text-slate-600 transition hover:bg-white/[0.05] hover:text-slate-300 active:cursor-grabbing"
+        >
+          <GripIcon className="size-4" />
+        </button>
         <h3>
           <button
             type="button"
             aria-expanded={open}
             aria-controls={body}
             onClick={() => setOpen(!open)}
-            className="-ml-1.5 flex items-center gap-1.5 rounded-lg px-1.5 py-1 font-semibold transition hover:bg-white/[0.04]"
+            className="flex items-center gap-1.5 rounded-lg px-1.5 py-1 font-semibold transition hover:bg-white/[0.04]"
           >
             <ChevronIcon className={`size-4 text-slate-400 transition-transform ${open ? '' : '-rotate-90'}`} />
             {title}{' '}
@@ -144,7 +211,6 @@ function ContractTable({ title, note, contracts, decided, selected, onSelect }: 
             </span>
           </button>
         </h3>
-        {open && <p className="text-xs text-slate-500">{note}</p>}
       </header>
       {!open ? null : contracts.length === 0 ? (
         <p id={body} className="px-4 pb-4 text-sm text-slate-400">

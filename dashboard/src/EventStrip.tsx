@@ -7,7 +7,7 @@ import type { Alert } from './schema/alert.schema'
 import type { Team } from './schema/engine_status.schema'
 import type { Incident } from './schema/incident.schema'
 import { matchClock, type Timeline } from './timeline'
-import { useStoredFlag } from './useStoredFlag'
+import { useStoredFlag } from './useStored'
 
 interface Props {
   teams: Team[]
