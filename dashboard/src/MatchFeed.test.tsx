@@ -79,6 +79,20 @@ describe('MatchFeed', () => {
     expect(screen.queryByText(/Scored/)).toBeNull()
   })
 
+  it("shows what the next lines are worth by full time, from the model's alerts", () => {
+    const chance = alert({
+      type: 'goal_chance',
+      team_id: ARGENTINA.id,
+      period: 1,
+      match_clock_s: 36 * 60 + 53,
+      features: { base_rate: 0.13, ft_team: 0.634, team_line: 2.5, ft_game: 0.81, game_line: 2.5 },
+      message: "Argentina: 19% chance to score in the next 10' (usually 13%). By full time: 63% to score again (Argentina over 2.5), 81% for any goal (over 2.5)",
+    })
+    render(<MatchFeed teams={TEAMS} alerts={[chance]} incidents={[]} axis={axis} />)
+    expect(screen.getByText("Argentina: 19% chance to score in the next 10' (usually 13%)")).toBeInTheDocument()
+    expect(screen.getByLabelText('By full time')).toHaveTextContent('By full timeArgentina over 2.5 · 63%Over 2.5 · 81%')
+  })
+
   it('leaves items uncoloured until the teams are known', () => {
     render(<MatchFeed teams={null} alerts={[control]} incidents={[]} axis={axis} />)
     expect(screen.getByRole('listitem').className).not.toMatch(/border-(home|away)/)

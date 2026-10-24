@@ -175,10 +175,37 @@ function AlertItem({
           </span>
         )}
       </p>
-      <p className="mt-1 text-sm text-slate-200">{a.message}</p>
+      <p className="mt-1 text-sm text-slate-200">{a.message.split(FULL_TIME_SUFFIX)[0]}</p>
+      <FullTimeLines alert={a} team={teams?.find((t) => t.id === a.team_id)?.name} />
     </li>
   )
 }
+
+/** Where the engine's message says what the next lines are worth; shown as chips instead. */
+const FULL_TIME_SUFFIX = '. By full time:'
+
+/**
+ * What the full-time model says the prediction markets' next "over" lines are
+ * worth at the alert: the team's (it scores again) and the match's (anyone does).
+ */
+function FullTimeLines({ alert: a, team }: { alert: Alert; team?: string }) {
+  const { ft_team, team_line, ft_game, game_line } = a.features
+  if (ft_team === undefined || ft_game === undefined) return null
+  const chip = 'rounded-full border border-white/10 bg-white/[0.03] px-2 py-0.5 text-slate-300 tabular-nums'
+  return (
+    <p aria-label="By full time" className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+      <span className="text-slate-500">By full time</span>
+      <span className={chip} title={`Our chance that ${team ?? 'this team'} scores again before full time: what "over ${team_line}" pays on`}>
+        {team ?? 'Team'} over {team_line} · <span className="font-semibold text-slate-100">{percent(ft_team)}</span>
+      </span>
+      <span className={chip} title={`Our chance of another goal by anyone before full time: what "over ${game_line}" pays on`}>
+        Over {game_line} · <span className="font-semibold text-slate-100">{percent(ft_game)}</span>
+      </span>
+    </p>
+  )
+}
+
+const percent = (p: number) => `${Math.round(p * 100)}%`
 
 const OUTCOME_HINT =
   'Checked as the match plays on: did this team score from 30 seconds to 10 minutes after the alert?'

@@ -566,6 +566,125 @@ On the training set, the new goal threat beats the old one on the new labels (10
 
 The numbers are lower than step 5's (lift 1.7, 42.7% covered) because the bar is higher: the alerts that only described the goal no longer count. They are the honest ones to improve on.
 
+## Step 7: the full-time model, for the markets
+
+**Status: done.** Code: [`model/src/model/fulltime.py`](../model/src/model/fulltime.py), run with `make fulltime` (about 3 minutes, after `make dataset`); the engine's side is [`engine/src/engine/detectors/fulltime.py`](../engine/src/engine/detectors/fulltime.py).
+
+### Why
+
+The goal model answers "will this team score in the next 10 minutes?", and it decides **when** to look: it fires the alerts. A prediction market's contract asks something else. "Argentina over 2.5" at 2-0 pays if Argentina scores **once more, any time before full time** (90 minutes plus stoppage; extra time doesn't count). "Over 2.5" for the match pays if **anyone** does. To know whether a contract at 60¢ is cheap, we need those probabilities, not the 10' one. So a second, small model decides **what the contract is worth**:
+
+- **team**: will this team score again before full time? (Its next line: goals so far + 0.5.)
+- **game**: will anyone score again before full time? (The match's next line.)
+
+### The labels
+
+The dataset (`make dataset`) gains two columns for each row: a goal **after** the tick and **by the end of regulation**, by the team and by anyone. There's no 30-second lead here, unlike the alerts: a contract bought now pays on any later goal. Ticks in extra time are left out. A team scores again in 42.7% of the training rows, anyone in 65.0% (World Cup: 39.7% and 60.7%).
+
+### Techniques
+
+The same toolkit as step 3: standardized, L2-penalized **logistic regression** with **hinges** (a broken line), **cross-validation grouped by match** (5 folds), then the World Cup once; **bootstrap** intervals over matches. New here:
+
+**How much time is left.** It's most of the answer: at 20' a team scores again 66% of the time (anyone: 90%), at 85' 17% (31%). But the minute isn't the time left, because stoppage time varies, and it grew: FIFA, then the leagues (the Premier League from 2023), told referees to add the time actually lost. In the data, by the last tick of regulation (minutes of play, both halves' stoppage time included):
+
+| Matches | Average length |
+| --- | ---: |
+| La Liga, 2005–2018 | 93.4–94.7 |
+| Premier League 2015/16 | 96.3 |
+| World Cup 2018, Euro 2020 | 96.4–96.9 |
+| Bundesliga 2023/24, Euro 2024, Copa América 2024 | 97.2–98.6 |
+| Africa Cup of Nations 2023 | 101.8 |
+| **World Cup 2022 (the test set)** | **101.5** |
+
+A model of the minute learns "at 92' it's nearly over", which was true in 2010 and isn't now. So the models get the **expected minutes left** instead (`minutes_left`): given that matches of this competition last `end` minutes on average, give or take a spread learnt from the training matches (5th to 95th percentile: −2.6 to +3.0 minutes), how long is left on average, given the match is still on? In training, `end` is the match's competition-season average (without the match itself, so its own length doesn't leak in). Live, it's the average since 2023: **99.1 minutes** (`end_min` in the model file; the Premier League's recent seasons run nearer 100–101, so that's the first knob to turn).
+
+**For the game**, a model sees one team's row; the probability for a tick is the mean over its two teams' rows, so it doesn't depend on which side is looking. It's also compared with combining the team model's two probabilities as if the teams scored independently: `1 − (1 − p_home)(1 − p_away)`.
+
+### Models
+
+| Model | Inputs |
+| --- | --- |
+| clock (minute) | the minute, with hinges at 60, 80, 85, 90, 95, 100 |
+| clock (left) | the expected minutes left, with hinges at 3, 6, 10, 15, 25, 40, 60 |
+| game state | the minutes left and the score |
+| curved (minute) | every feature, with hinges on the minute (the goal model's shape) |
+| **curved** | every feature and the minutes left, with hinges on it |
+| boosted | gradient-boosted trees (150 × 8 leaves) on the same, as a check |
+
+A first version also tried **chaining**: the goal model's own 10' log-odds for both teams as two more inputs. It scored exactly the same as curved (CV skill 0.1875 both): the goal model is itself a weighted sum of the same features, so it adds nothing a logistic regression can't already weigh. Dropped.
+
+### Results
+
+**Team** (does it score again?): cross-validation on 2,552 training matches, and the World Cup.
+
+| Model | CV skill | CV log loss | CV AUC | Test skill | Test log loss | Test AUC | Test calibration |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| clock (minute) | 0.145 | 0.6027 | 0.718 | 0.123 | 0.6081 | 0.708 | 1.01 |
+| clock (left) | 0.144 | 0.6028 | 0.718 | 0.122 | 0.6061 | 0.708 | 1.08 |
+| game state | 0.153 | 0.5978 | 0.725 | **0.124** | 0.6061 | 0.705 | 1.01 |
+| curved (minute) | 0.187 | 0.5792 | 0.752 | 0.097 | 0.6286 | 0.698 | 0.98 |
+| **curved** | **0.188** | **0.5791** | **0.752** | 0.098 | 0.6240 | 0.695 | 0.99 |
+| boosted | 0.186 | 0.5798 | 0.751 | 0.108 | 0.6162 | 0.702 | 1.03 |
+
+**Game** (does anyone score again?):
+
+| Model | CV skill | CV AUC | Test skill | Test AUC | Test calibration |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| clock (minute) | 0.257 | 0.790 | 0.219 | 0.774 | 1.01 |
+| game state | 0.258 | 0.791 | 0.227 | 0.776 | 1.00 |
+| **curved** | **0.259** | 0.792 | 0.221 | 0.773 | 0.99 |
+| boosted | 0.260 | 0.793 | **0.236** | **0.784** | 1.02 |
+| from team (independent) | | | 0.233 | 0.780 | 1.00 |
+
+What it says:
+
+- **The skills are far higher than the goal model's** (0.19 against 0.02), because the clock alone explains a lot: early on, another goal is likely; late, it isn't. The question is what the match's events add on top.
+- **For the team, they add a lot in training**: skill 0.153 with the clock and score, 0.188 with everything. Which team has been on top (`tilt_match`, `xt_match`) says who scores next, as it did for the goal model.
+- **For anyone, they add almost nothing** (0.258 to 0.259): a dominant team makes its own goal likelier and its opponent's less likely, and the two mostly cancel. The clock and the score are nearly the whole story.
+- **On the World Cup, the events look like they hurt the team model** (test skill 0.098 against 0.124). Three checks say that's this tournament, not the model:
+  1. **The bootstrap** (1,000 resamples of the 64 matches): curved's Brier gain over game state is −0.076 to +0.025. The test can't tell them apart.
+  2. **Other tournaments**: out of fold, on the 250 international matches in training (World Cup 2018, Euros 2020 and 2024, Copa América 2024, Africa Cup of Nations 2023), curved beats game state 0.160 to 0.130, as on club matches (0.190 to 0.155) and on the Premier League and La Liga alone (0.199 to 0.162, 1,284 matches).
+  3. **The 2022 World Cup was a tournament of upsets** (Saudi Arabia beat Argentina, Japan beat Germany and Spain, Morocco reached the semi-finals): dominated teams kept scoring, which is exactly where a model that trusts dominance is wrong.
+- **The minutes left fix less than expected.** Swapping the minute for the minutes left changes CV by nothing and the World Cup's log loss a little (0.6286 → 0.6240 for the team, 0.5630 → 0.5574 for the game). The rows predicted lowest still score more often than predicted on the World Cup (team: predicted 6%, 11% scored; game: 7%, 17%): its matches ran 101.5 minutes, past even the modern average of 99.1, and late goals in long stoppage time were its signature.
+
+**Reliability** of the shipped (curved) team model on the World Cup, rows by predicted probability: 6% → 11% scored, 15% → 23%, 25% → 34%, 35% → 38%, 45% → 42%, 55% → 52%, 65% → 53%, 75% → 71%, 83% → 72%. Good in the middle, too confident at both ends there.
+
+### At the alerts: where it matters
+
+A strategy buys when the goal model alerts, so that's where the price has to be right. Out of fold, at the training rows where the goal model is over its threshold (every tick over the threshold counts, not only the first of an alert):
+
+| At the goal model's alerts | Club (95,512 rows) | Premier League and La Liga (63,291) | International (9,863) | From 2021 (14,184) |
+| --- | ---: | ---: | ---: | ---: |
+| Team scores again: actual | 60.8% | 62.3% | 57.3% | 61.6% |
+| clock and score (game state) | 46.6% | 47.0% | 45.5% | 47.5% |
+| **curved** | **59.3%** | **60.1%** | **60.4%** | **61.0%** |
+| Anyone scores again: actual | 69.9% | 70.8% | 68.9% | 71.7% |
+| game state | 66.6% | 66.9% | 66.6% | 67.1% |
+| **curved** | 67.8% | 68.2% | 67.8% | 68.4% |
+
+This is the case for trading. **At our alerts, a team scores again by full time about 61% of the time; the clock and the score say 47%.** A price that only knows the clock and the score is about 14 points too cheap there; the full-time model gets within 1–3 points. For "anyone scores", the gap is 3–4 points, and the model closes only part of it.
+
+Markets know more than the clock and the score: the teams' strength before the match (which our data doesn't have) and what traders see. So the edge to look for is whatever the market hasn't priced of what our events say. Only paper trading against real prices (the market tape, `make tape`) can measure that.
+
+On the World Cup the same check: at the alerts, the team scored again 55.6% of the time; curved said 63.5%, game state 50.3%. Over, where on 2,552 matches it isn't: the tournament of upsets again, but a reason for a margin before buying.
+
+### In the engine
+
+`make fulltime` writes `fulltime_model.json`: the features, the hinge knots, `end_min` and the spread of match lengths, and each model's means, scales, weights and intercept, after checking that the engine's plain-Python arithmetic gives scikit-learn's probabilities to 1e-9. The goal-chance detector runs it at its alerts and reports, in the alert's features, `ft_team` (with `team_line`) and `ft_game` (with `game_line`); the dashboard shows them on the alert as "By full time · Argentina over 2.5 · 73% · Over 2.5 · 83%".
+
+On the 2022 final: the model's alert at 36.9', Argentina 2-0 up, priced Argentina over 2.5 at 73% (they didn't score again in regulation; their third came in extra time, which doesn't count) and over 2.5 at 83% (France scored twice).
+
+### Decision
+
+Ship **curved** for both: the best on cross-validation, and the only one near the truth at the alerts; for the game it's level with the others, and one model shape for both keeps the engine simple. The World Cup disagreeing is within its noise and explained by its upsets and its long stoppage time, but it's a warning that **these probabilities can be several points off**: a strategy should want a margin (the trading panel's "edge required").
+
+### Iterating
+
+- **The match length** (`end_min`): set it per league from recent matches, and better, use the **announced added time** a live feed gives ("+6"): then the minutes left are nearly known, not estimated. This is the clearest fix for the late-game rows.
+- **Team strength** before kick-off (Elo, or the market's own pre-match price) is what the model most lacks, and where the World Cup's upsets hurt. The market's pre-match price is in the market tape.
+- **More lines**: the next line is the only one priced. The one after it needs two more goals; a count model (Poisson, with the rate from these features) would price any line, and the result market too.
+- **Checking against the market**: once the tape has real games, compare the model's price with the market's at each alert. That's the measure that matters.
+
 ## Next steps
 
-Phase 3 is complete. Skipped on purpose: a **sequence model** over the raw events, since the gradient-boosted trees didn't beat the curved logistic regression (step 3), a hint that a heavier model won't either. Still optional: a Streamlit app for exploring the backtests. Next is Phase 4: deployment to Azure.
+Phase 3 is complete, and step 7 added the full-time model for Phase 6's trading. Skipped on purpose: a **sequence model** over the raw events, since the gradient-boosted trees didn't beat the curved logistic regression (step 3), a hint that a heavier model won't either. Still optional: a Streamlit app for exploring the backtests. Next is Phase 4: deployment to Azure.
