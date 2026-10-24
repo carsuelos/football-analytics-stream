@@ -17,7 +17,8 @@ import (
 
 const competitions = `[
  {"competition_id": 43, "season_id": 106, "competition_name": "FIFA World Cup", "season_name": "2022", "country_name": "International", "competition_gender": "male", "competition_youth": false},
- {"competition_id": 53, "season_id": 315, "competition_name": "UEFA Women's Euro", "season_name": "2025", "country_name": "Europe", "competition_gender": "female", "competition_youth": false}
+ {"competition_id": 53, "season_id": 315, "competition_name": "UEFA Women's Euro", "season_name": "2025", "country_name": "Europe", "competition_gender": "female", "competition_youth": false},
+ {"competition_id": 43, "season_id": 51, "competition_name": "FIFA World Cup", "season_name": "1970", "country_name": "International", "competition_gender": "male", "competition_youth": false}
 ]`
 
 // fake serves StatsBomb's layout: two seasons, the Euro with matches 1 and 2,
@@ -49,6 +50,18 @@ func fake(t *testing.T, broken *atomic.Bool) (*Library, map[string]*atomic.Int32
 	l := New(t.TempDir(), nil)
 	l.BaseURL, l.HTTP = srv.URL, srv.Client()
 	return l, hits
+}
+
+func TestOnlySeasonsFrom2000AreOffered(t *testing.T) {
+	l, _ := fake(t, nil)
+	for _, s := range l.Get(context.Background()).Seasons {
+		if s.Season == "1970" {
+			t.Error("the 1970 World Cup is listed")
+		}
+	}
+	if _, err := l.Start(context.Background(), 43, 51); !errors.Is(err, ErrUnknownSeason) {
+		t.Errorf("downloading 1970: %v", err)
+	}
 }
 
 func TestItListsTheSeasonsNewestFirst(t *testing.T) {

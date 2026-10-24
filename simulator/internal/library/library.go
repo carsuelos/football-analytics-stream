@@ -52,10 +52,19 @@ const (
 	TestSeason      = "2022"
 )
 
+// OldestSeason is the first season offered: StatsBomb's older ones are a few
+// famous matches each, from a different game.
+const OldestSeason = 2000
+
+// seasonStart is the year a season starts: 2015 for "2015/2016"; 0 if unreadable.
+func seasonStart(season string) int {
+	start, _ := strconv.Atoi(season[:min(4, len(season))])
+	return start
+}
+
 // InTraining says whether the models were trained on a competition season.
 func InTraining(competition, season, gender string, youth bool) bool {
-	start, err := strconv.Atoi(season[:min(4, len(season))])
-	return err == nil && gender == "male" && !youth && start >= TrainingSince &&
+	return gender == "male" && !youth && seasonStart(season) >= TrainingSince &&
 		!(competition == TestCompetition && season == TestSeason)
 }
 
@@ -100,7 +109,7 @@ func New(dir string, log *slog.Logger) *Library {
 	return &Library{Dir: dir, BaseURL: DefaultBaseURL, HTTP: &http.Client{Timeout: time.Minute}, Log: log}
 }
 
-// Get returns the seasons, newest first, with how many of each are on disk,
+// Get returns the seasons from OldestSeason, newest first, with how many of each are on disk,
 // and the download's progress.
 func (l *Library) Get(ctx context.Context) schema.MatchLibrary {
 	l.refresh(ctx)
@@ -159,10 +168,11 @@ func (l *Library) refresh(ctx context.Context) {
 		return
 	}
 	err := l.fetch(ctx, "competitions.json", true)
-	var list []competition
-	if readErr := readJSON(filepath.Join(l.Dir, "competitions.json"), &list); readErr != nil && err == nil {
+	var all []competition
+	if readErr := readJSON(filepath.Join(l.Dir, "competitions.json"), &all); readErr != nil && err == nil {
 		err = readErr
 	}
+	list := slices.DeleteFunc(all, func(c competition) bool { return seasonStart(c.Season) < OldestSeason })
 	slices.SortStableFunc(list, func(a, b competition) int {
 		return cmp.Or(-cmp.Compare(a.Season, b.Season), cmp.Compare(a.Competition, b.Competition))
 	})
