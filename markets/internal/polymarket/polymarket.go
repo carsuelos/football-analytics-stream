@@ -1,15 +1,23 @@
 // Package polymarket reads Polymarket US's soccer games: each game's result
-// markets (each team to win, and a draw, after regulation time), and the live
-// score and clock, which Polymarket's sports data reports. Reading needs no
-// key. (It lists no per-game total goals for these leagues yet; if it starts
-// to, they would come as markets of a total type and need adding here.)
+// (each team to win, and a draw), total goals and each team's goals, all
+// after regulation time, and the live score and clock, which Polymarket's
+// sports data reports. Reading needs no key.
+//
+// The league's listing has each game's result markets only. The totals are
+// fetched by slug, which Polymarket builds from the game's:
+// tsc-epl-cry-new-2026-10-25-2pt5 is over 2.5 goals in that game, and
+// tsc-epl-cry-new-2026-10-25-ttg-new-1pt5 Newcastle over 1.5. A league is a
+// few requests: its listing, then batches of those slugs.
 package polymarket
 
 import (
 	"context"
 	"fmt"
+	"maps"
 	"net/http"
+	"net/url"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -68,9 +76,14 @@ type amount struct {
 	Value string `json:"value"`
 }
 
+type marketsReply struct {
+	Markets []market `json:"markets"`
+}
+
 type market struct {
 	Slug           string  `json:"slug"`
 	Type           string  `json:"sportsMarketType"`
+	Line           float64 `json:"line"`
 	FeeCoefficient float64 `json:"feeCoefficient"`
 	Active         bool    `json:"active"`
 	Closed         bool    `json:"closed"`
@@ -101,18 +114,108 @@ func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Even
 			out = append(out, ev)
 		}
 	}
+	if err := c.addTotals(ctx, reply.Events, out); err != nil {
+		return nil, fmt.Errorf("polymarket: %w", err)
+	}
 	return out, nil
 }
 
-func convert(league schema.League, e event) (venue.Event, bool) {
-	// The title names the home team first: "Chelsea FC vs. Tottenham Hotspur FC".
+// The highest lines asked for: Polymarket lists games' totals to 5.5 and
+// teams' to 2.5 (asking for a slug it doesn't list costs nothing).
+const (
+	maxTotalLine = 5
+	maxTeamLine  = 3
+	slugsPerCall = 50
+)
+
+// total is what a total-goals slug is for.
+type total struct {
+	eventID string
+	kind    schema.ContractKind
+	outcome schema.Outcome
+	line    float64
+}
+
+// addTotals fetches the games' total-goals and team-goals markets and adds
+// them to the games' quotes.
+func (c *Client) addTotals(ctx context.Context, events []event, out []venue.Event) error {
+	wanted := map[string]total{}
+	for _, e := range events {
+		home, away, ok := sides(e)
+		if e.Ended || !ok {
+			continue
+		}
+		for n := 0; n <= maxTotalLine; n++ {
+			wanted[fmt.Sprintf("tsc-%s-%dpt5", e.Slug, n)] = total{e.ID, schema.ContractKindTotal, schema.OutcomeOver, float64(n) + 0.5}
+		}
+		for _, side := range []struct {
+			t       team
+			outcome schema.Outcome
+		}{{home, schema.OutcomeHome}, {away, schema.OutcomeAway}} {
+			abbr := strings.ToLower(side.t.Abbreviation)
+			if abbr == "" {
+				continue
+			}
+			for n := 0; n <= maxTeamLine; n++ {
+				wanted[fmt.Sprintf("tsc-%s-ttg-%s-%dpt5", e.Slug, abbr, n)] = total{e.ID, schema.ContractKindTeamTotal, side.outcome, float64(n) + 0.5}
+			}
+		}
+	}
+	slugs := slices.Sorted(maps.Keys(wanted))
+	byEvent := map[string]*venue.Event{}
+	for i := range out {
+		byEvent[out[i].EventID] = &out[i]
+	}
+	for batch := range slices.Chunk(slugs, slugsPerCall) {
+		q := url.Values{"slug": batch, "limit": {fmt.Sprint(2 * slugsPerCall)}}
+		var reply marketsReply
+		if err := venue.GetJSON(ctx, c.HTTP, c.BaseURL+"/v1/markets?"+q.Encode(), &reply); err != nil {
+			return err
+		}
+		for _, m := range reply.Markets {
+			w, ok := wanted[m.Slug]
+			ev := byEvent[w.eventID]
+			if !ok || ev == nil || !m.Active || m.Closed {
+				continue
+			}
+			qt := quoteOf(m)
+			qt.Kind, qt.Outcome, qt.Line = w.kind, w.outcome, w.line
+			ev.Quotes = append(ev.Quotes, qt)
+		}
+	}
+	return nil
+}
+
+// sides are the game's home and away teams. The title names the home team
+// first: "Chelsea FC vs. Tottenham Hotspur FC".
+func sides(e event) (home, away team, ok bool) {
 	h, a, ok := strings.Cut(e.Title, " vs. ")
 	if !ok || len(e.Teams) != 2 {
-		return venue.Event{}, false
+		return home, away, false
 	}
-	home, away := e.Teams[0], e.Teams[1]
+	home, away = e.Teams[0], e.Teams[1]
 	if strings.TrimSpace(h) != home.Name && strings.TrimSpace(a) == home.Name {
 		home, away = away, home
+	}
+	return home, away, true
+}
+
+// quoteOf is a market's Yes (its long side) prices and fee.
+func quoteOf(m market) venue.Quote {
+	q := venue.Quote{MarketID: m.Slug, FeeCoefficient: m.FeeCoefficient, FeeCharged: true}
+	if m.BestBid != nil {
+		q.Bid = price(m.BestBid.Value)
+	}
+	if m.BestAsk != nil {
+		q.Ask = price(m.BestAsk.Value)
+	}
+	return q
+}
+
+func convert(league schema.League, e event) (venue.Event, bool) {
+	home, away, ok := sides(e)
+	if !ok {
+		return venue.Event{}, false
 	}
 	ev := venue.Event{
 		Venue:   schema.VenuePolymarket,
@@ -135,12 +238,8 @@ func convert(league schema.League, e event) (venue.Event, bool) {
 		if !m.Active || m.Closed || m.Type != "soccer_team_full_time_winner" {
 			continue
 		}
-		q := venue.Quote{
-			Kind:           schema.ContractKindResult,
-			MarketID:       m.Slug,
-			FeeCoefficient: m.FeeCoefficient,
-			FeeCharged:     true,
-		}
+		q := quoteOf(m)
+		q.Kind = schema.ContractKindResult
 		switch outcome(m, home.ID, away.ID) {
 		case "home":
 			q.Outcome = schema.OutcomeHome
@@ -150,12 +249,6 @@ func convert(league schema.League, e event) (venue.Event, bool) {
 			q.Outcome = schema.OutcomeDraw
 		default:
 			continue
-		}
-		if m.BestBid != nil {
-			q.Bid = price(m.BestBid.Value)
-		}
-		if m.BestAsk != nil {
-			q.Ask = price(m.BestAsk.Value)
 		}
 		ev.Quotes = append(ev.Quotes, q)
 	}

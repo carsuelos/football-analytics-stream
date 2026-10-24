@@ -389,6 +389,8 @@ func id(l schema.League, kickoff time.Time, home, away string) string {
 	return fmt.Sprintf("%s-%s-%s-%s", l, kickoff.UTC().Format("2006-01-02"), slug(home), slug(away))
 }
 
+var kindOrder = map[schema.ContractKind]int{schema.ContractKindTotal: 0, schema.ContractKindResult: 1, schema.ContractKindTeamTotal: 2}
+
 var outcomeOrder = map[schema.Outcome]int{schema.OutcomeHome: 0, schema.OutcomeDraw: 1, schema.OutcomeAway: 2}
 
 func (g *game) contracts(home, away string) []schema.Contract {
@@ -396,14 +398,14 @@ func (g *game) contracts(home, away string) []schema.Contract {
 	var keys []string
 	for _, e := range g.events {
 		for _, q := range e.Quotes {
-			if q.Kind == schema.ContractKindTotal && q.Line > maxLine {
+			if (q.Kind == schema.ContractKindTotal && q.Line > maxLine) || (q.Kind == schema.ContractKindTeamTotal && q.Line > maxTeamLine) {
 				continue
 			}
 			key, label := contractKey(q, home, away)
 			c := byKey[key]
 			if c == nil {
 				c = &schema.Contract{Key: key, Kind: q.Kind, Outcome: q.Outcome, Label: label, Quotes: []schema.Quote{}}
-				if q.Kind == schema.ContractKindTotal {
+				if q.Kind != schema.ContractKindResult {
 					line := q.Line
 					c.Line = &line
 				}
@@ -419,17 +421,18 @@ func (g *game) contracts(home, away string) []schema.Contract {
 		best(c)
 		out = append(out, *c)
 	}
+	// Totals by line, then the result, then each team's goals by line.
 	slices.SortStableFunc(out, func(a, b schema.Contract) int {
 		if a.Kind != b.Kind {
-			if a.Kind == schema.ContractKindTotal {
-				return -1
-			}
-			return 1
+			return kindOrder[a.Kind] - kindOrder[b.Kind]
 		}
-		if a.Kind == schema.ContractKindTotal {
+		if a.Outcome != b.Outcome {
+			return outcomeOrder[a.Outcome] - outcomeOrder[b.Outcome]
+		}
+		if a.Line != nil && b.Line != nil {
 			return cmpFloat(*a.Line, *b.Line)
 		}
-		return outcomeOrder[a.Outcome] - outcomeOrder[b.Outcome]
+		return 0
 	})
 	return out
 }
@@ -438,11 +441,18 @@ func (g *game) contracts(home, away string) []schema.Contract {
 // and Novig's lines past it only have token orders.
 const maxLine = 6.5
 
+// maxTeamLine is the highest team-goals line shown (no venue lists past it
+// with real orders).
+const maxTeamLine = 3.5
+
 func contractKey(q venue.Quote, home, away string) (key, label string) {
 	if q.Kind == schema.ContractKindTotal {
 		return fmt.Sprintf("total-over-%g", q.Line), fmt.Sprintf("Over %g", q.Line)
 	}
 	label = map[schema.Outcome]string{schema.OutcomeHome: home, schema.OutcomeAway: away, schema.OutcomeDraw: "Draw"}[q.Outcome]
+	if q.Kind == schema.ContractKindTeamTotal {
+		return fmt.Sprintf("team-%s-over-%g", q.Outcome, q.Line), fmt.Sprintf("%s over %g", label, q.Line)
+	}
 	return "result-" + string(q.Outcome), label
 }
 

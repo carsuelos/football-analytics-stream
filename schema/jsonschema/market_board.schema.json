@@ -93,13 +93,13 @@
     },
     "ContractKind": {
       "title": "ContractKind",
-      "description": "total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation.",
+      "description": "total: over line goals in regulation (90 minutes plus stoppage, no extra time or penalties). result: the outcome after regulation. team_total: one team scores over line goals in regulation.",
       "type": "string",
-      "enum": ["total", "result"]
+      "enum": ["total", "result", "team_total"]
     },
     "Outcome": {
       "title": "Outcome",
-      "description": "What a Yes pays on: over the line (total), or a home win, a draw or an away win (result).",
+      "description": "What a Yes pays on: over the line (total); a home win, a draw or an away win (result); or the home or away team over the line (team_total).",
       "type": "string",
       "enum": ["over", "home", "draw", "away"]
     },
@@ -125,11 +125,11 @@
       "description": "One contract, priced on every venue that lists it.",
       "type": "object",
       "properties": {
-        "key": { "description": "Stable within the game, e.g. total-over-2.5 or result-draw.", "type": "string", "minLength": 1 },
+        "key": { "description": "Stable within the game, e.g. total-over-2.5, result-draw or team-home-over-1.5.", "type": "string", "minLength": 1 },
         "kind": { "$ref": "#/definitions/ContractKind" },
         "outcome": { "$ref": "#/definitions/Outcome" },
-        "line": { "description": "For total: the goals line, e.g. 2.5.", "type": "number", "minimum": 0 },
-        "label": { "description": "e.g. Over 2.5, Chelsea, Draw.", "type": "string", "minLength": 1 },
+        "line": { "description": "For total and team_total: the goals line, e.g. 2.5.", "type": "number", "minimum": 0 },
+        "label": { "description": "e.g. Over 2.5, Chelsea, Draw, Chelsea over 1.5.", "type": "string", "minLength": 1 },
         "quotes": { "type": "array", "items": { "$ref": "#/definitions/Quote" } },
         "best": {
           "description": "The venue with the lowest all-in price that has contracts at its ask, if any.",

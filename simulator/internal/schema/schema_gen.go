@@ -322,16 +322,16 @@ type Contract struct {
 	// The best all-in price as a probability: what the market says, after fees.
 	Implied *float64 `json:"implied,omitempty,omitzero"`
 
-	// Stable within the game, e.g. total-over-2.5 or result-draw.
+	// Stable within the game, e.g. total-over-2.5, result-draw or team-home-over-1.5.
 	Key string `json:"key"`
 
 	// Kind corresponds to the JSON schema field "kind".
 	Kind ContractKind `json:"kind"`
 
-	// e.g. Over 2.5, Chelsea, Draw.
+	// e.g. Over 2.5, Chelsea, Draw, Chelsea over 1.5.
 	Label string `json:"label"`
 
-	// For total: the goals line, e.g. 2.5.
+	// For total and team_total: the goals line, e.g. 2.5.
 	Line *float64 `json:"line,omitempty,omitzero"`
 
 	// Outcome corresponds to the JSON schema field "outcome".
@@ -344,11 +344,13 @@ type Contract struct {
 type ContractKind string
 
 const ContractKindResult ContractKind = "result"
+const ContractKindTeamTotal ContractKind = "team_total"
 const ContractKindTotal ContractKind = "total"
 
 var enumValues_ContractKind = []interface{}{
 	"total",
 	"result",
+	"team_total",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

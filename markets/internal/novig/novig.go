@@ -1,5 +1,5 @@
-// Package novig reads Novig's soccer games: per game, total goals and the
-// result (each team to win, and a draw). Its public catalog serves them
+// Package novig reads Novig's soccer games: per game, total goals, the
+// result (each team to win, and a draw) and each team's goals. Its public catalog serves them
 // without a key, throttled per IP, so a league is two requests: its events,
 // then all their markets of those types.
 //
@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/carsuelos/football-analytics-stream/markets/internal/schema"
+	"github.com/carsuelos/football-analytics-stream/markets/internal/teams"
 	"github.com/carsuelos/football-analytics-stream/markets/internal/venue"
 )
 
@@ -35,7 +36,7 @@ var leagues = map[schema.League]string{
 const (
 	statusPregame = "OPEN_PREGAME"
 	statusInGame  = "OPEN_INGAME"
-	marketTypes   = "TOTAL,MONEYLINE_3_WAY_WIN,MONEYLINE_3_WAY_DRAW"
+	marketTypes   = "TOTAL,MONEYLINE_3_WAY_WIN,MONEYLINE_3_WAY_DRAW,TEAM_TOTAL"
 	// A Novig contract pays 1¢; the other venues' pay $1.
 	centsPerDollar = 100
 )
@@ -186,6 +187,21 @@ func quote(m market, ev venue.Event, live bool) (venue.Quote, bool) {
 	case "TOTAL":
 		line := float64(m.Strike)
 		q.Kind, q.Outcome, q.Line = schema.ContractKindTotal, schema.OutcomeOver, line
+		yes, no = fmt.Sprintf("Over %g", line), fmt.Sprintf("Under %g", line)
+	case "TEAM_TOTAL":
+		// "Chelsea FC 1.5 TEAM_TOTAL": the team it's for, and the line.
+		line := float64(m.Strike)
+		desc := strings.TrimSuffix(m.Description, " "+m.MarketType)
+		team := strings.TrimSpace(desc[:max(0, strings.LastIndex(desc, " "))])
+		q.Kind, q.Line = schema.ContractKindTeamTotal, line
+		switch {
+		case team == ev.Home.Name || teams.Same(team, ev.Home.Name):
+			q.Outcome = schema.OutcomeHome
+		case team == ev.Away.Name || teams.Same(team, ev.Away.Name):
+			q.Outcome = schema.OutcomeAway
+		default:
+			return q, false
+		}
 		yes, no = fmt.Sprintf("Over %g", line), fmt.Sprintf("Under %g", line)
 	case "MONEYLINE_3_WAY_DRAW":
 		q.Kind, q.Outcome = schema.ContractKindResult, schema.OutcomeDraw

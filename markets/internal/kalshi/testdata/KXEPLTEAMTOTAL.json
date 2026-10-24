@@ -1,0 +1,84 @@
+{
+ "events": [
+  {
+   "event_ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW",
+   "title": "Crystal Palace vs Newcastle: Team Total",
+   "sub_title": "CRY vs NEW (Oct 25)",
+   "markets": [
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-CRY1",
+     "status": "active",
+     "yes_sub_title": "Crystal Palace over 0.5 goals",
+     "yes_bid_dollars": "0.7700",
+     "yes_ask_dollars": "0.8000",
+     "yes_ask_size_fp": "1500.00",
+     "floor_strike": 0.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Crystal Palace records above 0.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally sch"
+    },
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-CRY2",
+     "status": "active",
+     "yes_sub_title": "Crystal Palace over 1.5 goals",
+     "yes_bid_dollars": "0.4200",
+     "yes_ask_dollars": "0.4600",
+     "yes_ask_size_fp": "11071.60",
+     "floor_strike": 1.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Crystal Palace records above 1.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally sch"
+    },
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-CRY3",
+     "status": "active",
+     "yes_sub_title": "Crystal Palace over 2.5 goals",
+     "yes_bid_dollars": "0.1700",
+     "yes_ask_dollars": "0.2000",
+     "yes_ask_size_fp": "500.00",
+     "floor_strike": 2.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Crystal Palace records above 2.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally sch"
+    },
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-NEW1",
+     "status": "active",
+     "yes_sub_title": "Newcastle over 0.5 goals",
+     "yes_bid_dollars": "0.8000",
+     "yes_ask_dollars": "0.8400",
+     "yes_ask_size_fp": "756.00",
+     "floor_strike": 0.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Newcastle records above 0.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally schedule"
+    },
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-NEW2",
+     "status": "active",
+     "yes_sub_title": "Newcastle over 1.5 goals",
+     "yes_bid_dollars": "0.4800",
+     "yes_ask_dollars": "0.5200",
+     "yes_ask_size_fp": "8500.00",
+     "floor_strike": 1.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Newcastle records above 1.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally schedule"
+    },
+    {
+     "ticker": "KXEPLTEAMTOTAL-26OCT25CRYNEW-NEW3",
+     "status": "active",
+     "yes_sub_title": "Newcastle over 2.5 goals",
+     "yes_bid_dollars": "0.2300",
+     "yes_ask_dollars": "0.2500",
+     "yes_ask_size_fp": "500.00",
+     "floor_strike": 2.5,
+     "strike_type": "greater",
+     "expected_expiration_time": "2026-10-25T17:00:00Z",
+     "rules_primary": "If Newcastle records above 2.5 goals in the Crystal Palace vs Newcastle professional EPL soccer game originally schedule"
+    }
+   ]
+  }
+ ],
+ "cursor": ""
+}

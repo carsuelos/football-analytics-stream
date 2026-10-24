@@ -2,6 +2,7 @@ package novig
 
 import (
 	"context"
+	"fmt"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -89,6 +90,36 @@ func TestEventsReadTheAskFromTheOtherSidesBid(t *testing.T) {
 	if live == nil {
 		t.Fatalf("no Chelsea game in %+v", events)
 	}
+}
+
+func TestEventsReadEachTeamsGoals(t *testing.T) {
+	events, err := fake(t).Events(context.Background(), schema.LeagueEpl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, e := range events {
+		if e.Home.Name != "Crystal Palace FC" {
+			continue
+		}
+		got := map[string][2]float64{}
+		for _, q := range e.Quotes {
+			if q.Kind == schema.ContractKindTeamTotal {
+				got[fmt.Sprintf("%s-%g", q.Outcome, q.Line)] = [2]float64{*q.Bid, *q.Ask}
+			}
+		}
+		// Newcastle over 0.5: Over bid 0.77, Under bid 0.13 (so Over's ask is 0.87).
+		want := map[string][2]float64{"away-0.5": {0.77, 0.87}, "home-1.5": {0.34, 0.55}, "away-1.5": {0.41, 0.60}}
+		for k, w := range want {
+			if g, ok := got[k]; !ok || math.Abs(g[0]-w[0]) > 1e-9 || math.Abs(g[1]-w[1]) > 1e-9 {
+				t.Errorf("%s = %v, want %v", k, g, w)
+			}
+		}
+		if len(got) != len(want) {
+			t.Errorf("team totals %v", got)
+		}
+		return
+	}
+	t.Fatal("no Crystal Palace game")
 }
 
 func TestStrikeAsNumberOrString(t *testing.T) {

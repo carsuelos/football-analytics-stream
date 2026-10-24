@@ -1,0 +1,340 @@
+{
+ "markets": [
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-0pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.9500",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.9700",
+    "currency": "USD"
+   },
+   "line": 0.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-1pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.8300",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.8400",
+    "currency": "USD"
+   },
+   "line": 1.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-2pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.6100",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.6300",
+    "currency": "USD"
+   },
+   "line": 2.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-3pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.3900",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.4100",
+    "currency": "USD"
+   },
+   "line": 3.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-cry-0pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.6800",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.8800",
+    "currency": "USD"
+   },
+   "line": 0.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-cry-1pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.3900",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.5000",
+    "currency": "USD"
+   },
+   "line": 1.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-cry-2pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.1400",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.2400",
+    "currency": "USD"
+   },
+   "line": 2.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-new-0pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.7700",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.8700",
+    "currency": "USD"
+   },
+   "line": 0.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-new-1pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.4600",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.5500",
+    "currency": "USD"
+   },
+   "line": 1.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-ttg-new-2pt5",
+   "sportsMarketType": "soccer_team_total_goals",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.1900",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.2900",
+    "currency": "USD"
+   },
+   "line": 2.5,
+   "marketSides": [
+    {
+     "description": "Yes",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "No",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-4pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.2000",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.2200",
+    "currency": "USD"
+   },
+   "line": 4.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  },
+  {
+   "slug": "tsc-epl-cry-new-2026-10-25-5pt5",
+   "sportsMarketType": "soccer_team_full_game_total",
+   "feeCoefficient": 0.0695,
+   "active": true,
+   "closed": false,
+   "bestBidQuote": {
+    "value": "0.0900",
+    "currency": "USD"
+   },
+   "bestAskQuote": {
+    "value": "0.1100",
+    "currency": "USD"
+   },
+   "line": 5.5,
+   "marketSides": [
+    {
+     "description": "Over",
+     "long": true,
+     "teamId": null
+    },
+    {
+     "description": "Under",
+     "long": false,
+     "teamId": null
+    }
+   ]
+  }
+ ]
+}
