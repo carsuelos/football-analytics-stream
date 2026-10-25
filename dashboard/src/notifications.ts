@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { ALERT_NAMES } from './alerts'
+import { ALERT_NAMES, isModelAlert } from './alerts'
 import type { Alert } from './schema/alert.schema'
 import type { EngineStatus, Team } from './schema/engine_status.schema'
 import { matchClock } from './timeline'
@@ -75,9 +75,9 @@ export function useAlertNotifications(settings: Settings, alerts: Alert[], statu
       const body = `${matchClock(a)} · ${a.message.split('. By full time:')[0]}`
       const id = test ? `test-${Date.now()}` : a.id
       setToasts((ts) => [...ts.filter((t) => t.id !== id), { id, alert: a, title, body }].slice(-MAX_TOASTS))
-      if (sound) ding()
+      if (sound) ding(isModelAlert(a.type) ? 'model' : 'rule')
       if (system && supported() && Notification.permission === 'granted' && (test || !document.hasFocus())) {
-        const n = new Notification(title, { body, tag: id, icon: '/icon-192.png' })
+        const n = new Notification(isModelAlert(a.type) ? `⚡ ${title}` : title, { body, tag: id, icon: '/icon-192.png' })
         n.onclick = () => {
           window.focus()
           n.close()
@@ -119,23 +119,30 @@ const SAMPLE: Alert = {
 
 let audio: AudioContext | undefined
 
+/** Each kind of alert's chime: the model's brighter, rising and a little louder than the rules' soft two notes. */
+const CHIMES = {
+  rule: { notes: [880, 1318.5], type: 'sine' as OscillatorType, gap: 0.12, gain: 0.18 },
+  model: { notes: [659.25, 987.77, 1318.5], type: 'triangle' as OscillatorType, gap: 0.09, gain: 0.24 },
+}
+
 /**
- * A soft two-note chime, made on the spot (no sound file). Browsers only let
+ * A chime, made on the spot (no sound file). Browsers only let
  * a page play sound after it's been clicked once, so the first alert after a
  * reload may be silent until then.
  */
-export function ding() {
+export function ding(kind: keyof typeof CHIMES = 'rule') {
+  const chime = CHIMES[kind]
   try {
     audio ??= new AudioContext()
     const now = audio.currentTime
-    for (const [i, freq] of [880, 1318.5].entries()) {
+    for (const [i, freq] of chime.notes.entries()) {
       const osc = audio.createOscillator()
       const gain = audio.createGain()
-      osc.type = 'sine'
+      osc.type = chime.type
       osc.frequency.value = freq
-      const start = now + i * 0.12
+      const start = now + i * chime.gap
       gain.gain.setValueAtTime(0, start)
-      gain.gain.linearRampToValueAtTime(0.18, start + 0.01)
+      gain.gain.linearRampToValueAtTime(chime.gain, start + 0.01)
       gain.gain.exponentialRampToValueAtTime(0.001, start + 0.6)
       osc.connect(gain).connect(audio.destination)
       osc.start(start)

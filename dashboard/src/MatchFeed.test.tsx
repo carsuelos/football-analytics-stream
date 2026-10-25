@@ -91,6 +91,8 @@ describe('MatchFeed', () => {
     render(<MatchFeed teams={TEAMS} alerts={[chance]} incidents={[]} axis={axis} />)
     expect(screen.getByText("Argentina: 19% chance to score in the next 10' (usually 13%)")).toBeInTheDocument()
     expect(screen.getByLabelText('By full time')).toHaveTextContent('By full timeArgentina over 2.5 · 63%Over 2.5 · 81%')
+    // The model's alerts stand apart from the rules'.
+    expect(screen.getByRole('listitem').className).toMatch(/violet/)
   })
 
   it('leaves items uncoloured until the teams are known', () => {

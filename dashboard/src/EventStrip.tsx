@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react'
 import { AlertIcon, ChevronIcon, IncidentIcon } from './Icons'
 import { cancelledGoals, describe, INCIDENTS, isGoal, scoreline } from './incidents'
-import { ALERT_NAMES } from './alerts'
+import { ALERT_NAMES, isModelAlert } from './alerts'
 import { LANES, lanes } from './lanes'
 import type { Alert } from './schema/alert.schema'
 import type { Team } from './schema/engine_status.schema'
@@ -93,7 +93,9 @@ export function EventStrip({ teams, incidents, alerts, axis, now }: Props) {
         <ul aria-label="Alerts">
           {alerts.map((a, n) => (
             <Marker key={a.id} left={left(axis.x(a))} align={align(fraction(axis.x(a)))} top={L.alertTop(alertLanes[n])} label={`${matchClock(a)} · ${ALERT_NAMES[a.type]} · ${a.message}`}>
-              <span className={`grid place-items-center rounded-full text-ink-950 ${colour(a.team_id)} ${expanded ? 'size-4' : 'size-2.5'}`}>
+              <span
+                className={`grid place-items-center rounded-full text-ink-950 ${colour(a.team_id)} ${expanded ? 'size-4' : 'size-2.5'} ${isModelAlert(a.type) ? 'ring-2 ring-violet-400 shadow-[0_0_10px_rgba(139,92,246,0.9)]' : ''}`}
+              >
                 {expanded && <AlertIcon type={a.type} className="size-2.5" />}
               </span>
             </Marker>

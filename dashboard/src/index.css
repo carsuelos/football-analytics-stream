@@ -163,3 +163,10 @@ html.light {
     transform: translateX(1rem);
   }
 }
+
+/* The model's alert pop-up glows as it arrives. */
+@keyframes model-glow {
+  50% {
+    box-shadow: 0 0 0 4px rgb(139 92 246 / 0.35), 0 20px 40px -12px rgb(139 92 246 / 0.5);
+  }
+}
