@@ -81,6 +81,23 @@ The apps find each other by name inside the environment, as in Compose: the dash
 
 The deploy's identity is only a **Contributor** on the resource group: it can create and delete resources, but not grant access. Granting access needs Owner, so `infra/bootstrap/bootstrap.sh` does it once, on your machine. It creates the apps' managed identity and lets it pull images (AcrPull) and read secrets (Key Vault Secrets User).
 
+## The price recorder, on its own
+
+To record the prediction markets' prices on a match day without leaving a Mac on (or the whole stack up), the markets service runs alone as a scheduled **Container Apps job** (`infra/recorder.bicep`), deployed next to the base stage:
+
+```sh
+make cloud-record START="2026-10-25 06:00" HOURS=11   # Pacific time; builds and pushes the markets image, schedules the job
+make cloud-record-status                              # its schedule and runs
+make cloud-tapes                                      # afterwards: its tapes into data/markets (then make tape)
+make cloud-record-off                                 # remove the job (its share and tapes stay)
+```
+
+- The job runs `markets -record /data/markets -for <hours>h`: it polls each league every 10 s while a game is live or about to start, and stops by itself. Its replica timeout (the hours plus 15 minutes) is a backstop.
+- It writes to its own share, `markets`, mounted read-write (the `data` share stays read-only), as `<UTC date>/<league>.jsonl`.
+- The schedule is a UTC cron converted from the Pacific start (daylight saving included). A cron with a date recurs yearly, so remove the job after its run.
+- The image is built on this machine for linux/amd64 and pushed with `az acr login` (ACR's own builds lack BuildKit's cache mounts), tagged with the commit.
+- Cost: 0.25 vCPU and 0.5 GiB for 11 hours is about $0.30 at consumption rates, inside the monthly free grant.
+
 ## Secrets
 
 | Secret | Where it comes from | Who reads it |
