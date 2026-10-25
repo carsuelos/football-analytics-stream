@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { AlertIcon, BallIcon, IncidentIcon } from './Icons'
 import { ALERT_HORIZON_MIN, cancelledGoals, describe, goalAfter, INCIDENTS, isGoal, scoreline } from './incidents'
-import { ALERT_NAMES } from './alerts'
+import { ALERT_NAMES, isModelAlert } from './alerts'
 import type { Alert } from './schema/alert.schema'
 import type { Team } from './schema/engine_status.schema'
 import type { Incident, IncidentKind } from './schema/incident.schema'
@@ -104,6 +104,9 @@ export function MatchFeed({ teams, alerts, incidents, axis, now, over = false }:
   )
 }
 
+/** The model's alerts glow violet, apart from the rules'. */
+const MODEL_CARD = 'bg-gradient-to-r from-violet-500/[0.16] via-violet-500/[0.06] to-white/[0.02] ring-1 ring-violet-400/30 shadow-[0_0_28px_-12px_rgba(139,92,246,0.7)]'
+
 function stripe(team_id: number, teams: Team[] | null) {
   if (teams === null) return 'border-slate-600'
   return team_id === teams[0].id ? 'border-home' : 'border-away'
@@ -150,13 +153,14 @@ function AlertItem({
 }) {
   // Worked out here, from the goals the viewer has seen so far: the alert itself never changes.
   const scored = goalAfter(a, incidents, axis)
+  const model = isModelAlert(a.type)
   const elapsed = now === undefined ? undefined : now - axis.x(a)
   return (
-    <li className={`rounded-xl border-l-[3px] bg-white/[0.03] px-3 py-2.5 ${stripe(a.team_id, teams)}`}>
+    <li className={`rounded-xl border-l-[3px] px-3 py-2.5 ${stripe(a.team_id, teams)} ${model ? MODEL_CARD : 'bg-white/[0.03]'}`}>
       <p className="flex items-center gap-2 text-xs text-slate-400">
-        <AlertIcon type={a.type} className="size-4 shrink-0 text-sky-300" />
+        <AlertIcon type={a.type} className={`size-4 shrink-0 ${model ? 'text-violet-300' : 'text-sky-300'}`} />
         <span className="font-mono font-semibold text-slate-200 tabular-nums">{matchClock(a)}</span>
-        <span>· {ALERT_NAMES[a.type]}</span>
+        <span className={model ? 'font-semibold text-violet-200' : undefined}>· {ALERT_NAMES[a.type]}</span>
         {scored?.counts ? (
           <span title={OUTCOME_HINT} className="ml-auto flex items-center gap-1 rounded-full bg-emerald-400/15 px-2 py-0.5 font-semibold text-emerald-300">
             <BallIcon className="size-3" /> Scored {minutesLater(scored.minutes)}

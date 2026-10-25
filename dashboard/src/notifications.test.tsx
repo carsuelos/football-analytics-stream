@@ -119,8 +119,9 @@ it('announces the latest alert, or a sample, on test, Mac notification included'
   const { result } = announcing([], at(4950))
   act(() => result.current.test())
   expect(result.current.toasts[0].body).toMatch(/A test/)
-  expect(FakeNotification.shown).toHaveLength(1)
-  expect(FakeAudio.notes).toBe(2)
+  // The sample is a model alert: its own title mark and three-note chime.
+  expect(FakeNotification.shown.map((n) => n.title)).toEqual(['⚡ Goal chance (model)'])
+  expect(FakeAudio.notes).toBe(3)
 })
 
 it('sends a test on Option-click instead of toggling', async () => {
