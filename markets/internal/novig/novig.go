@@ -31,6 +31,7 @@ const DefaultBaseURL = "https://api.novig.com"
 var leagues = map[schema.League]string{
 	schema.LeagueEpl:    "EPL",
 	schema.LeagueLaliga: "La Liga",
+	schema.LeagueMls:    "MLS",
 }
 
 const (

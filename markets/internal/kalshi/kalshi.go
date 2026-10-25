@@ -35,6 +35,7 @@ const FeeCoefficient = 0.07
 var series = map[schema.League]struct{ total, game, teamTotal string }{
 	schema.LeagueEpl:    {"KXEPLTOTAL", "KXEPLGAME", "KXEPLTEAMTOTAL"},
 	schema.LeagueLaliga: {"KXLALIGATOTAL", "KXLALIGAGAME", "KXLALIGATEAMTOTAL"},
+	schema.LeagueMls:    {"KXMLSTOTAL", "KXMLSGAME", "KXMLSTEAMTOTAL"},
 }
 
 // How long after kick-off each series' markets are expected to close, which
