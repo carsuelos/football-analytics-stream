@@ -24,7 +24,7 @@ import (
 )
 
 // Leagues are the leagues a Board serves.
-var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga}
+var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga, schema.LeagueMls}
 
 // Board holds each league's latest board. Create it with New.
 type Board struct {
@@ -330,14 +330,21 @@ func (g *game) pick(order []schema.Venue, value func(venue.Event) string) string
 }
 
 var (
-	// Kalshi's short names read best ("Chelsea", "Bilbao"), then Polymarket's.
-	nameOrder = []schema.Venue{schema.VenueKalshi, schema.VenuePolymarket, schema.VenueNovig}
+	// Kalshi's short names read best ("Chelsea", "Bilbao"), then Polymarket's;
+	// for MLS, Kalshi clips them ("Los Angeles F", "New York RB"), so
+	// Polymarket's come first.
+	nameOrder    = []schema.Venue{schema.VenueKalshi, schema.VenuePolymarket, schema.VenueNovig}
+	mlsNameOrder = []schema.Venue{schema.VenuePolymarket, schema.VenueNovig, schema.VenueKalshi}
 	// Polymarket gives abbreviations and colours for every team.
 	styleOrder = []schema.Venue{schema.VenuePolymarket, schema.VenueKalshi, schema.VenueNovig}
 )
 
 func (g *game) team(side func(venue.Event) venue.Team) schema.MarketTeam {
-	t := schema.MarketTeam{Name: g.pick(nameOrder, func(e venue.Event) string { return side(e).Name })}
+	order := nameOrder
+	if g.league == schema.LeagueMls {
+		order = mlsNameOrder
+	}
+	t := schema.MarketTeam{Name: g.pick(order, func(e venue.Event) string { return side(e).Name })}
 	if a := g.pick(styleOrder, func(e venue.Event) string { return side(e).Abbreviation }); a != "" {
 		t.Abbreviation = &a
 	}

@@ -17,10 +17,10 @@ param imageTag string
 @description('When to start, as a cron expression in UTC, e.g. "0 13 25 10 *".')
 param cron string
 
-@description('How long to record, in hours.')
-@minValue(1)
-@maxValue(24)
-param hours int
+@description('How long to record, in minutes.')
+@minValue(10)
+@maxValue(1440)
+param minutes int
 
 param tags object = { project: 'football-analytics' }
 
@@ -74,8 +74,8 @@ resource job 'Microsoft.App/jobs@2026-07-01' = {
     configuration: {
       triggerType: 'Schedule'
       scheduleTriggerConfig: { cronExpression: cron, parallelism: 1, replicaCompletionCount: 1 }
-      // It stops itself after `hours` (-for); the timeout is a backstop.
-      replicaTimeout: hours * 3600 + 900
+      // It stops itself after `minutes` (-for); the timeout is a backstop.
+      replicaTimeout: minutes * 60 + 900
       replicaRetryLimit: 1
       registries: [{ server: registryServer, identity: identity.id }]
     }
@@ -84,7 +84,7 @@ resource job 'Microsoft.App/jobs@2026-07-01' = {
         {
           name: 'markets'
           image: '${registryServer}/markets:${imageTag}'
-          args: ['-record', '/data/markets', '-for', '${hours}h']
+          args: ['-record', '/data/markets', '-for', '${minutes}m']
           env: [{ name: 'LOG_FORMAT', value: 'json' }]
           resources: { cpu: json('0.25'), memory: '0.5Gi' }
           volumeMounts: [{ volumeName: 'markets', mountPath: '/data/markets' }]

@@ -168,8 +168,8 @@ cloud-status: ## Whether the Azure stack is up, and its URL
 	@url="$$(az containerapp show -g rg-football-analytics -n dashboard --query properties.configuration.ingress.fqdn -o tsv 2>/dev/null)"; \
 		if [ -n "$$url" ]; then echo "Up: https://$$url (user viewer, the DASHBOARD_PASSWORD secret)"; else echo "Down."; fi
 
-cloud-record: ## Record the markets' prices in Azure on a schedule, without the rest of the stack: START="2026-10-25 06:00" (Pacific) HOURS=11. Builds the markets image there and schedules a job (a few cents an hour while it runs)
-	scripts/cloud-recorder.sh schedule "$(START)" $(HOURS)
+cloud-record: ## Record the markets' prices in Azure on a schedule, without the rest of the stack: START="2026-10-25 06:00" (Pacific, or now) and HOURS=11 or UNTIL="2026-10-25 16:00". Builds the markets image there and schedules a job (a few cents an hour while it runs)
+	scripts/cloud-recorder.sh schedule "$(START)" "$(or $(UNTIL),$(HOURS))"
 
 cloud-tapes: ## Download what the Azure recorder recorded into data/markets (then make tape)
 	scripts/cloud-recorder.sh tapes

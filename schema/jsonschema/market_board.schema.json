@@ -28,7 +28,7 @@
     "League": {
       "title": "League",
       "type": "string",
-      "enum": ["epl", "laliga"]
+      "enum": ["epl", "laliga", "mls"]
     },
     "Venue": {
       "title": "Venue",

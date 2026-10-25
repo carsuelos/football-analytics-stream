@@ -3,6 +3,7 @@
 # what it recorded, or remove it. Needs `az login` and the base stage deployed.
 #
 #   scripts/cloud-recorder.sh schedule "2026-10-25 06:00" 11   # local time (America/Los_Angeles), hours
+#   scripts/cloud-recorder.sh schedule now "2026-10-25 16:00"  # in a few minutes, until that local time
 #   scripts/cloud-recorder.sh tapes                            # its tapes into data/markets
 #   scripts/cloud-recorder.sh status                           # the job's schedule and runs
 #   scripts/cloud-recorder.sh off                              # remove the job (the share and its tapes stay)
@@ -17,11 +18,22 @@ one() { az resource list -g "$RG" --resource-type "$1" --query "[0].name" -o tsv
 
 case "${1:-}" in
 schedule)
-  start=${2:?when to start, e.g. "2026-10-25 06:00" ($TZ_LOCAL)}
-  hours=${3:?how many hours}
-  # The cron runs in UTC: convert the local start (daylight saving included).
-  epoch=$(TZ=$TZ_LOCAL date -j -f "%Y-%m-%d %H:%M" "$start" +%s)
+  start=${2:?when to start: now, or e.g. "2026-10-25 06:00" ($TZ_LOCAL)}
+  until=${3:?how many hours, or until when, e.g. "2026-10-25 16:00" ($TZ_LOCAL)}
+  local_epoch() { TZ=$TZ_LOCAL date -j -f "%Y-%m-%d %H:%M" "$1" +%s; }
+  if [ "$start" = now ]; then
+    # The next whole minute at least 4 minutes away: time to build and deploy.
+    epoch=$(( ($(date +%s) + 240) / 60 * 60 + 60 ))
+  else
+    epoch=$(local_epoch "$start")
+  fi
   [ "$epoch" -gt "$(date +%s)" ] || { echo "$start ($TZ_LOCAL) is in the past" >&2; exit 1; }
+  if [[ $until =~ ^[0-9]+$ ]]; then
+    minutes=$(( until * 60 ))
+  else
+    minutes=$(( ($(local_epoch "$until") - epoch) / 60 ))
+  fi
+  [ "$minutes" -ge 10 ] && [ "$minutes" -le 1440 ] || { echo "it would record for $minutes minutes: 10 to 1440, please" >&2; exit 1; }
   cron=$(date -u -r "$epoch" "+%-M %-H %-d %-m *")
   acr=$(one Microsoft.ContainerRegistry/registries)
   env=$(one Microsoft.App/managedEnvironments)
@@ -34,10 +46,10 @@ schedule)
   echo "Building $image (linux/amd64; a few minutes the first time)…"
   az acr login -n "$acr" -o none 2>/dev/null || az acr login -n "$acr"
   docker buildx build --platform linux/amd64 -t "$image" --push -q "$REPO/markets" >/dev/null
-  echo "Scheduling $JOB: $start $TZ_LOCAL for ${hours}h (cron \"$cron\" UTC)…"
+  echo "Scheduling $JOB: $(TZ=$TZ_LOCAL date -r "$epoch" "+%a %b %-d %H:%M %Z") for $((minutes / 60))h$((minutes % 60))m (cron \"$cron\" UTC)…"
   az deployment group create -g "$RG" -n football-recorder -f "$REPO/infra/recorder.bicep" -o none -p \
     environmentName="$env" storageAccountName="$st" registryServer="$acr.azurecr.io" \
-    identityName=id-football-analytics-apps imageTag="$tag" cron="$cron" hours="$hours"
+    identityName=id-football-analytics-apps imageTag="$tag" cron="$cron" minutes="$minutes"
   echo "Scheduled. It records to the 'markets' share; afterwards: make cloud-tapes, then make cloud-record-off."
   ;;
 tapes)

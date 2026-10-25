@@ -17,7 +17,7 @@ beforeEach(() => {
     const url = String(input)
     if (url.startsWith('/api/markets/board')) {
       const league = new URL(url, 'http://x').searchParams.get('league')
-      return json(league === 'laliga' ? { ...board, league: 'laliga', games: [] } : board)
+      return json(league !== 'epl' ? { ...board, league, games: [] } : board)
     }
     if (url === '/api/markets/games/epl-2026-10-24-chelsea-tottenham/history') {
       return json({
@@ -98,6 +98,8 @@ it('switches games and leagues', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'La Liga' }))
   expect(await screen.findByText('No games listed right now.')).toBeInTheDocument()
   expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=laliga', expect.anything())
+  await userEvent.click(screen.getByRole('button', { name: 'MLS' }))
+  expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=mls', expect.anything())
 })
 
 it('keeps the last prices on screen while the service is unreachable, and polls on', async () => {
