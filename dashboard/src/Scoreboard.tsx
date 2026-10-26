@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { IncidentIcon } from './Icons'
 import { INCIDENTS, scoreboardLines, surname, type ScoreboardLine } from './incidents'
 import type { Connection } from './matchState'
@@ -14,6 +15,12 @@ interface Props {
   connection: Connection
   /** The simulator's listing of the match, for its competition. */
   info?: MatchInfo
+  /**
+   * How fast the match clock runs now (match seconds per second): the
+   * broadcast's speed when live, the viewer's when behind, 0 when paused.
+   * Between the engine's updates the clock counts on at this rate.
+   */
+  rate?: number
 }
 
 /**
@@ -21,7 +28,7 @@ interface Props {
  * (and the shootout's), the clock to the second with stoppage time, and under
  * each team its goals (disallowed ones struck through) and sendings-off.
  */
-export function Scoreboard({ teams, status, incidents, connection, info }: Props) {
+export function Scoreboard({ teams, status, incidents, connection, info, rate = 0 }: Props) {
   const [home, away] = teams
   const h = goals(home, status, incidents)
   const a = goals(away, status, incidents)
@@ -52,7 +59,7 @@ export function Scoreboard({ teams, status, incidents, connection, info }: Props
               {h.shootout}–{a.shootout} on penalties
             </p>
           )}
-          <Clock status={status} />
+          <Clock status={status} rate={rate} />
         </div>
         <TeamSide team={away} side="away" lines={scoreboardLines(incidents, away.id)} />
       </div>
@@ -70,8 +77,48 @@ function goals(team: Team, status: EngineStatus | null, incidents: Incident[]): 
   return score.find((s) => s.team_id === team.id) ?? { team_id: team.id, goals: 0 }
 }
 
-function Clock({ status }: { status: EngineStatus | null }) {
-  const { period, match_clock_s } = status ?? {}
+/**
+ * How far the clock may count on past the engine's last update. Its clock is
+ * the latest event's, so it stands still between events; counting on keeps it
+ * running like a TV's, but a long stop in play holds it until events resume.
+ */
+const CLOCK_LEAD_S = 20
+
+/**
+ * The engine's match clock, counting on between its updates at `rate` (up to
+ * CLOCK_LEAD_S ahead) and never going back within a period, except for a seek.
+ */
+const TICK_MS = 250
+
+function useSmoothClock(period: number | undefined, clock: number | undefined, rate: number): number | undefined {
+  const [base, setBase] = useState<Base>({ period, clock })
+  const [ahead, setAhead] = useState(0)
+  const shown = base.clock === undefined ? undefined : Math.max(base.clock + ahead, base.floor ?? -Infinity)
+  if (base.period !== period || base.clock !== clock) {
+    // A new update: count on from it, but hold what's shown if it lands behind
+    // that (within the lead; further back, or a new period, is a seek).
+    const hold = shown !== undefined && clock !== undefined && base.period === period && clock < shown && shown - clock <= CLOCK_LEAD_S
+    setBase({ period, clock, floor: hold ? shown : undefined })
+    setAhead(0)
+  }
+  useEffect(() => {
+    if (rate <= 0) return
+    const timer = setInterval(() => setAhead((a) => Math.min(a + (TICK_MS / 1000) * rate, CLOCK_LEAD_S)), TICK_MS)
+    return () => clearInterval(timer)
+  }, [rate])
+  return shown
+}
+
+interface Base {
+  period: number | undefined
+  clock: number | undefined
+  /** Not shown below this: what was shown when an update landed behind it. */
+  floor?: number
+}
+
+function Clock({ status, rate }: { status: EngineStatus | null; rate: number }) {
+  const { period } = status ?? {}
+  const match_clock_s = useSmoothClock(period, status?.match_clock_s, rate)
   if (period === undefined || match_clock_s === undefined) {
     return <p className="mt-1 text-xs text-slate-400">Kick-off soon</p>
   }
