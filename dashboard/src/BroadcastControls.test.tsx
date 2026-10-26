@@ -33,6 +33,9 @@ describe('BroadcastControls', () => {
 
     await userEvent.click(screen.getByRole('button', { name: '60×' }))
     expect(onCommand).toHaveBeenCalledWith({ command: 'set_speed', speed: 60 })
+    // To follow a video played a little faster.
+    await userEvent.click(screen.getByRole('button', { name: '1.25×' }))
+    expect(onCommand).toHaveBeenCalledWith({ command: 'set_speed', speed: 1.25 })
   })
 
   it.each([
