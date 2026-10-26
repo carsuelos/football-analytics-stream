@@ -18,8 +18,6 @@ beforeEach(() => {
     switch (url) {
       case '/api/matches':
         return json({ schema_version: 1, matches: [matchInfo()] })
-      case '/api/control':
-        return json(status({ state: 'paused' }))
       case '/api/broadcast':
         return init?.method === 'POST'
           ? json(broadcast({ state: 'paused' }))
@@ -79,9 +77,9 @@ it('renders the layout', () => {
   const replay = screen.getByRole('region', { name: 'Replay' })
   expect(replay).toHaveAccessibleDescription(/Plays a past match as if it were live/)
   expect(within(replay).getByRole('group', { name: 'Broadcast' })).toBeInTheDocument()
-  // The rewind controls are put away until asked for.
+  // The match only moves forward: no rewind controls.
   expect(screen.queryByRole('group', { name: 'Viewer' })).toBeNull()
-  expect(screen.getByRole('button', { name: /Rewind/ })).toBeInTheDocument()
+  expect(screen.queryByRole('button', { name: /Rewind/ })).toBeNull()
   expect(screen.getByRole('region', { name: 'Charts' })).toBeInTheDocument()
   expect(screen.getByRole('complementary', { name: 'Match feed' })).toBeInTheDocument()
 })
@@ -127,7 +125,6 @@ it('hides the simulator when the engine has none, as with a real feed', async ()
   expect(await screen.findByText('No match yet. Waiting for the feed to start one…')).toBeInTheDocument()
   expect(screen.queryByRole('region', { name: 'Replay' })).toBeNull()
   expect(screen.queryByRole('alert')).toBeNull()
-  expect(screen.getByRole('button', { name: /Rewind/ })).toBeInTheDocument()
 })
 
 it('shows the error when the engine is down', async () => {
@@ -178,30 +175,3 @@ it('shows the stream on the scoreboard, timeline, charts and match feed', async 
   ])
 })
 
-it('drives the viewer through the engine, which shows on the stream', async () => {
-  render(<App />)
-  await userEvent.click(screen.getByRole('button', { name: /Rewind/ }))
-  const viewerBar = screen.getByRole('group', { name: 'Viewer' })
-  expect(within(viewerBar).getByRole('button', { name: 'Play' })).toBeDisabled()
-  const stream = FakeEventSource.instances[0]
-  const edge = { offset: 2000, period: 2, match_clock_s: 70 * 60, play_s: 70 * 60 }
-  act(() => {
-    stream.open()
-    stream.send('status', status({ state: 'live', live_edge: edge, behind_live_s: 0, speed: 1 }))
-  })
-  await applied()
-  expect(viewerBar).toHaveTextContent('LIVE')
-
-  await userEvent.click(within(viewerBar).getByRole('button', { name: 'Pause' }))
-  const [, init] = fetch.mock.calls.find(([url]) => url === '/api/control')!
-  expect(JSON.parse(init?.body as string)).toEqual({ schema_version: 1, command: 'pause' })
-  act(() => stream.send('status', status({ state: 'paused', live_edge: edge, behind_live_s: 65, speed: 1 })))
-  await applied()
-  expect(viewerBar).toHaveTextContent('1:05 behind live')
-  expect(screen.queryByRole('button', { name: 'Close rewind' })).toBeNull() // stays while behind live
-  await userEvent.click(within(viewerBar).getByRole('button', { name: 'Go live' }))
-  act(() => stream.send('status', status({ state: 'live', live_edge: edge, behind_live_s: 0, speed: 1 })))
-  await applied()
-  // Back live: the rewind controls are put away again.
-  expect(screen.queryByRole('group', { name: 'Viewer' })).toBeNull()
-})
