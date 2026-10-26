@@ -12,13 +12,15 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 
 | Path | Does |
 | --- | --- |
-| `src/AnalyticsPage.tsx` | The match analytics page; wires the stream and broadcast hooks to the components. The simulator's controls (match and broadcast) sit in their own Replay panel, hidden when the engine has no simulator. The match only moves forward: the engine's DVR isn't exposed here |
-| `src/api.ts` | Typed client for `/api/matches`, `GET`/`POST /api/broadcast` (the simulator); failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
+| `src/AnalyticsPage.tsx` | The match analytics page; wires the stream, broadcast and viewer hooks to the components. The simulator's controls (match and broadcast) sit in their own Replay panel, hidden when the engine has no simulator; the viewer's DVR controls work on any feed and open from a ⟲ Rewind button, staying open while behind live and closing on going live |
+| `src/api.ts` | Typed client for `/api/matches`, `GET`/`POST /api/broadcast` (the simulator) and `POST /api/control` (the engine's DVR); failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
 | `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts, incidents) from stream events, one at a time or in a batch; a `reset` starts it over |
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, applying messages in batches every 50 ms (a reconnect's backlog is thousands of messages, which would otherwise redraw the charts thousands of times), and reconnects when the browser gives up |
 | `src/useBroadcast.ts` | `useBroadcast`: the match list and the simulator's broadcast status, from each command's reply plus a fetch on load and whenever the engine's state changes; ignores replies a later request has overtaken; `controllable` is false when the engine answers 404 (no simulator) |
+| `src/useViewer.ts` | `useViewer`: sends the viewer's DVR commands, with an error and pending flag; the engine's new status arrives on the stream |
 | `src/MatchPicker.tsx` | Chooses the match to load (named without its score); `App` then starts its broadcast |
 | `src/BroadcastControls.tsx` | The broadcast's play/pause and speed presets (1×, 10×, 30×, 60×) |
+| `src/ViewerControls.tsx` | The viewer's DVR: "LIVE" or how far behind it, play/pause, "Go live", speed presets, and a seek to a period and minute up to the live edge |
 | `src/timeline.ts` | The time axis shared by the timeline, charts and feed: minutes played, each period starting where the previous one ended (stoppage time overlaps the next period's clock), labelled as match minutes ("45+3'"); `matchMinute` labels a single moment the same way, and `matchClock` to the second ("45+2:13") |
 | `src/chartData.ts` | Snapshots for one window as chart points, home first; `matchTeams` takes home and away from the match list |
 | `src/Scoreboard.tsx` | A compact scoreboard at the head of the match timeline (it stays in view while scrolling the charts): the score (and the shootout's), the clock to the second with stoppage time, the match state, and each team's goals and red cards; a goal disallowed after a review is struck through and comes off the score |
