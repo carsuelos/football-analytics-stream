@@ -75,10 +75,10 @@ export function MetricCharts({ teams, snapshots, alerts, incidents = [], axis, b
         <p className="py-16 text-center text-slate-400">
           {teams === null
             ? simulator
-              ? 'No match yet. Choose one in the Simulator panel.'
+              ? 'No match yet. Choose one in the Replay panel.'
               : 'No match yet. Waiting for the feed to start one…'
             : simulator && broadcastState === 'paused'
-              ? 'The broadcast is paused. Press Play in the Simulator panel to start it.'
+              ? 'The broadcast is paused. Press Play in the Replay panel to start it.'
               : 'Waiting for the first metrics (one every 5 seconds of play)…'}
         </p>
       ) : (

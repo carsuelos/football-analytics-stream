@@ -12,13 +12,13 @@ const axis = timeline([])
 describe('MetricCharts', () => {
   it('asks for a match until the teams are known', () => {
     render(<MetricCharts teams={null} snapshots={[]} alerts={[]} axis={axis} />)
-    expect(screen.getByText('No match yet. Choose one in the Simulator panel.')).toBeInTheDocument()
+    expect(screen.getByText('No match yet. Choose one in the Replay panel.')).toBeInTheDocument()
     expect(screen.queryByRole('figure')).toBeNull()
   })
 
   it('says when the broadcast is paused before the first metrics', () => {
     render(<MetricCharts teams={TEAMS} snapshots={[]} alerts={[]} axis={axis} broadcastState="paused" />)
-    expect(screen.getByText('The broadcast is paused. Press Play in the Simulator panel to start it.')).toBeInTheDocument()
+    expect(screen.getByText('The broadcast is paused. Press Play in the Replay panel to start it.')).toBeInTheDocument()
   })
 
   it('waits for the feed instead when there is no simulator', () => {
