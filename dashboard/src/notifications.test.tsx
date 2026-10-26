@@ -110,7 +110,8 @@ it('keeps the latest few pop-ups, which close by themselves or when closed', asy
   expect(result.current.toasts.map((t) => t.id)).toEqual(['a2', 'a3'])
   show(<AlertToasts toasts={result.current.toasts} teams={teams} onDismiss={result.current.dismiss} />)
   expect(within(screen.getByRole('list', { name: 'New alerts' })).getAllByRole('listitem')).toHaveLength(2)
-  act(() => vi.advanceTimersByTime(TOAST_MS))
+  // The rules' close first; the model's stay longer.
+  act(() => vi.advanceTimersByTime(TOAST_MS.rule))
   expect(result.current.toasts).toEqual([])
 })
 

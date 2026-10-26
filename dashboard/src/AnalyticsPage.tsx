@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { BroadcastControls } from './BroadcastControls'
 import { matchTeams } from './chartData'
 import { EventStrip } from './EventStrip'
+import { FeedDrawer } from './FeedDrawer'
 import { MatchFeed } from './MatchFeed'
 import { AddMatches } from './MatchLibrary'
 import { MatchPicker } from './MatchPicker'
@@ -11,6 +12,7 @@ import { useAlertNotifications, useNotifySetting, useSoundSetting } from './noti
 import { NotifySettings } from './NotifySettings'
 import { Scoreboard } from './Scoreboard'
 import { StatusBar } from './StatusBar'
+import { teamColourStyle } from './teamColours'
 import { timeline, type Position } from './timeline'
 import { useBroadcast, type Broadcast } from './useBroadcast'
 import { useMatchStream } from './useMatchStream'
@@ -50,9 +52,12 @@ export function AnalyticsPage() {
   const announced = useAlertNotifications({ system: notify.on, sound }, match.alerts, match.status, teams)
 
   return (
-    <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
+    <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6" style={teamColourStyle(teams)}>
         <AlertToasts toasts={announced.toasts} teams={teams} onDismiss={announced.dismiss} />
         <div className="flex items-center justify-end gap-2">
+          <FeedDrawer count={match.alerts.length + match.incidents.length}>
+            <MatchFeed teams={teams} alerts={match.alerts} incidents={match.incidents} axis={axis} now={now} over={over} />
+          </FeedDrawer>
           <NotifySettings system={notify} sound={sound} onSound={setSound} onTest={announced.test} />
           <StatusBar connection={match.connection} status={match.status} />
         </div>

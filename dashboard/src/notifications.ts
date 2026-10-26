@@ -43,8 +43,8 @@ export interface Toast {
   body: string
 }
 
-/** How long a pop-up stays, unless closed first. */
-export const TOAST_MS = 10_000
+/** How long a pop-up stays, unless closed first: the model's, which matter most, longer than the rules'. */
+export const TOAST_MS = { rule: 6_000, model: 15_000 }
 /** The most pop-ups shown at once; older ones make way. */
 export const MAX_TOASTS = 3
 

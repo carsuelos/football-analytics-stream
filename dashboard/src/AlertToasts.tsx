@@ -6,7 +6,7 @@ import type { Team } from './schema/engine_status.schema'
 
 /**
  * New alerts popping up at the top right, under the header: each stays
- * TOAST_MS unless closed. The newest is at the bottom of the stack.
+ * TOAST_MS (the model's longer) unless closed. The newest is at the bottom of the stack.
  */
 export function AlertToasts({ toasts, teams, onDismiss }: { toasts: Toast[]; teams: Team[] | null; onDismiss: (id: string) => void }) {
   return (
@@ -20,9 +20,9 @@ export function AlertToasts({ toasts, teams, onDismiss }: { toasts: Toast[]; tea
 
 function ToastCard({ toast: t, home, onDismiss }: { toast: Toast; home?: number; onDismiss: (id: string) => void }) {
   useEffect(() => {
-    const timer = setTimeout(() => onDismiss(t.id), TOAST_MS)
+    const timer = setTimeout(() => onDismiss(t.id), TOAST_MS[isModelAlert(t.alert.type) ? 'model' : 'rule'])
     return () => clearTimeout(timer)
-  }, [t.id, onDismiss])
+  }, [t.id, t.alert.type, onDismiss])
   const side = home === undefined ? 'border-l-slate-500' : t.alert.team_id === home ? 'border-l-home' : 'border-l-away'
   const model = isModelAlert(t.alert.type)
   return (

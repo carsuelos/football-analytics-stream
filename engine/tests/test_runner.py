@@ -269,3 +269,43 @@ def test_engine_status_counts_events_held_back_and_dropped() -> None:
     p.handle(feed_event(event(1, 30, offset=3, team=HOME)))  # behind the watermark at 01:00
     s = engine_status(p)
     assert (s.released, s.buffered, s.late_dropped, s.duplicates) == (1, 1, 1, 0)
+
+
+class PausingSource:
+    """Plays messages, with a long silence before the last ones."""
+
+    def __init__(
+        self, before: list[FeedMessage], after: list[FeedMessage], silence_s: float
+    ) -> None:
+        self.before, self.after, self.silence_s = before, after, silence_s
+
+    async def subscribe(self, from_offset: int = 0) -> AsyncIterator[FeedMessage]:
+        for msg in self.before:
+            yield msg
+        await asyncio.sleep(self.silence_s)
+        for msg in self.after:
+            yield msg
+
+
+async def test_events_held_for_reordering_come_out_when_the_feed_goes_quiet() -> None:
+    # A goal, then silence: without the idle release it would wait for the next event.
+    p = Pipeline(InMemoryStateStore(), allowed_lateness_s=5)
+    hub = MatchHub()
+    seen_during_silence: list[float] = []
+    before = [
+        feed_marker(K.match_start, 0),
+        feed_event(event(1, 350, offset=0)),
+        feed_event(event(1, 356, offset=1)),
+    ]
+    after = [feed_event(event(1, 470, offset=2)), feed_marker(K.match_end, 3)]
+
+    async def watch() -> None:
+        await asyncio.sleep(0.25)  # into the silence, after the idle release
+        if p.clock.now:
+            seen_during_silence.append(p.clock.now.clock_s)
+
+    watcher = asyncio.create_task(watch())
+    await run(PausingSource(before, after, silence_s=0.4), p, hub=hub, idle_release_s=0.1)
+    await watcher
+    assert seen_during_silence == [356]
+    assert p.buffer.stats.late_dropped == 0

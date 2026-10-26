@@ -59,7 +59,7 @@ export function Scoreboard({ teams, status, incidents, connection, info, rate = 
               {h.shootout}–{a.shootout} on penalties
             </p>
           )}
-          <Clock status={status} rate={rate} />
+          <Clock status={status} rate={rate} incidents={incidents} />
         </div>
         <TeamSide team={away} side="away" lines={scoreboardLines(incidents, away.id)} />
       </div>
@@ -78,26 +78,33 @@ function goals(team: Team, status: EngineStatus | null, incidents: Incident[]): 
 }
 
 /**
- * How far the clock may count on past the engine's last update. Its clock is
- * the latest event's, so it stands still between events; counting on keeps it
- * running like a TV's, but a long stop in play holds it until events resume.
+ * How far the clock may count on past the latest event. The engine's clock is
+ * the latest event's, and a stoppage (a goal, a VAR check, a corner, an
+ * injury) can leave minutes without one, while the referee's clock runs on.
+ * So it counts on, up to this far (the longest gaps in the data are about 3.5
+ * minutes), and stops when a period ends.
  */
-const CLOCK_LEAD_S = 20
+const CLOCK_LEAD_S = 300
+/** From this many seconds without an event, the clock says the data has gone quiet, and why it may be. */
+const QUIET_S = 15
+const TICK_MS = 250
 
 /**
  * The engine's match clock, counting on between its updates at `rate` (up to
  * CLOCK_LEAD_S ahead) and never going back within a period, except for a seek.
+ * Also how long it has counted on since the latest event.
  */
-const TICK_MS = 250
-
-function useSmoothClock(period: number | undefined, clock: number | undefined, rate: number): number | undefined {
+function useSmoothClock(period: number | undefined, clock: number | undefined, rate: number): { shown?: number; quiet: number } {
   const [base, setBase] = useState<Base>({ period, clock })
   const [ahead, setAhead] = useState(0)
   const shown = base.clock === undefined ? undefined : Math.max(base.clock + ahead, base.floor ?? -Infinity)
   if (base.period !== period || base.clock !== clock) {
-    // A new update: count on from it, but hold what's shown if it lands behind
-    // that (within the lead; further back, or a new period, is a seek).
-    const hold = shown !== undefined && clock !== undefined && base.period === period && clock < shown && shown - clock <= CLOCK_LEAD_S
+    // A new update: count on from it. If it lands a little behind what's shown
+    // (about one status update's worth), hold rather than tick back; further
+    // behind, the engine is right and the clock goes back to it (a seek, or the
+    // count ran ahead of a feed that was slow).
+    const slip = Math.max(2, 1.5 * rate)
+    const hold = shown !== undefined && clock !== undefined && base.period === period && clock < shown && shown - clock <= slip
     setBase({ period, clock, floor: hold ? shown : undefined })
     setAhead(0)
   }
@@ -106,7 +113,7 @@ function useSmoothClock(period: number | undefined, clock: number | undefined, r
     const timer = setInterval(() => setAhead((a) => Math.min(a + (TICK_MS / 1000) * rate, CLOCK_LEAD_S)), TICK_MS)
     return () => clearInterval(timer)
   }, [rate])
-  return shown
+  return { shown, quiet: ahead }
 }
 
 interface Base {
@@ -116,23 +123,61 @@ interface Base {
   floor?: number
 }
 
-function Clock({ status, rate }: { status: EngineStatus | null; rate: number }) {
-  const { period } = status ?? {}
-  const match_clock_s = useSmoothClock(period, status?.match_clock_s, rate)
+/** What the end of each period is called while the clock stands still. */
+const PERIOD_OVER: Record<number, string> = { 1: 'Half-time', 2: 'Full time', 3: 'Extra time: half-time', 4: 'End of extra time' }
+
+/** Why the data may have gone quiet: the latest goal, card or penalty in the last 3 minutes, or a stoppage. */
+function quietReason(incidents: Incident[], period: number, clock: number): string {
+  const recent = incidents.findLast((i) => i.period === period && i.match_clock_s <= clock && clock - i.match_clock_s <= 180)
+  switch (recent?.kind) {
+    case 'goal':
+    case 'own_goal':
+    case 'penalty_goal':
+      return 'after the goal (celebration, maybe a VAR check)'
+    case 'goal_disallowed':
+      return 'VAR review'
+    case 'penalty_awarded':
+      return 'penalty'
+    case 'penalty_missed':
+      return 'after the penalty'
+    case 'yellow_card':
+    case 'second_yellow':
+    case 'red_card':
+      return 'booking'
+    default:
+      return 'a stoppage (set piece, injury or substitution)'
+  }
+}
+
+function Clock({ status, rate, incidents }: { status: EngineStatus | null; rate: number; incidents: Incident[] }) {
+  const { period, period_over } = status ?? {}
+  const { shown: match_clock_s, quiet } = useSmoothClock(period, status?.match_clock_s, period_over ? 0 : rate)
   if (period === undefined || match_clock_s === undefined) {
     return <p className="mt-1 text-xs text-slate-400">Kick-off soon</p>
   }
   if (period === 5) {
     return <p className="mt-1 text-xs font-semibold text-pitch">Penalty shootout</p>
   }
+  if (period_over) {
+    return <p className="mt-1 text-xs font-semibold text-slate-300">{PERIOD_OVER[period] ?? 'Break'}</p>
+  }
   return (
-    <p className="mt-1 flex items-baseline gap-1.5 text-xs">
-      <span className="sr-only">Match clock: </span>
-      <span className="font-mono text-sm font-semibold text-pitch tabular-nums">{matchClock({ period, match_clock_s })}</span>
-      <span className="text-slate-400">{periodName(period)}</span>
-    </p>
+    <>
+      <p className="mt-1 flex items-baseline gap-1.5 text-xs">
+        <span className="sr-only">Match clock: </span>
+        <span className="font-mono text-sm font-semibold text-pitch tabular-nums">{matchClock({ period, match_clock_s })}</span>
+        <span className="text-slate-400">{periodName(period)}</span>
+      </p>
+      {quiet >= QUIET_S && (
+        <p role="status" className="mt-0.5 text-[10px] text-amber-300/80" title="The clock runs on; the feed sends nothing while the ball is out of play">
+          No events for {minutesSeconds(quiet)} · {quietReason(incidents, period, match_clock_s)}
+        </p>
+      )}
+    </>
   )
 }
+
+const minutesSeconds = (s: number) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 
 function StatePill({ status }: { status: EngineStatus | null }) {
   const state = status?.state

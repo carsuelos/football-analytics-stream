@@ -48,6 +48,11 @@ class ReorderBuffer:
 
     The watermark never reaches back into an earlier period, so the first event
     of a new period releases everything left from the previous one.
+
+    When the feed goes quiet (a goal, a VAR check, a set piece), nothing moves
+    the watermark on, so the last events would wait for the next one, possibly
+    minutes later. release_all lets them out after a pause (Pipeline.release_idle);
+    the watermark then stays at least at the latest released, so the order holds.
     """
 
     def __init__(self, allowed_lateness_s: float) -> None:
@@ -60,6 +65,7 @@ class ReorderBuffer:
         self._heap: list[tuple[MatchTime, int, MatchEvent]] = []
         self._seen: set[str] = set()
         self._latest: MatchTime | None = None
+        self._released_to: MatchTime | None = None
 
     def __len__(self) -> int:
         """The number of events waiting for the watermark."""
@@ -70,7 +76,10 @@ class ReorderBuffer:
         """Every event at or before this time has been released."""
         if self._latest is None:
             return None
-        return MatchTime(self._latest.period, self._latest.clock_s - self.allowed_lateness_s)
+        trailing = MatchTime(self._latest.period, self._latest.clock_s - self.allowed_lateness_s)
+        if self._released_to is not None and self._released_to > trailing:
+            return self._released_to
+        return trailing
 
     def push(self, event: MatchEvent) -> list[MatchEvent]:
         """Add an event, and return the events it lets through, in order."""
@@ -101,12 +110,21 @@ class ReorderBuffer:
         """Release everything still held, e.g. when the match ends."""
         return self._release(None)
 
+    def release_all(self) -> list[MatchEvent]:
+        """Release everything held now, the feed having gone quiet, and from
+        then on drop anything earlier than it as late, as the watermark would."""
+        released = self._release(None)
+        if released:
+            self._released_to = MatchTime.of(released[-1])
+        return released
+
     def reset(self) -> None:
         """Forget everything, e.g. before the feed replays after a seek."""
         self.stats = ReorderStats()
         self._heap.clear()
         self._seen.clear()
         self._latest = None
+        self._released_to = None
 
     def _release(self, upto: MatchTime | None) -> list[MatchEvent]:
         released: list[MatchEvent] = []

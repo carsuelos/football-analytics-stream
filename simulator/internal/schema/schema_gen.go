@@ -515,6 +515,11 @@ type EngineStatus struct {
 	// Period of the latest event processed: where the viewer is.
 	Period *Period `json:"period,omitempty,omitzero"`
 
+	// Whether the period of the latest event has ended (half-time, full time, or the
+	// end of a period of extra time): the clock stands still until the next one kicks
+	// off. Between events it otherwise runs on.
+	PeriodOver *bool `json:"period_over,omitempty,omitzero"`
+
 	// Seconds of play so far, continuous across periods.
 	PlayS *float64 `json:"play_s,omitempty,omitzero"`
 

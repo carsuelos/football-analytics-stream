@@ -81,6 +81,12 @@ class EngineStatus(BaseModel):
     match_clock_s: Annotated[
         float | None, Field(description="Game clock of the latest event processed.", ge=0.0)
     ] = None
+    period_over: Annotated[
+        bool | None,
+        Field(
+            description="Whether the period of the latest event has ended (half-time, full time, or the end of a period of extra time): the clock stands still until the next one kicks off. Between events it otherwise runs on."
+        ),
+    ] = None
     play_s: Annotated[
         float | None,
         Field(description="Seconds of play so far, continuous across periods.", ge=0.0),

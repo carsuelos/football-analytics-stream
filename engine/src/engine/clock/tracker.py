@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from engine.clock.reorder import MatchTime
-from engine.schema.event_schema import MatchEvent
+from engine.schema.event_schema import EventType, MatchEvent
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +39,8 @@ class MatchClock:
         self.period_start_play_s = 0.0
         """Play time at which the current period started."""
         self._period_start_clock_s = 0.0
+        self.period_over = False
+        """Whether the current period has ended (its half_end event), until the next one starts."""
 
     def advance(self, event: MatchEvent) -> TimedEvent:
         """Move the clock to the event and return it with its play time."""
@@ -51,11 +53,15 @@ class MatchClock:
         if self.now is None or at.period != self.now.period:
             self.period_start_play_s = self.play_s
             self._period_start_clock_s = at.clock_s
+            self.period_over = False
+        if event.type == EventType.half_end:
+            self.period_over = True
         self.play_s = self.period_start_play_s + (at.clock_s - self._period_start_clock_s)
         self.now = at
         return TimedEvent(event, self.play_s)
 
     def reset(self) -> None:
+        self.period_over = False
         self.now = None
         self.play_s = 0.0
         self.period_start_play_s = 0.0
