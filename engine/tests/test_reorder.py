@@ -110,3 +110,15 @@ def test_restores_order_under_simulator_style_jitter(seed: int) -> None:
 
     assert [e.id for e in out] == [e.id for e in original]
     assert buf.stats.late_dropped == 0
+
+
+def test_release_all_lets_out_what_is_held_and_keeps_the_order() -> None:
+    buf = ReorderBuffer(allowed_lateness_s=5)
+    assert times(push_all(buf, [event(1, 352), event(1, 356)])) == []  # held for the watermark
+    assert times(buf.release_all()) == [(1, 352), (1, 356)]  # the feed went quiet
+    assert buf.push(event(1, 353)) == []  # earlier than released: late
+    assert buf.stats.late_dropped == 1
+    assert times(push_all(buf, [event(1, 470), event(1, 480)])) == [
+        (1, 470)
+    ]  # back to the watermark
+    assert buf.release_all() and buf.release_all() == []

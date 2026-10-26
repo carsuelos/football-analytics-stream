@@ -24,6 +24,10 @@ from engine.ticks import Tick
 DEFAULT_MODEL_PATH = Path(__file__).with_name("goal_model.json")
 DRIVERS = 3
 """How many of the play features pushing the probability up most an alert reports."""
+AFTER_GOAL_MIN = 1.0
+"""No alerts this soon after a goal (by either team): the goal itself pushes
+the features up (the shot, its xG, the score), so an alert then reacts to the
+goal rather than predicting one. If the chance stays high it comes after."""
 
 
 class GoalModelError(Exception):
@@ -185,11 +189,16 @@ class GoalChance:
         signals = []
         ft = self.fulltime.predict(features) if self.fulltime and len(features) == 2 else {}
         for team_id, x in features.items():
+            values = dict(zip(m.features, x, strict=True))
+            if (
+                values["goals_for"] + values["goals_against"] > 0
+                and values["since_goal_min"] < AFTER_GOAL_MIN
+            ):
+                continue
             push = m.contributions(x)
             p = _sigmoid(m.intercept + math.fsum(push))
             if p < self.threshold:
                 continue
-            values = dict(zip(m.features, x, strict=True))
             means = dict(zip(m.features, m.mean, strict=False))
             drivers = sorted(
                 (c, name)

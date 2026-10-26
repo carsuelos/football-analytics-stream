@@ -4,6 +4,9 @@ import type { EngineState } from './schema/engine_status.schema'
 import type { MatchInfo } from './schema/match_list.schema'
 import type { BroadcastStatus } from './schema/broadcast_status.schema'
 
+/** How often the broadcast's status is fetched again. */
+export const BROADCAST_POLL_MS = 5000
+
 export interface Broadcast {
   /**
    * Whether there is a simulator to control: false when the engine says it has
@@ -72,6 +75,13 @@ export function useBroadcast(engineState?: EngineState): Broadcast {
   useEffect(() => {
     void track(getBroadcast(), { probe: true })
   }, [engineState, track])
+  // And now and then, so a change made elsewhere (another window, the API)
+  // shows too, e.g. the speed the scoreboard's clock runs at.
+  useEffect(() => {
+    if (controllable === false) return
+    const timer = setInterval(() => void track(getBroadcast(), { probe: true }), BROADCAST_POLL_MS)
+    return () => clearInterval(timer)
+  }, [controllable, track])
 
   const loadMatches = useCallback(
     () =>

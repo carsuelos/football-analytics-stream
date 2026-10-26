@@ -94,6 +94,15 @@ class Pipeline:
         """
         return self._place(self._release(msg))
 
+    def release_idle(self) -> Iterator[TimedEvent]:
+        """Let out the events the reorder buffer holds, the feed having gone
+        quiet: without a newer event to move the watermark, they would wait
+        for the next one, which after a goal can be minutes. Use it up before
+        handling the next message, as with handle_each."""
+        if self.windows is None or self.ended:
+            return iter(())
+        return self._place(self.buffer.release_all())
+
     def _release(self, msg: FeedMessage) -> list[MatchEvent]:
         match msg.kind:
             case FeedMessageKind.match_start:

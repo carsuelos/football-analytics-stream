@@ -40,6 +40,10 @@ export interface EngineStatus {
    */
   match_clock_s?: number;
   /**
+   * Whether the period of the latest event has ended (half-time, full time, or the end of a period of extra time): the clock stands still until the next one kicks off. Between events it otherwise runs on.
+   */
+  period_over?: boolean;
+  /**
    * Seconds of play so far, continuous across periods.
    */
   play_s?: number;

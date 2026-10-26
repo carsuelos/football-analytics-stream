@@ -37,6 +37,10 @@
       "description": "Game clock of the latest event processed.",
       "$ref": "common.schema.json#/definitions/MatchClockSeconds"
     },
+    "period_over": {
+      "description": "Whether the period of the latest event has ended (half-time, full time, or the end of a period of extra time): the clock stands still until the next one kicks off. Between events it otherwise runs on.",
+      "type": "boolean"
+    },
     "play_s": {
       "description": "Seconds of play so far, continuous across periods.",
       "type": "number",

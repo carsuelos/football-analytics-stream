@@ -2,9 +2,10 @@
 
 import asyncio
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 
 from engine import telemetry
+from engine.clock import TimedEvent
 from engine.detectors import Detectors
 from engine.dvr import Dvr
 from engine.hub import MatchHub
@@ -12,10 +13,14 @@ from engine.incidents import IncidentTracker
 from engine.metrics import MetricsConfig, snapshot
 from engine.pipeline import Pipeline
 from engine.schema.engine_status_schema import EngineState, EngineStatus
+from engine.schema.feed_schema import FeedMessage
 from engine.schema.metric_schema import TeamMetrics
 from engine.sinks import AlertSink, MetricSink
 from engine.sources import EventSource
 from engine.ticks import Ticker
+
+IDLE_RELEASE_S = 3.0
+"""Wall-clock seconds without a message after which held events are let out."""
 
 log = logging.getLogger(__name__)
 
@@ -32,6 +37,7 @@ async def run(
     metric_sinks: Sequence[MetricSink] = (),
     hub: MatchHub | None = None,
     status_every_s: float = 1.0,
+    idle_release_s: float = IDLE_RELEASE_S,
     report: Callable[[str], None] = log.debug,
 ) -> None:
     """Feed every message from source through pipeline until the source ends.
@@ -47,6 +53,10 @@ async def run(
     over, then the incidents (goals, cards...) as they happen, and on every
     tick the metric snapshots and all alerts, replayed or not, so it holds the
     whole match. The incident tracker, if given, also keeps the status's score.
+
+    When no message has come for idle_release_s seconds of wall-clock time,
+    the events the reorder buffer still holds are let out (Pipeline.release_idle):
+    after a goal the feed can go quiet for minutes, and the goal shouldn't wait.
 
     At the start, then every status_every_s seconds of wall-clock time, report
     the status (with metrics, if a config is given; logged at DEBUG by default)
@@ -70,40 +80,66 @@ async def run(
             await asyncio.sleep(status_every_s)
             report_if_changed()
 
+    def process(items: Iterable[TimedEvent]) -> None:
+        for item in items:
+            if incidents:
+                found = incidents.observe(pipeline, item)
+                if hub and found:
+                    hub.add(*found)
+            tick = ticker.observe(pipeline, item) if ticker else None
+            if tick is None:
+                continue
+            alerts = detectors.evaluate(tick) if detectors else []
+            snapshots = tick.snapshots() if hub or metric_sinks else []
+            if hub:
+                hub.add(*snapshots, *alerts)
+            if tick.replay:
+                continue
+            for snap in snapshots:
+                for metric_sink in metric_sinks:
+                    metric_sink.send(snap)
+            for alert in alerts:
+                with telemetry.raising(alert, tick.item.event):
+                    for sink in sinks:
+                        sink.send(alert)
+
+    # Messages come through a queue so the loop can notice the feed going
+    # quiet (waiting on the queue can time out; on the source, it can't).
+    queue: asyncio.Queue[FeedMessage | None] = asyncio.Queue(maxsize=1024)
+
+    async def pump() -> None:
+        try:
+            async for msg in source.subscribe():
+                await queue.put(msg)
+        finally:
+            await queue.put(None)
+
     report_if_changed()
     reporter = asyncio.create_task(report_every())
+    reader = asyncio.create_task(pump())
     try:
-        async for msg in source.subscribe():
+        while True:
+            try:
+                msg = await asyncio.wait_for(queue.get(), idle_release_s)
+            except TimeoutError:
+                # Quiet for a while: let out what the reorder buffer holds.
+                process(pipeline.release_idle())
+                continue
+            if msg is None:
+                break
             items = pipeline.handle_each(msg)
             if hub and pipeline.generation != hub.generation:
                 hub.start(pipeline.generation, pipeline.match_id)
                 hub.set_status(engine_status(pipeline, dvr, incidents))
-            for item in items:
-                if incidents:
-                    found = incidents.observe(pipeline, item)
-                    if hub and found:
-                        hub.add(*found)
-                tick = ticker.observe(pipeline, item) if ticker else None
-                if tick is None:
-                    continue
-                alerts = detectors.evaluate(tick) if detectors else []
-                snapshots = tick.snapshots() if hub or metric_sinks else []
-                if hub:
-                    hub.add(*snapshots, *alerts)
-                if tick.replay:
-                    continue
-                for snap in snapshots:
-                    for metric_sink in metric_sinks:
-                        metric_sink.send(snap)
-                for alert in alerts:
-                    with telemetry.raising(alert, tick.item.event):
-                        for sink in sinks:
-                            sink.send(alert)
+            process(items)
+        if reader.done() and (error := reader.exception()) is not None:
+            raise error
     finally:
         reporter.cancel()
-        # Wait for it to finish. asyncio.wait never raises the reporter's own
+        reader.cancel()
+        # Wait for them to finish. asyncio.wait never raises their own
         # CancelledError, but still lets a cancellation of run() through.
-        await asyncio.wait([reporter])
+        await asyncio.wait([reporter, reader])
     report_if_changed()
 
 
@@ -161,6 +197,7 @@ def engine_status(
         period=now.period if now else None,
         match_clock_s=now.clock_s if now else None,
         play_s=p.clock.play_s if now else None,
+        period_over=p.clock.period_over if now else None,
         rebuilding_to=p.replay_end_offset if p.rebuilding else None,
         released=stats.released,
         buffered=len(p.buffer),

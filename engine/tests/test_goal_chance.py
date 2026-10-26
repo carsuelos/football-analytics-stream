@@ -18,8 +18,9 @@ from engine.detectors import (
 from engine.detectors.goal_chance import describe, grid_digest, grid_mismatch
 from engine.features import FEATURE_NAMES
 from engine.schema.alert_schema import AlertType
+from engine.schema.event_schema import ShotOutcome
 from tests.factories import AWAY, HOME
-from tests.test_features import METRICS, a_match
+from tests.test_features import METRICS, a_match, shot
 
 F = {name: i for i, name in enumerate(FEATURE_NAMES)}
 
@@ -157,3 +158,12 @@ def test_grid_mismatch(tmp_path: Path) -> None:
     assert grid_mismatch(model(xt_grid_sha256=grid_digest(grid)), grid) is None
     assert "different xT grid" in (grid_mismatch(model(), grid) or "")
     assert grid_mismatch(model(), tmp_path / "missing.json") is None
+
+
+def test_no_alert_within_a_minute_of_a_goal() -> None:
+    # HOME scores at 24:50: the 25' check would alert on the goal itself, so the
+    # alert waits until the first check a minute after it (events here come
+    # every 20s, so 26:00).
+    detectors = Detectors([GoalChance(model({"tilt_match": 4.0}))])
+    r = replay(a_match([shot(1490, ShotOutcome.goal)]), METRICS, detectors=detectors)
+    assert [round(a.play_s) for a in r.alerts] == [900, 1200, 1560]

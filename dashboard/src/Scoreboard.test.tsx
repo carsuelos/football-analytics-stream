@@ -9,21 +9,29 @@ const TEAMS = [ARGENTINA, FRANCE]
 describe('Scoreboard', () => {
   afterEach(() => vi.useRealTimers())
 
-  it('counts the clock on between updates, at the playback speed, not too far, and never back', () => {
+  it('runs the clock between events at the playback speed, says why it may be quiet, and stops at half-time', () => {
     vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
-    const live = (match_clock_s: number) => status({ state: 'live', period: 1, match_clock_s })
-    const clock = () => screen.getByText((_, el) => el?.tagName === 'SPAN' && /^\d+:\d\d/.test(el.textContent ?? '') && el.className.includes('font-mono'))
-    const { rerender } = render(<Scoreboard teams={TEAMS} status={live(600)} incidents={[]} connection="open" rate={1.5} />)
+    const at = (match_clock_s: number, more = {}) => status({ state: 'live', period: 1, match_clock_s, ...more })
+    const clock = () => screen.getByText((_, el) => el?.tagName === 'SPAN' && el.className.includes('font-mono') && /^\d+:\d\d/.test(el.textContent ?? ''))
+    const goal = incident({ period: 1, match_clock_s: 590 })
+    const board = (s: ReturnType<typeof status>, rate: number) => <Scoreboard teams={TEAMS} status={s} incidents={[goal]} connection="open" rate={rate} />
+    const { rerender } = render(board(at(600), 1.5))
     expect(clock()).toHaveTextContent('10:00')
     act(() => vi.advanceTimersByTime(4000))
     expect(clock()).toHaveTextContent('10:06') // 4 s at 1.5×
-    act(() => vi.advanceTimersByTime(60_000))
-    expect(clock()).toHaveTextContent('10:20') // no further than 20 s past the last update
-    rerender(<Scoreboard teams={TEAMS} status={live(615)} incidents={[]} connection="open" rate={1.5} />)
-    expect(clock()).toHaveTextContent('10:20') // an update behind what's shown: held, not wound back
-    rerender(<Scoreboard teams={TEAMS} status={live(615)} incidents={[]} connection="open" rate={0} />)
+    expect(screen.queryByRole('status')).toBeNull()
+    act(() => vi.advanceTimersByTime(20_000))
+    expect(clock()).toHaveTextContent('10:36') // no events, the clock runs on
+    expect(screen.getByRole('status')).toHaveTextContent('No events for 0:36 · after the goal')
+    rerender(board(at(635), 1.5))
+    expect(clock()).toHaveTextContent('10:36') // an update a second behind what's shown: held, not wound back
+    rerender(board(at(615), 1.5))
+    expect(clock()).toHaveTextContent('10:15') // far behind: the engine is right
+    rerender(board(at(615), 0))
     act(() => vi.advanceTimersByTime(10_000))
-    expect(clock()).toHaveTextContent('10:20') // paused
+    expect(clock()).toHaveTextContent('10:15') // paused
+    rerender(board(at(2900, { period_over: true }), 1.5))
+    expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('Half-time')
   })
 
   it('waits for kick-off', () => {

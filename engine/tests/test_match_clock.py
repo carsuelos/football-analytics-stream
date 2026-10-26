@@ -1,6 +1,7 @@
 import pytest
 
 from engine.clock import MatchClock, MatchTime
+from engine.schema.event_schema import EventType
 from tests.factories import event
 
 
@@ -37,3 +38,18 @@ def test_reset_starts_over() -> None:
     clock.reset()
     assert clock.now is None
     assert clock.advance(event(1, 0)).play_s == 0
+
+
+def test_a_period_is_over_from_its_half_end_until_the_next_kicks_off() -> None:
+    c = MatchClock()
+    c.advance(event(1, 2700))
+    assert not c.period_over
+    c.advance(event(1, 2900, type=EventType.half_end))
+    assert c.period_over
+    c.advance(event(1, 2900, type=EventType.substitution))  # logged at the break
+    assert c.period_over
+    c.advance(event(2, 2700, type=EventType.half_start))
+    assert not c.period_over
+    c.advance(event(2, 5400, type=EventType.half_end))
+    c.reset()
+    assert not c.period_over
