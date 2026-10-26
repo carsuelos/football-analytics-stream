@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { BroadcastControls } from './BroadcastControls'
 import { matchTeams } from './chartData'
 import { EventStrip } from './EventStrip'
@@ -14,6 +14,7 @@ import { Scoreboard } from './Scoreboard'
 import { StatusBar } from './StatusBar'
 import { teamColourStyle } from './teamColours'
 import { timeline, type Position } from './timeline'
+import type { ViewerAction } from './api'
 import { useBroadcast, type Broadcast } from './useBroadcast'
 import { useMatchStream } from './useMatchStream'
 import { useViewer } from './useViewer'
@@ -47,6 +48,16 @@ export function AnalyticsPage() {
       : match.status?.state === 'playing'
         ? (match.status.speed ?? 1)
         : 0
+  // The rewind controls (the engine's DVR) show only when asked for, or while
+  // the view is behind live; going live puts them away again.
+  const state = match.status?.state
+  const behind = state === 'playing' || state === 'paused' || (state === 'rebuilding' && (match.status?.behind_live_s ?? 0) > 0)
+  const [rewinding, setRewinding] = useState(false)
+  const showViewer = rewinding || behind
+  const sendViewer = (command: ViewerAction) => {
+    if (command.command === 'go_live') setRewinding(false)
+    void viewer.send(command)
+  }
   const notify = useNotifySetting()
   const [sound, setSound] = useSoundSetting()
   const announced = useAlertNotifications({ system: notify.on, sound }, match.alerts, match.status, teams)
@@ -58,37 +69,47 @@ export function AnalyticsPage() {
           <FeedDrawer count={match.alerts.length + match.incidents.length}>
             <MatchFeed teams={teams} alerts={match.alerts} incidents={match.incidents} axis={axis} now={now} over={over} />
           </FeedDrawer>
+          {!showViewer && (
+            <button type="button" onClick={() => setRewinding(true)} title="Go back to an earlier minute of the match" className="flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-2.5 py-1 text-xs font-semibold text-slate-300 transition hover:text-slate-100">
+              <span aria-hidden="true">⟲</span> Rewind
+            </button>
+          )}
           <NotifySettings system={notify} sound={sound} onSound={setSound} onTest={announced.test} />
           <StatusBar connection={match.connection} status={match.status} />
         </div>
-        <div className={`grid gap-4 ${simulator ? 'xl:grid-cols-2' : ''}`}>
+        {showViewer && (
           <section aria-label="Controls" className="card min-w-0 px-4 py-3">
             <div role="group" aria-label="Viewer" className="flex flex-wrap items-center gap-3">
-              <h2 className={groupHeading}>Watch</h2>
-              <ViewerControls status={match.status} disabled={viewer.pending} onCommand={viewer.send} />
+              <h2 className={groupHeading}>Rewind</h2>
+              <ViewerControls status={match.status} disabled={viewer.pending} onCommand={sendViewer} />
               <ErrorMessage message={viewer.error} />
+              {!behind && (
+                <button type="button" aria-label="Close rewind" onClick={() => setRewinding(false)} className="ml-auto rounded-md px-2 text-lg text-slate-400 hover:bg-white/10 hover:text-slate-100">
+                  ×
+                </button>
+              )}
             </div>
           </section>
-          {simulator && (
-            <section aria-label="Simulator" aria-describedby="simulator-note" className="min-w-0 rounded-2xl border border-dashed border-white/10 px-4 py-3">
-              <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
-                <h2 className={groupHeading}>Simulator</h2>
-                <MatchPicker
-                  matches={broadcast.matches}
-                  matchId={broadcast.status?.match_id}
-                  disabled={broadcast.pending}
-                  onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
-                />
-                <AddMatches onDownloaded={broadcast.refreshMatches} />
-                <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
-                <ErrorMessage message={broadcast.error} />
-              </div>
-              <p id="simulator-note" className="mt-2 text-xs text-slate-500">
-                Stands in for the live feed: picks the match and plays its broadcast. A real feed has none of this.
-              </p>
-            </section>
-          )}
-        </div>
+        )}
+        {simulator && (
+          <section aria-label="Replay" aria-describedby="replay-note" className="min-w-0 rounded-2xl border border-dashed border-white/10 px-4 py-3">
+            <div role="group" aria-label="Broadcast" className="flex flex-wrap items-center gap-3">
+              <h2 className={groupHeading}>Replay</h2>
+              <MatchPicker
+                matches={broadcast.matches}
+                matchId={broadcast.status?.match_id}
+                disabled={broadcast.pending}
+                onLoad={(match_id) => void loadAndPlay(broadcast, match_id)}
+              />
+              <AddMatches onDownloaded={broadcast.refreshMatches} />
+              <BroadcastControls status={broadcast.status} disabled={broadcast.pending} onCommand={broadcast.send} />
+              <ErrorMessage message={broadcast.error} />
+            </div>
+            <p id="replay-note" className="mt-2 text-xs text-slate-500">
+              Plays a past match as if it were live, at the speed you choose. With a live feed this panel isn't shown.
+            </p>
+          </section>
+        )}
         <div className="grid flex-1 gap-5 lg:grid-cols-[minmax(0,1fr)_24rem]">
           <section aria-label="Charts" className="card flex flex-col gap-6 p-4 sm:p-5">
             {teams && (

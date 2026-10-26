@@ -12,7 +12,7 @@ It only talks to the engine, through `/api`. In development Vite proxies `/api` 
 
 | Path | Does |
 | --- | --- |
-| `src/AnalyticsPage.tsx` | The match analytics page; wires the stream, broadcast and viewer hooks to the components. The simulator's controls (match and broadcast) sit in their own panel, hidden when the engine has no simulator; the viewer's DVR controls work on any feed |
+| `src/AnalyticsPage.tsx` | The match analytics page; wires the stream, broadcast and viewer hooks to the components. The simulator's controls (match and broadcast) sit in their own Replay panel, hidden when the engine has no simulator; the viewer's DVR controls work on any feed and open from a ⟲ Rewind button, staying open while behind live and closing on going live |
 | `src/api.ts` | Typed client for `/api/matches`, `GET`/`POST /api/broadcast` (the simulator) and `POST /api/control` (the engine's DVR); failures throw `ApiError` (the engine's `{"error": ...}` message, or "engine unavailable") |
 | `src/matchState.ts` | `matchReducer`: a pure function that builds the match (status, snapshots, alerts, incidents) from stream events, one at a time or in a batch; a `reset` starts it over |
 | `src/useMatchStream.ts` | `useMatchStream`: follows `/api/stream` with `EventSource` and the reducer, applying messages in batches every 50 ms (a reconnect's backlog is thousands of messages, which would otherwise redraw the charts thousands of times), and reconnects when the browser gives up |
