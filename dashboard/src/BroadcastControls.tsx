@@ -3,7 +3,8 @@ import type { BroadcastStatus } from './schema/broadcast_status.schema'
 import { PauseIcon, PlayIcon } from './Icons'
 import { buttonClass, segmentClass, segmentsClass } from './ui'
 
-const SPEEDS = [1, 10, 30, 60]
+/** 1.25× to 2× match a video played faster alongside; 10× and up skim a match. */
+const SPEEDS = [1, 1.25, 1.5, 1.75, 2, 10, 30, 60]
 
 interface Props {
   status: BroadcastStatus | null
