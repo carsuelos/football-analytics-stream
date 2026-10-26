@@ -36,6 +36,15 @@ export function AnalyticsPage() {
   // Play is over in the shootout and at full time: every alert's outcome is known.
   const over = period === 5 || match.status?.state === 'ended'
   const now = position ? axis.x(position) : period === 5 ? axis.domain[1] : undefined
+  // How fast the match clock runs: the broadcast's pace when watching live, the viewer's own when behind.
+  const clockRate =
+    match.status?.state === 'live'
+      ? broadcast.status?.state === 'playing' || !simulator
+        ? (broadcast.status?.speed ?? 1)
+        : 0
+      : match.status?.state === 'playing'
+        ? (match.status.speed ?? 1)
+        : 0
   const notify = useNotifySetting()
   const [sound, setSound] = useSoundSetting()
   const announced = useAlertNotifications({ system: notify.on, sound }, match.alerts, match.status, teams)
@@ -81,7 +90,7 @@ export function AnalyticsPage() {
               <div className="flex flex-col gap-3">
                 {/* Stays in view while scrolling down the charts. */}
                 <div className="sticky top-[4.5rem] z-20 -mx-1 rounded-xl bg-ink-900/85 px-1 py-1 backdrop-blur">
-                  <Scoreboard teams={teams} status={match.status} incidents={match.incidents} connection={match.connection} info={info} />
+                  <Scoreboard teams={teams} status={match.status} incidents={match.incidents} connection={match.connection} info={info} rate={clockRate} />
                 </div>
                 <EventStrip teams={teams} incidents={match.incidents} alerts={match.alerts} axis={axis} now={now} />
               </div>

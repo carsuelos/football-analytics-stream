@@ -1,5 +1,5 @@
-import { render, screen } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { act, render, screen } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Scoreboard } from './Scoreboard'
 import type { TeamScore } from './schema/engine_status.schema'
 import { ARGENTINA, FRANCE, incident, matchInfo, status } from './test/factories'
@@ -7,6 +7,25 @@ import { ARGENTINA, FRANCE, incident, matchInfo, status } from './test/factories
 const TEAMS = [ARGENTINA, FRANCE]
 
 describe('Scoreboard', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it('counts the clock on between updates, at the playback speed, not too far, and never back', () => {
+    vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] })
+    const live = (match_clock_s: number) => status({ state: 'live', period: 1, match_clock_s })
+    const clock = () => screen.getByText((_, el) => el?.tagName === 'SPAN' && /^\d+:\d\d/.test(el.textContent ?? '') && el.className.includes('font-mono'))
+    const { rerender } = render(<Scoreboard teams={TEAMS} status={live(600)} incidents={[]} connection="open" rate={1.5} />)
+    expect(clock()).toHaveTextContent('10:00')
+    act(() => vi.advanceTimersByTime(4000))
+    expect(clock()).toHaveTextContent('10:06') // 4 s at 1.5×
+    act(() => vi.advanceTimersByTime(60_000))
+    expect(clock()).toHaveTextContent('10:20') // no further than 20 s past the last update
+    rerender(<Scoreboard teams={TEAMS} status={live(615)} incidents={[]} connection="open" rate={1.5} />)
+    expect(clock()).toHaveTextContent('10:20') // an update behind what's shown: held, not wound back
+    rerender(<Scoreboard teams={TEAMS} status={live(615)} incidents={[]} connection="open" rate={0} />)
+    act(() => vi.advanceTimersByTime(10_000))
+    expect(clock()).toHaveTextContent('10:20') // paused
+  })
+
   it('waits for kick-off', () => {
     render(<Scoreboard teams={TEAMS} status={null} incidents={[]} connection="open" />)
     expect(screen.getByRole('region', { name: 'Scoreboard' })).toHaveTextContent('Score: Argentina 0, France 0')
