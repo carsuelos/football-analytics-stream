@@ -139,7 +139,7 @@ class FeatureTracker:
                 continue
             if e.type is EventType.shot and e.shot is not None:
                 totals.shots += 1
-                totals.xg += e.shot.xg
+                totals.xg += e.shot.xg or 0.0
             if (xt := xt_of_move(e, tick.metrics.grid)) is not None:
                 totals.xt += xt
             if is_attacking_third_touch(e):
@@ -201,5 +201,5 @@ def _shots(events: Iterable[MatchEvent]) -> dict[int, tuple[int, float]]:
     for e in events:
         if e.type is EventType.shot and e.shot is not None:
             n, xg = totals.get(e.team.id, (0, 0.0))
-            totals[e.team.id] = (n + 1, xg + e.shot.xg)
+            totals[e.team.id] = (n + 1, xg + (e.shot.xg or 0.0))
     return totals

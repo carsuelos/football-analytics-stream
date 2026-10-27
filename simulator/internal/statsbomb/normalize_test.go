@@ -87,14 +87,14 @@ func TestNormalizeEvent(t *testing.T) {
 			// 45:00 + 35:59.025 = 80:59.025, Mbappé's second goal in the 2022 final.
 			wantClock: 4859.025,
 			wantEnd:   schema.Point{120, 41.5},
-			wantShot:  &schema.ShotDetail{XG: 0.1, Outcome: schema.MatchEventShotOutcomeOffTarget},
+			wantShot:  &schema.ShotDetail{XG: ptr(0.1), Outcome: schema.MatchEventShotOutcomeOffTarget},
 		},
 		{
 			name:      "unknown shot outcome becomes other",
 			raw:       `"period": 1, "timestamp": "00:00:01.000", "type": {"name": "Shot"}, "shot": {"statsbomb_xg": 0.5, "outcome": {"name": "Something New"}}`,
 			wantType:  schema.MatchEventTypeShot,
 			wantClock: 1,
-			wantShot:  &schema.ShotDetail{XG: 0.5, Outcome: schema.MatchEventShotOutcomeOther},
+			wantShot:  &schema.ShotDetail{XG: ptr(0.5), Outcome: schema.MatchEventShotOutcomeOther},
 		},
 		{
 			name:        "clean ball receipt has no ball_receipt object",
@@ -373,3 +373,5 @@ func TestNormalizeCardsAndPenalties(t *testing.T) {
 		})
 	}
 }
+
+func ptr(f float64) *float64 { return &f }

@@ -2583,8 +2583,8 @@ type ShotDetail struct {
 	// The situation the shot came from. Omitted if the provider does not say.
 	Type *MatchEventShotType `json:"type,omitempty,omitzero"`
 
-	// XG corresponds to the JSON schema field "xg".
-	XG float64 `json:"xg"`
+	// Expected goals. Omitted when the provider has none (Sportmonks).
+	XG *float64 `json:"xg,omitempty,omitzero"`
 }
 
 // UnmarshalJSON implements json.Unmarshaler.
@@ -2596,18 +2596,15 @@ func (j *ShotDetail) UnmarshalJSON(value []byte) error {
 	if _, ok := raw["outcome"]; raw != nil && !ok {
 		return fmt.Errorf("field outcome in ShotDetail: required")
 	}
-	if _, ok := raw["xg"]; raw != nil && !ok {
-		return fmt.Errorf("field xg in ShotDetail: required")
-	}
 	type Plain ShotDetail
 	var plain Plain
 	if err := json.Unmarshal(value, &plain); err != nil {
 		return err
 	}
-	if 1 < plain.XG {
+	if plain.XG != nil && 1 < *plain.XG {
 		return fmt.Errorf("field %s: must be <= %v", "xg", 1)
 	}
-	if 0 > plain.XG {
+	if plain.XG != nil && 0 > *plain.XG {
 		return fmt.Errorf("field %s: must be >= %v", "xg", 0)
 	}
 	*j = ShotDetail(plain)

@@ -71,7 +71,14 @@ class ShotType(StrEnum):
 
 
 class ShotDetail(BaseModel):
-    xg: Annotated[float, Field(ge=0.0, le=1.0)]
+    xg: Annotated[
+        float | None,
+        Field(
+            description="Expected goals. Omitted when the provider has none (Sportmonks).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ] = None
     outcome: Annotated[ShotOutcome, Field(title="ShotOutcome")]
     type: Annotated[
         ShotType | None,

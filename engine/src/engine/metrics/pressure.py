@@ -111,7 +111,7 @@ def _box_entries(events: Sequence[MatchEvent], team: int) -> int:
 
 def _shot_value(events: Sequence[MatchEvent], team: int) -> float:
     return sum(
-        1 + (e.shot.xg if e.shot else 0.0)
+        1 + ((e.shot.xg or 0.0) if e.shot else 0.0)
         for e in events
         if e.team.id == team and e.type is EventType.shot
     )
