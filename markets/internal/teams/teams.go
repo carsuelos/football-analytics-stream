@@ -2,8 +2,8 @@
 //
 // Venues name teams differently: "Chelsea", "Chelsea FC"; "Bilbao", "Athletic
 // Club", "Athletic Club Bilbao"; "Santander", "Real Racing Club". A name is
-// reduced to a key (accents, case, punctuation and filler words like FC or
-// Club dropped, then a few known aliases applied), and two names match when
+// reduced to a key (accents, case, punctuation, founding years and filler
+// words like FC, Club or Spor Kulübü dropped, then a few known aliases applied), and two names match when
 // their keys are equal or one's words are all in the other's ("Tottenham",
 // "Tottenham Hotspur"), unless that one word could be several teams
 // ("Manchester", "Real").
@@ -25,6 +25,10 @@ var filler = map[string]bool{
 	"sd": true, "ca": true, "sc": true, "club": true, "de": true, "del": true, "la": true,
 	"el": true, "a": true, "futbol": true, "balompie": true, "and": true, "the": true,
 	"hove": true, "albion": true, "reial": true, "deportiu": true,
+	// European clubs' prefixes and suffixes (Champions League).
+	"sk": true, "fk": true, "bv": true, "ssc": true, "as": true, "ac": true, "osc": true,
+	"kv": true, "spor": true, "kulubu": true, "calcio": true, "vfb": true, "vfl": true,
+	"sv": true, "tsg": true, "ogc": true,
 }
 
 // aliases maps a key to the key the other venues use.
@@ -89,7 +93,26 @@ var aliases = map[string]string{
 	"los angeles g":          "la galaxy",
 	"columbus crew":          "columbus",
 	"chicago fire":           "chicago",
+	// Champions League
+	"psg":                        "paris saint germain",
+	"paris sg":                   "paris saint germain",
+	"internazionale milano":      "inter",
+	"internazionale":             "inter",
+	"inter milan":                "inter",
+	"lask linz":                  "lask",
+	"linzer athletik sport klub": "lask",
+	"slavia praha":               "slavia prague",
+	"bayern munchen":             "bayern munich",
+	"rasenballsport leipzig":     "rb leipzig",
+	"psv eindhoven":              "psv",
+	"eindhoven":                  "psv",
+	"sporting clube portugal":    "sporting cp",
+	"sporting lisbon":            "sporting cp",
+	"bodoe glimt":                "bodo glimt",
 }
+
+// letters that don't decompose into a base letter and an accent.
+var letters = strings.NewReplacer("ø", "o", "Ø", "O", "æ", "ae", "Æ", "AE", "ß", "ss", "ł", "l", "Ł", "L", "đ", "d", "Đ", "D", "ı", "i")
 
 // ambiguous single words: several teams' names contain them.
 var ambiguous = map[string]bool{
@@ -100,14 +123,15 @@ var ambiguous = map[string]bool{
 // Key reduces a team name to the form names are compared in.
 func Key(name string) string {
 	t := transform.Chain(norm.NFD, runes.Remove(runes.In(unicode.Mn)), norm.NFC)
-	s, _, err := transform.String(t, name)
+	s, _, err := transform.String(t, letters.Replace(name))
 	if err != nil {
 		s = name
 	}
 	s = strings.ToLower(s)
 	var words []string
 	for _, w := range strings.FieldsFunc(s, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) {
-		if !filler[w] {
+		// Founding years ("VfB Stuttgart 1893", "Borussia 09 Dortmund") are filler too.
+		if !filler[w] && strings.TrimFunc(w, unicode.IsDigit) != "" {
 			words = append(words, w)
 		}
 	}

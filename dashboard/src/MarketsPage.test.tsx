@@ -100,6 +100,8 @@ it('switches games and leagues', async () => {
   expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=laliga', expect.anything())
   await userEvent.click(screen.getByRole('button', { name: 'MLS' }))
   expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=mls', expect.anything())
+  await userEvent.click(screen.getByRole('button', { name: 'Champions League' }))
+  expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=ucl', expect.anything())
 })
 
 it('keeps the last prices on screen while the service is unreachable, and polls on', async () => {

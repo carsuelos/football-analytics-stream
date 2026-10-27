@@ -112,6 +112,26 @@ func TestDifferentGamesStayApart(t *testing.T) {
 	}
 }
 
+func TestALaterVenueBridgesNamesThatDidntMatch(t *testing.T) {
+	// Polymarket's and Novig's names don't match each other; Kalshi's short
+	// ones, which come last, match both.
+	ev := func(v schema.Venue, home, away string) venue.Event {
+		return venue.Event{Venue: v, League: schema.LeagueUcl, EventID: string(v), Home: venue.Team{Name: home}, Away: venue.Team{Name: away}, Kickoff: kickoff}
+	}
+	events := map[schema.Venue][]venue.Event{
+		schema.VenuePolymarket: {ev(schema.VenuePolymarket, "Galatasaray Istanbul", "Stuttgart Swabia")},
+		schema.VenueNovig:      {ev(schema.VenueNovig, "Galatasaray Cimbom", "Stuttgart Cannstatt")},
+		schema.VenueKalshi:     {ev(schema.VenueKalshi, "Galatasaray", "Stuttgart")},
+	}
+	b := Build(schema.LeagueUcl, events, kickoff.Add(-time.Hour))
+	if len(b.Games) != 1 || len(b.Games[0].Listings) != 3 {
+		t.Fatalf("games %+v", b.Games)
+	}
+	if g := b.Games[0]; g.Home.Name != "Galatasaray" || g.Away.Name != "Stuttgart" {
+		t.Errorf("names %q v %q", g.Home.Name, g.Away.Name)
+	}
+}
+
 func TestAGameOnlyKalshiListsHasAnEstimatedKickoffAndIsLiveByTheClock(t *testing.T) {
 	events := map[schema.Venue][]venue.Event{schema.VenueKalshi: chelsea()[schema.VenueKalshi]}
 	at := func(after time.Duration) schema.MarketGame {

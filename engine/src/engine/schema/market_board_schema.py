@@ -11,6 +11,7 @@ class League(StrEnum):
     epl = "epl"
     laliga = "laliga"
     mls = "mls"
+    ucl = "ucl"
 
 
 class Venue(StrEnum):

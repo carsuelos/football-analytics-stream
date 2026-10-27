@@ -24,7 +24,7 @@ import (
 )
 
 // Leagues are the leagues a Board serves.
-var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga, schema.LeagueMls}
+var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga, schema.LeagueMls, schema.LeagueUcl}
 
 // Board holds each league's latest board. Create it with New.
 type Board struct {
@@ -243,6 +243,7 @@ func Build(l schema.League, events map[schema.Venue][]venue.Event, now time.Time
 			g.add(e)
 		}
 	}
+	games = mergeSame(games)
 	out := schema.MarketBoard{SchemaVersion: 1, League: l, UpdatedAt: now, Venues: []schema.VenueStatus{}, Games: []schema.MarketGame{}}
 	for _, g := range games {
 		mg := g.build(now)
@@ -294,6 +295,51 @@ func find(games []*game, e venue.Event) *game {
 		}
 	}
 	return nil
+}
+
+// mergeSame joins games that turn out to be one game. Which games an event
+// joins depends on the order the venues come in: Polymarket's "Galatasaray SK"
+// and Novig's "Galatasaray Spor Kulübü" don't match, but Kalshi's
+// "Galatasaray", which comes last, matches both, so it bridges them.
+func mergeSame(games []*game) []*game {
+	for i := 0; i < len(games); i++ {
+		for j := i + 1; j < len(games); j++ {
+			if sameGame(games[i], games[j]) {
+				for _, e := range games[j].events {
+					games[i].add(e)
+				}
+				games = slices.Delete(games, j, j+1)
+				j = i // games[i] has new names: look again
+			}
+		}
+	}
+	return games
+}
+
+// sameGame reports whether two games are one: no venue in both (a venue lists
+// a game once), kick-offs close, and both teams named alike somewhere.
+func sameGame(a, b *game) bool {
+	if a.league != b.league || absDuration(a.kickoff.Sub(b.kickoff)) > sameDay {
+		return false
+	}
+	for _, ea := range a.events {
+		for _, eb := range b.events {
+			if ea.Venue == eb.Venue {
+				return false
+			}
+		}
+	}
+	for _, n := range b.homeNames {
+		if !matchesAny(n, a.homeNames) {
+			continue
+		}
+		for _, m := range b.awayNames {
+			if matchesAny(m, a.awayNames) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func matchesAny(name string, names []string) bool {

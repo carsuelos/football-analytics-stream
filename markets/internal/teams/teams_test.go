@@ -19,7 +19,7 @@ var sameTeams = [][]string{
 	{"Atletico", "Club Atletico de Madrid", "Club Atlético de Madrid"},
 	{"Deportivo De La Coruna", "RC Deportivo A Coruna", "RC Deportivo de La Coruña"},
 	{"Celta Vigo", "RC Celta de Vigo", "Real Club Celta de Vigo"},
-	{"Real Betis", "Real Betis Balompie", "Real Betis Balompié"},
+	{"Real Betis", "Real Betis Balompie", "Real Betis Balompié", "Real Betis Seville"},
 	{"Real Sociedad", "Real Sociedad de Futbol", "Real Sociedad de Fútbol"},
 	{"Espanyol", "RCD Espanyol de Barcelona", "Reial Club Deportiu Espanyol"},
 	{"Santander", "Real Racing Club", "Real Racing Club de Santander"},
@@ -60,6 +60,37 @@ var sameTeams = [][]string{
 	{"Saint Louis", "St. Louis City SC", "St. Louis City SC"},
 	{"Toronto", "Toronto FC", "Toronto FC"},
 	{"Vancouver", "Vancouver Whitecaps FC", "Vancouver Whitecaps FC"},
+	// Champions League (Nov 2026)
+	{"Shakhtar", "FC Shakhtar Donetsk", "FC Shakhtar Donetsk"},
+	{"Sporting CP", "Sporting CP", "Sporting Clube de Portugal"},
+	{"Galatasaray", "Galatasaray SK", "Galatasaray Spor Kulübü"},
+	{"Stuttgart", "VfB Stuttgart", "VfB Stuttgart 1893"},
+	{"Bayern Munich", "FC Bayern München", "FC Bayern München"},
+	{"Aston Villa", "Aston Villa", "Aston Villa FC"},
+	{"Bodoe/Glimt", "FK Bodø/Glimt", "FK Bodø / Glimt"},
+	{"Lille", "Lille OSC", "Lille OSC"},
+	{"Feyenoord", "Feyenoord Rotterdam", "Feyenoord Rotterdam"},
+	{"Inter", "FC Internazionale Milano", "FC Internazionale Milano"},
+	{"LASK", "LASK Linz", "Linzer Athletik Sport Klub"},
+	{"Slovan Bratislava", "ŠK Slovan Bratislava", "ŠK Slovan Bratislava"},
+	{"Roma", "AS Roma", "AS Roma"},
+	{"Villarreal", "Villarreal", "Villarreal CF"},
+	{"PSG", "Paris Saint-Germain", "Paris Saint-Germain FC"},
+	{"AEK Athens", "AEK", "AEK Athens FC"},
+	{"Fenerbahce", "Fenerbahçe SK", "Fenerbahçe Spor Kulübü"},
+	{"Liverpool", "Liverpool", "Liverpool FC"},
+	{"Dortmund", "BV Borussia 09 Dortmund", "BV Borussia 09 Dortmund"},
+	{"Porto", "FC Porto", "FC Porto"},
+	{"Napoli", "SSC Napoli", "SSC Napoli"},
+	{"Eindhoven", "PSV", "PSV Eindhoven"},
+	{"Club Brugge", "Club Brugge KV", "Club Brugge KV"},
+	{"Leipzig", "RB Leipzig", "RasenBallsport Leipzig"},
+	{"Lens", "Racing Club de Lens", "Racing Club de Lens"},
+	{"Como", "Como 1907", "Calcio Como 1907"},
+	{"Slavia Prague", "SK Slavia Praha", "SK Slavia Praha"},
+	{"Arsenal", "Arsenal", "Arsenal FC"},
+	{"Viking", "Viking FK", "Viking FK"},
+	{"Sabah Masazir", "Sabah FK", "Sabah FK"},
 }
 
 func TestTheVenuesNamesForATeamMatch(t *testing.T) {
@@ -94,6 +125,9 @@ func TestDifferentTeamsDontMatch(t *testing.T) {
 		{"Real", "Real Madrid"},
 		{"Real Madrid", "Real Sociedad"},
 		{"Espanyol", "Barcelona"},
+		{"Inter", "Inter Miami CF"},
+		{"Sporting CP", "Sporting Kansas City"},
+		{"Racing Club de Lens", "Real Racing Club de Santander"},
 		{"", ""},
 	} {
 		if Same(pair[0], pair[1]) {
@@ -108,6 +142,9 @@ func TestKey(t *testing.T) {
 		"Club Atlético de Madrid":   "atletico madrid",
 		"RC Deportivo A Coruna":     "deportivo",
 		"Tottenham Hotspur FC":      "tottenham",
+		"VfB Stuttgart 1893":        "stuttgart",
+		"FK Bodø / Glimt":           "bodo glimt",
+		"Galatasaray Spor Kulübü":   "galatasaray",
 	} {
 		if got := Key(name); got != want {
 			t.Errorf("Key(%q) = %q, want %q", name, got, want)

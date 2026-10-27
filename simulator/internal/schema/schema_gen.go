@@ -964,11 +964,13 @@ type League string
 const LeagueEpl League = "epl"
 const LeagueLaliga League = "laliga"
 const LeagueMls League = "mls"
+const LeagueUcl League = "ucl"
 
 var enumValues_League = []interface{}{
 	"epl",
 	"laliga",
 	"mls",
+	"ucl",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

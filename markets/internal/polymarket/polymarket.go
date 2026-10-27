@@ -34,6 +34,7 @@ var leagues = map[schema.League]string{
 	schema.LeagueEpl:    "epl",
 	schema.LeagueLaliga: "lal",
 	schema.LeagueMls:    "mls",
+	schema.LeagueUcl:    "ucl",
 }
 
 // Client reads Polymarket US. Set BaseURL and HTTP.
