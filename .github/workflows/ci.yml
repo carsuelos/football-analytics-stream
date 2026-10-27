@@ -64,6 +64,23 @@ jobs:
       - run: go vet ./...
       - run: go test -race ./...
 
+  livefeed:
+    name: Live feed (Go)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: livefeed
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: livefeed/go.mod
+          cache-dependency-path: livefeed/go.mod
+      - name: gofmt
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+      - run: go vet ./...
+      - run: go test -race ./...
+
   engine:
     name: Engine (Python)
     runs-on: ubuntu-latest

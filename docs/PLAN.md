@@ -288,8 +288,10 @@ The simulator becomes a broadcaster and the engine a DVR (see *Seek semantics*),
 - [x] On demand, to save credit: `make cloud-up` / `cloud-down` / `cloud-status`, and a nightly teardown in case it was left up.
 
 ### Phase 5 (optional): Live provider
-- [ ] Evaluate paid live feeds for how detailed their coordinates are.
-- [ ] Implement `LiveProviderSource` behind the same schema, published to the `events` topic; the engine runs with `--no-simulator`.
+- [x] Evaluate live feeds for how detailed their coordinates are (Oct 2026). Only enterprise providers (Opta/Stats Perform, StatsBomb, Wyscout) send every pass and carry with coordinates. Sportradar adds coordinates for shots and set pieces but sells by contract. **Sportmonks** is self-serve (a free plan for the Scottish Premiership and Danish Superliga; Starter covers any 5 leagues). It sends goals, cards and subs to the minute, the ball's position about 6 times a minute (no team), and each team's running stats. So the engine's pass-based metrics and goal model need "lite" versions on a live feed.
+- [x] `livefeed`: records Sportmonks' live matches to tapes (keyframes and changes), to see what the feed sends and how fast, and to replay it offline. The free plan turned out thin: no ball positions or trends, six statistics per team (no shots), and 180 calls an hour. So it's for the plumbing (events, scores, the clock, VAR corrections, delay); the lite metrics wait for the paid trial.
+- [ ] Map the tapes to canonical events (adding ball positions and team stats to the schema) and publish them to the `events` topic; the engine runs with `--no-simulator`.
+- [ ] Lite metrics, alerts and goal model on what the feed has (territory from ball positions; dangerous attacks and shots per 5 minutes), trained on Sportmonks' history.
 
 ### Phase 6: Prediction markets
 - [x] **Markets view** (no live event feed needed): the `markets` service reads Kalshi, Polymarket US and Novig's public market data for the Premier League, La Liga, the Bundesliga, MLS and the Champions League, matches each game across them, and prices the same contracts (total goals over 0.5–6.5, the result and each team's goals over 0.5–3.5, after 90' plus stoppage) with each venue's taker fee, marking the cheapest all-in. The dashboard's Markets page shows the games (live first, with the score and clock from Polymarket), every venue's price, the best all-in price over time, and where our model's probability will go.

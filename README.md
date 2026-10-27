@@ -16,6 +16,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
 | `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid, the goal model's dataset and models); see [docs/MODEL.md](docs/MODEL.md) |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
+| `livefeed/` | Go: records Sportmonks' live matches to tapes (`make livefeed`), the first step towards a live feed; see [livefeed/README.md](livefeed/README.md) |
 | `markets/` | Go: the prediction markets' prices (Kalshi, Polymarket US, Novig) for Premier League, La Liga, Bundesliga, MLS and Champions League games, for the dashboard's Markets page |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
