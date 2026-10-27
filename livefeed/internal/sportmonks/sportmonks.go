@@ -71,6 +71,32 @@ func (c *Client) Livescores(ctx context.Context, includes string) ([]json.RawMes
 	return reply.Data, reply.RateLimit, nil
 }
 
+// FixturesBetween returns every fixture on the plan that kicks off from one
+// date to another (YYYY-MM-DD, at most 100 days apart), with includes, every page.
+func (c *Client) FixturesBetween(ctx context.Context, from, to, includes string) ([]json.RawMessage, error) {
+	var all []json.RawMessage
+	for page := 1; page <= 100; page++ {
+		var reply struct {
+			Data       []json.RawMessage `json:"data"`
+			Pagination struct {
+				HasMore bool `json:"has_more"`
+			} `json:"pagination"`
+		}
+		q := url.Values{"page": {strconv.Itoa(page)}, "per_page": {"50"}}
+		if includes != "" {
+			q.Set("include", includes)
+		}
+		if err := c.get(ctx, "/football/fixtures/between/"+url.PathEscape(from)+"/"+url.PathEscape(to), q, &reply); err != nil {
+			return nil, err
+		}
+		all = append(all, reply.Data...)
+		if !reply.Pagination.HasMore {
+			return all, nil
+		}
+	}
+	return nil, errors.New("sportmonks: fixtures: more than 100 pages")
+}
+
 // Types returns the whole type catalogue (what each type_id means), every page.
 func (c *Client) Types(ctx context.Context) ([]json.RawMessage, error) {
 	var all []json.RawMessage

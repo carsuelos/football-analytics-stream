@@ -3,7 +3,7 @@ SHELL := /bin/bash
 SCHEMA_DIR := schema/jsonschema
 SCHEMAS := $(sort $(wildcard $(SCHEMA_DIR)/*.schema.json))
 
-GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go markets/internal/schema/schema_gen.go
+GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go markets/internal/schema/schema_gen.go livefeed/internal/schema/schema_gen.go
 GO_MODULES := simulator notifier markets livefeed
 # CI passes --no-build to smoke-compose: it builds the images beforehand.
 COMPOSE_BUILD ?= --build
@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape livefeed livefeed-tapes up down dock-app logs smoke-compose cloud-up cloud-down cloud-status cloud-record cloud-tapes cloud-record-status cloud-record-off lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape livefeed livefeed-history livefeed-export livefeed-tapes up down dock-app logs smoke-compose cloud-up cloud-down cloud-status cloud-record cloud-tapes cloud-record-status cloud-record-off lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -36,6 +36,10 @@ gen-go:
 		--capitalization ID \
 		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/market_board.schema.json \
 		../$(SCHEMA_DIR)/price_history.schema.json ../$(SCHEMA_DIR)/market_tape.schema.json ../$(SCHEMA_DIR)/common.schema.json
+	cd livefeed && go tool go-jsonschema --package schema --struct-name-from-title --tags json \
+		--capitalization ID --capitalization XG \
+		--output internal/schema/schema_gen.go ../$(SCHEMA_DIR)/feed.schema.json ../$(SCHEMA_DIR)/event.schema.json \
+		../$(SCHEMA_DIR)/match_list.schema.json ../$(SCHEMA_DIR)/common.schema.json
 
 gen-py:
 	rm -rf $(PY_GEN)
@@ -134,6 +138,12 @@ tape: ## Summarize the recorded market tapes (data/markets): one line per game. 
 
 livefeed: ## Record Sportmonks' live matches to tapes in data/livefeed, with SPORTMONKS_API_TOKEN from .env. Flags via ARGS="..." (e.g. -for 3h, -includes "...")
 	set -a; [ -f .env ] && . ./.env; set +a; cd livefeed && go run ./cmd/livefeed -record ../data/livefeed $(ARGS)
+
+livefeed-history: ## Fetch the finished Sportmonks matches from one date to another as tapes in data/livefeed/history: FROM=2026-10-01 TO=2026-10-26
+	set -a; [ -f .env ] && . ./.env; set +a; cd livefeed && go run ./cmd/livefeed -record ../data/livefeed -history "$(FROM):$(TO)"
+
+livefeed-export: ## Map the live feed's tapes (data/livefeed) to canonical feeds in data/livefeed/feeds; then: cd engine && uv run python -m engine.backtest ../data/livefeed/feeds
+	cd livefeed && go run ./cmd/livefeed -export ../data/livefeed/feeds -tapes ../data/livefeed
 
 livefeed-tapes: ## Summarize the recorded live feed tapes (data/livefeed): one block per match
 	cd livefeed && go run ./cmd/livefeed -summary ../data/livefeed

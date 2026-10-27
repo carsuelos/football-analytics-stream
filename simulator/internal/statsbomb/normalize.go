@@ -160,7 +160,8 @@ func normalizeEvent(matchID, offset int, r rawEvent) (schema.MatchEvent, error) 
 		ev.EndLocation = point(r.Carry.EndLocation)
 	case r.Shot != nil:
 		ev.EndLocation = point(r.Shot.EndLocation)
-		ev.Shot = &schema.ShotDetail{XG: r.Shot.XG, Outcome: shotOutcome(r.Shot.Outcome)}
+		xg := r.Shot.XG
+		ev.Shot = &schema.ShotDetail{XG: &xg, Outcome: shotOutcome(r.Shot.Outcome)}
 		if r.Shot.Type != nil {
 			if t, ok := shotTypes[r.Shot.Type.Name]; ok {
 				ev.Shot.Type = &t

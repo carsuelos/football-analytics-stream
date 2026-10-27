@@ -75,7 +75,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: livefeed/go.mod
-          cache-dependency-path: livefeed/go.mod
+          cache-dependency-path: livefeed/go.sum
       - name: gofmt
         run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
       - run: go vet ./...
@@ -153,6 +153,7 @@ jobs:
             simulator/go.sum
             notifier/go.sum
             markets/go.sum
+            livefeed/go.sum
       - uses: astral-sh/setup-uv@v10.2.0
         with:
           working-directory: engine

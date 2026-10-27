@@ -66,7 +66,7 @@
       "title": "ShotDetail",
       "type": "object",
       "properties": {
-        "xg": { "type": "number", "minimum": 0, "maximum": 1 },
+        "xg": { "description": "Expected goals. Omitted when the provider has none (Sportmonks).", "type": "number", "minimum": 0, "maximum": 1 },
         "outcome": {
           "title": "ShotOutcome",
           "type": "string",
@@ -79,7 +79,7 @@
           "enum": ["open_play", "free_kick", "corner", "penalty", "kick_off"]
         }
       },
-      "required": ["xg", "outcome"]
+      "required": ["outcome"]
     },
     "card": {
       "title": "Card",

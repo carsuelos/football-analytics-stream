@@ -106,7 +106,10 @@ export interface Player {
   name: string;
 }
 export interface ShotDetail {
-  xg: number;
+  /**
+   * Expected goals. Omitted when the provider has none (Sportmonks).
+   */
+  xg?: number;
   outcome: ShotOutcome;
   type?: ShotType;
 }

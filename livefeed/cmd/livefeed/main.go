@@ -1,6 +1,8 @@
 // Command livefeed records Sportmonks' live matches to tapes, as they arrive.
 //
-//	livefeed -record DIR [-interval 3s] [-idle-interval 1m] [-includes ...] [-for 3h]
+//	livefeed -record DIR [-interval 3s] [-idle-interval 2m] [-includes ...] [-for 3h]
+//	livefeed -record DIR -history FROM:TO
+//	livefeed -export OUT -tapes DIR
 //	livefeed -summary DIR
 //
 // With -record it polls the livescores (every match from 15 minutes before
@@ -12,6 +14,14 @@
 // every 20 s; Starter 2,000). An include the plan doesn't have is dropped, with
 // a warning, rather than stopping the recording. The type catalogue (what each
 // type_id means) is saved once, to DIR/types.json.
+//
+// With -history it fetches, once, every finished fixture on the plan that
+// kicked off from FROM to TO (YYYY-MM-DD), each to a one-line tape in
+// DIR/history/<UTC date>/.
+//
+// -export maps every tape in DIR to the canonical feed (see package mapper):
+// OUT/<fixture id>.jsonl, as the simulator's export writes them, and
+// OUT/matches.json, so python -m engine.backtest OUT replays them.
 //
 // -summary prints what each tape in DIR holds.
 //
@@ -44,7 +54,7 @@ import (
 
 // DefaultIncludes is what each poll asks for. The free plan refuses trends and
 // ballCoordinates (they're dropped); pressure and xGFixture are paid add-ons.
-const DefaultIncludes = "participants;scores;periods;state;events;statistics;trends;lineups;ballCoordinates"
+const DefaultIncludes = "participants;scores;periods;state;league;season;events;statistics;trends;lineups;ballCoordinates"
 
 // refusedInclude finds the include in the API's "You do not have access to the
 // 'trends' include".
@@ -61,6 +71,9 @@ func run(args []string, getenv func(string) string, stdout io.Writer) error {
 	fl := flag.NewFlagSet("livefeed", flag.ContinueOnError)
 	record := fl.String("record", "", "record the live matches to tapes in this directory")
 	summary := fl.String("summary", "", "summarize the tapes in this directory")
+	history := fl.String("history", "", "with -record: fetch the finished fixtures from one date to another once (FROM:TO, YYYY-MM-DD)")
+	export := fl.String("export", "", "map the tapes in -tapes to canonical feeds in this directory")
+	tapes := fl.String("tapes", "", "with -export: where the tapes are")
 	interval := fl.Duration("interval", 3*time.Second, "how often to poll while a match is listed")
 	idle := fl.Duration("idle-interval", 2*time.Minute, "how often to poll while none is")
 	includes := fl.String("includes", DefaultIncludes, "what to include with each fixture")
@@ -72,8 +85,13 @@ func run(args []string, getenv func(string) string, stdout io.Writer) error {
 	switch {
 	case *summary != "":
 		return summarize(*summary, stdout)
+	case *export != "":
+		if *tapes == "" {
+			return errors.New("-export needs -tapes DIR")
+		}
+		return exportFeeds(*tapes, *export, stdout)
 	case *record == "":
-		return errors.New("say -record DIR or -summary DIR")
+		return errors.New("say -record DIR, -export OUT -tapes DIR or -summary DIR")
 	}
 	token := strings.TrimSpace(getenv("SPORTMONKS_API_TOKEN"))
 	if token == "" {
@@ -88,6 +106,13 @@ func run(args []string, getenv func(string) string, stdout io.Writer) error {
 	}
 	client := sportmonks.New(token, &http.Client{Timeout: 30 * time.Second})
 	client.BaseURL = *baseURL
+	if *history != "" {
+		from, to, ok := strings.Cut(*history, ":")
+		if !ok {
+			return errors.New("-history is FROM:TO, e.g. 2026-10-01:2026-10-26")
+		}
+		return fetchHistory(ctx, client, *record, from, to, *includes, stdout)
+	}
 	r := &recorder{
 		client: client, tapes: tape.NewWriter(*record), dir: *record, includes: *includes,
 		interval: *interval, idle: *idle, log: slog.Default(), now: time.Now,
@@ -186,20 +211,11 @@ func (r *recorder) dropRefused(err error) bool {
 	if m == nil {
 		return false
 	}
-	var kept []string
-	dropped := false
-	for _, inc := range strings.Split(r.includes, ";") {
-		base, _, _ := strings.Cut(inc, ".")
-		if strings.EqualFold(base, m[1]) {
-			dropped = true
-			continue
-		}
-		kept = append(kept, inc)
-	}
-	if !dropped {
+	kept := dropInclude(r.includes, m[1])
+	if kept == r.includes {
 		return false
 	}
-	r.includes = strings.Join(kept, ";")
+	r.includes = kept
 	r.log.Warn("the plan doesn't include this; recording without it", "include", m[1], "includes", r.includes)
 	return true
 }
