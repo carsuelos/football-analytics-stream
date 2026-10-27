@@ -38,6 +38,9 @@ var series = map[schema.League]struct{ total, game, teamTotal string }{
 	schema.LeagueBundesliga: {"KXBUNDESLIGATOTAL", "KXBUNDESLIGAGAME", "KXBUNDESLIGATEAMTOTAL"},
 	schema.LeagueMls:        {"KXMLSTOTAL", "KXMLSGAME", "KXMLSTEAMTOTAL"},
 	schema.LeagueUcl:        {"KXUCLTOTAL", "KXUCLGAME", "KXUCLTEAMTOTAL"},
+	// Only Kalshi lists these two (Oct 2026), and not the Superliga's team totals.
+	schema.LeagueSpfl:      {"KXSCOTTISHPREMTOTAL", "KXSCOTTISHPREMGAME", "KXSCOTTISHPREMTEAMTOTAL"},
+	schema.LeagueSuperliga: {"KXDENSUPERLIGATOTAL", "KXDENSUPERLIGAGAME", ""},
 }
 
 // How long after kick-off each series' markets are expected to close, which
@@ -94,6 +97,9 @@ func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Even
 	games := map[string]*venue.Event{}
 	var order []string
 	for _, ticker := range []string{s.total, s.game, s.teamTotal} {
+		if ticker == "" {
+			continue
+		}
 		kind := map[string]schema.ContractKind{
 			s.total: schema.ContractKindTotal, s.game: schema.ContractKindResult, s.teamTotal: schema.ContractKindTeamTotal,
 		}[ticker]

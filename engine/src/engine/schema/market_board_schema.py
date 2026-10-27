@@ -13,6 +13,8 @@ class League(StrEnum):
     bundesliga = "bundesliga"
     mls = "mls"
     ucl = "ucl"
+    spfl = "spfl"
+    superliga = "superliga"
 
 
 class Venue(StrEnum):

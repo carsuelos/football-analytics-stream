@@ -98,11 +98,12 @@ type market struct {
 	} `json:"marketSides"`
 }
 
-// Events returns the league's games that haven't ended.
+// Events returns the league's games that haven't ended; none for a league
+// Polymarket doesn't list.
 func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Event, error) {
 	slug, ok := leagues[league]
 	if !ok {
-		return nil, fmt.Errorf("polymarket: no league %q", league)
+		return nil, nil
 	}
 	var reply eventsReply
 	if err := venue.GetJSON(ctx, c.HTTP, c.BaseURL+"/v2/leagues/"+slug+"/events?limit=100", &reply); err != nil {

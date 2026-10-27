@@ -15,6 +15,8 @@ const LEAGUES: { league: League; name: string }[] = [
   { league: 'bundesliga', name: 'Bundesliga' },
   { league: 'mls', name: 'MLS' },
   { league: 'ucl', name: 'Champions League' },
+  { league: 'spfl', name: 'Scottish Prem' },
+  { league: 'superliga', name: 'Superliga' },
 ]
 
 /** How often to ask for the board; the markets service polls the venues every 10s. */
