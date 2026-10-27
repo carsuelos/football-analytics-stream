@@ -961,6 +961,7 @@ func (j *Incident) UnmarshalJSON(value []byte) error {
 
 type League string
 
+const LeagueBundesliga League = "bundesliga"
 const LeagueEpl League = "epl"
 const LeagueLaliga League = "laliga"
 const LeagueMls League = "mls"
@@ -969,6 +970,7 @@ const LeagueUcl League = "ucl"
 var enumValues_League = []interface{}{
 	"epl",
 	"laliga",
+	"bundesliga",
 	"mls",
 	"ucl",
 }

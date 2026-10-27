@@ -98,6 +98,8 @@ it('switches games and leagues', async () => {
   await userEvent.click(screen.getByRole('button', { name: 'La Liga' }))
   expect(await screen.findByText('No games listed right now.')).toBeInTheDocument()
   expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=laliga', expect.anything())
+  await userEvent.click(screen.getByRole('button', { name: 'Bundesliga' }))
+  expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=bundesliga', expect.anything())
   await userEvent.click(screen.getByRole('button', { name: 'MLS' }))
   expect(fetch).toHaveBeenCalledWith('/api/markets/board?league=mls', expect.anything())
   await userEvent.click(screen.getByRole('button', { name: 'Champions League' }))
