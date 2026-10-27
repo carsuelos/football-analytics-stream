@@ -4,7 +4,7 @@ SCHEMA_DIR := schema/jsonschema
 SCHEMAS := $(sort $(wildcard $(SCHEMA_DIR)/*.schema.json))
 
 GO_GEN := simulator/internal/schema/schema_gen.go notifier/internal/schema/schema_gen.go markets/internal/schema/schema_gen.go
-GO_MODULES := simulator notifier markets
+GO_MODULES := simulator notifier markets livefeed
 # CI passes --no-build to smoke-compose: it builds the images beforehand.
 COMPOSE_BUILD ?= --build
 PY_GEN := engine/src/engine/schema
@@ -12,7 +12,7 @@ TS_GEN := dashboard/src/schema
 GENERATED := $(GO_GEN) $(PY_GEN) $(TS_GEN)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape up down dock-app logs smoke-compose cloud-up cloud-down cloud-status cloud-record cloud-tapes cloud-record-status cloud-record-off lint-infra
+.PHONY: help setup gen gen-go gen-py gen-ts check-gen lint test fmt ci fetch-data fetch-training sim engine dashboard smoke export backtest evaluate xt dataset train export-model fulltime rules webhook markets tape livefeed livefeed-tapes up down dock-app logs smoke-compose cloud-up cloud-down cloud-status cloud-record cloud-tapes cloud-record-status cloud-record-off lint-infra
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-12s\033[0m %s\n", $$1, $$2}'
@@ -131,6 +131,12 @@ markets: ## Run the markets service on :8090: the prediction markets' prices for
 
 tape: ## Summarize the recorded market tapes (data/markets): one line per game. A contract's prices as CSV: ARGS="--game <id> --contract total-over-2.5"
 	cd engine && uv run python -m engine.market_tape ../data/markets $(ARGS)
+
+livefeed: ## Record Sportmonks' live matches to tapes in data/livefeed, with SPORTMONKS_API_TOKEN from .env. Flags via ARGS="..." (e.g. -for 3h, -includes "...")
+	set -a; [ -f .env ] && . ./.env; set +a; cd livefeed && go run ./cmd/livefeed -record ../data/livefeed $(ARGS)
+
+livefeed-tapes: ## Summarize the recorded live feed tapes (data/livefeed): one block per match
+	cd livefeed && go run ./cmd/livefeed -summary ../data/livefeed
 
 webhook: ## Run a webhook receiver on :9000 that prints the alerts it gets (for ARGS="--webhook http://localhost:9000")
 	uv run scripts/webhook_echo.py $(ARGS)
