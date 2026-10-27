@@ -103,11 +103,12 @@ func (f *flexFloat) UnmarshalJSON(b []byte) error {
 	return err
 }
 
-// Events returns the league's games before and during play.
+// Events returns the league's games before and during play; none for a
+// league Novig doesn't list.
 func (c *Client) Events(ctx context.Context, league schema.League) ([]venue.Event, error) {
 	name, ok := leagues[league]
 	if !ok {
-		return nil, fmt.Errorf("novig: no league %q", league)
+		return nil, nil
 	}
 	status := statusPregame + "," + statusInGame
 	events, err := all[event](ctx, c, "/v3/public/catalog/events", url.Values{"league": {name}, "status": {status}})

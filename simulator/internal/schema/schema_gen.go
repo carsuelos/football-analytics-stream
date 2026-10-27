@@ -965,6 +965,8 @@ const LeagueBundesliga League = "bundesliga"
 const LeagueEpl League = "epl"
 const LeagueLaliga League = "laliga"
 const LeagueMls League = "mls"
+const LeagueSpfl League = "spfl"
+const LeagueSuperliga League = "superliga"
 const LeagueUcl League = "ucl"
 
 var enumValues_League = []interface{}{
@@ -973,6 +975,8 @@ var enumValues_League = []interface{}{
 	"bundesliga",
 	"mls",
 	"ucl",
+	"spfl",
+	"superliga",
 }
 
 // UnmarshalJSON implements json.Unmarshaler.

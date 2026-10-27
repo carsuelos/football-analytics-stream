@@ -24,7 +24,7 @@ import (
 )
 
 // Leagues are the leagues a Board serves.
-var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga, schema.LeagueBundesliga, schema.LeagueMls, schema.LeagueUcl}
+var Leagues = []schema.League{schema.LeagueEpl, schema.LeagueLaliga, schema.LeagueBundesliga, schema.LeagueMls, schema.LeagueUcl, schema.LeagueSpfl, schema.LeagueSuperliga}
 
 // Board holds each league's latest board. Create it with New.
 type Board struct {

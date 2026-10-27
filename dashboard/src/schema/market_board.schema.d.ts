@@ -1,6 +1,6 @@
 // Generated from schema/jsonschema by json-schema-to-typescript. Do not edit; run make gen.
 
-export type League = "epl" | "laliga" | "bundesliga" | "mls" | "ucl";
+export type League = "epl" | "laliga" | "bundesliga" | "mls" | "ucl" | "spfl" | "superliga";
 export type Venue = "kalshi" | "polymarket" | "novig";
 /**
  * From the venues: live once any says so, ended once any says so.
