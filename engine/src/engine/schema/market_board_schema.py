@@ -10,6 +10,7 @@ from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 class League(StrEnum):
     epl = "epl"
     laliga = "laliga"
+    bundesliga = "bundesliga"
     mls = "mls"
     ucl = "ucl"
 

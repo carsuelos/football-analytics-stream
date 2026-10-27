@@ -31,10 +31,11 @@ const DefaultBaseURL = "https://gateway.polymarket.us"
 
 // leagues are Polymarket's slugs for ours.
 var leagues = map[schema.League]string{
-	schema.LeagueEpl:    "epl",
-	schema.LeagueLaliga: "lal",
-	schema.LeagueMls:    "mls",
-	schema.LeagueUcl:    "ucl",
+	schema.LeagueEpl:        "epl",
+	schema.LeagueLaliga:     "lal",
+	schema.LeagueBundesliga: "bun",
+	schema.LeagueMls:        "mls",
+	schema.LeagueUcl:        "ucl",
 }
 
 // Client reads Polymarket US. Set BaseURL and HTTP.

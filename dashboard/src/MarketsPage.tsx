@@ -12,6 +12,7 @@ import { ago, VENUES } from './venues'
 const LEAGUES: { league: League; name: string }[] = [
   { league: 'epl', name: 'Premier League' },
   { league: 'laliga', name: 'La Liga' },
+  { league: 'bundesliga', name: 'Bundesliga' },
   { league: 'mls', name: 'MLS' },
   { league: 'ucl', name: 'Champions League' },
 ]
@@ -48,9 +49,9 @@ export function MarketsPage() {
   return (
     <main className="mx-auto flex max-w-[90rem] flex-col gap-5 px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div role="group" aria-label="League" className={segmentsClass}>
+        <div role="group" aria-label="League" className={`${segmentsClass} flex-wrap`}>
           {LEAGUES.map((l) => (
-            <button key={l.league} type="button" className={segmentClass} aria-pressed={league === l.league} onClick={() => setLeague(l.league)}>
+            <button key={l.league} type="button" className={`${segmentClass} whitespace-nowrap`} aria-pressed={league === l.league} onClick={() => setLeague(l.league)}>
               {l.name}
             </button>
           ))}

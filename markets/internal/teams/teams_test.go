@@ -44,7 +44,7 @@ var sameTeams = [][]string{
 	{"Los Angeles G", "Los Angeles Galaxy", "LA Galaxy"},
 	{"Miami", "Inter Miami CF", "Inter Miami CF"},
 	{"Minnesota", "Minnesota United FC", "Minnesota United FC"},
-	{"Montreal", "CF Montreal", "CF Montréal"},
+	{"Montreal", "CF Montreal", "CF Montréal", "Club de Foot Montréal"},
 	{"Nashville", "Nashville SC", "Nashville SC"},
 	{"New England", "New England Revolution", "New England Revolution"},
 	{"New York City", "New York City FC", "New York City Football Club"},
@@ -91,6 +91,21 @@ var sameTeams = [][]string{
 	{"Arsenal", "Arsenal", "Arsenal FC"},
 	{"Viking", "Viking FK", "Viking FK"},
 	{"Sabah Masazir", "Sabah FK", "Sabah FK"},
+	// Bundesliga (Oct 2026); Bayern, Dortmund, Leipzig and Stuttgart are above.
+	{"Elversberg", "SV 07 Elversberg", "SV 07 Elversberg"},
+	{"Mainz", "FSV Mainz 05", "1. FSV Mainz 05"},
+	{"Augsburg", "FC Augsburg", "FC Augsburg"},
+	{"Freiburg", "SC Freiburg", "SC Freiburg"},
+	{"Leverkusen", "Bayer 04 Leverkusen", "Bayer 04 Leverkusen"},
+	{"M´gladbach", "Borussia Mönchengladbach", "Borussia VfL Mönchengladbach"},
+	{"Paderborn", "SC Paderborn 07", "SC Paderborn 07"},
+	{"Bremen", "SV Werder Bremen", "SV Werder Bremen"},
+	{"Hoffenheim", "TSG 1899 Hoffenheim", "TSG 1899 Hoffenheim"},
+	{"Schalke", "FC Schalke 04", "FC Schalke 04"},
+	{"Union Berlin", "FC Union Berlin", "1. FC Union Berlin"},
+	{"FC Köln", "FC Köln", "1. FC Köln"},
+	{"Frankfurt", "Eintracht Frankfurt", "Eintracht Frankfurt"},
+	{"Hamburg", "Hamburger SV", "Hamburger SV"},
 }
 
 func TestTheVenuesNamesForATeamMatch(t *testing.T) {
@@ -145,6 +160,7 @@ func TestKey(t *testing.T) {
 		"VfB Stuttgart 1893":        "stuttgart",
 		"FK Bodø / Glimt":           "bodo glimt",
 		"Galatasaray Spor Kulübü":   "galatasaray",
+		"M´gladbach":                "borussia monchengladbach",
 	} {
 		if got := Key(name); got != want {
 			t.Errorf("Key(%q) = %q, want %q", name, got, want)

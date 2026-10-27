@@ -29,10 +29,11 @@ const DefaultBaseURL = "https://api.novig.com"
 
 // leagues are Novig's names for ours.
 var leagues = map[schema.League]string{
-	schema.LeagueEpl:    "EPL",
-	schema.LeagueLaliga: "La Liga",
-	schema.LeagueMls:    "MLS",
-	schema.LeagueUcl:    "Champions League",
+	schema.LeagueEpl:        "EPL",
+	schema.LeagueLaliga:     "La Liga",
+	schema.LeagueBundesliga: "Bundesliga",
+	schema.LeagueMls:        "MLS",
+	schema.LeagueUcl:        "Champions League",
 }
 
 const (

@@ -28,7 +28,7 @@ var filler = map[string]bool{
 	// European clubs' prefixes and suffixes (Champions League).
 	"sk": true, "fk": true, "bv": true, "ssc": true, "as": true, "ac": true, "osc": true,
 	"kv": true, "spor": true, "kulubu": true, "calcio": true, "vfb": true, "vfl": true,
-	"sv": true, "tsg": true, "ogc": true,
+	"sv": true, "tsg": true, "ogc": true, "fsv": true,
 }
 
 // aliases maps a key to the key the other venues use.
@@ -81,6 +81,7 @@ var aliases = map[string]string{
 	"sporting kc":            "kansas city",
 	"inter miami":            "miami",
 	"montreal":               "cf montreal",
+	"foot montreal":          "cf montreal",
 	"minnesota united":       "minnesota",
 	"vancouver whitecaps":    "vancouver",
 	"houston dynamo":         "houston",
@@ -109,6 +110,14 @@ var aliases = map[string]string{
 	"sporting clube portugal":    "sporting cp",
 	"sporting lisbon":            "sporting cp",
 	"bodoe glimt":                "bodo glimt",
+	// Bundesliga
+	"m gladbach":                   "borussia monchengladbach",
+	"mgladbach":                    "borussia monchengladbach",
+	"gladbach":                     "borussia monchengladbach",
+	"monchengladbach":              "borussia monchengladbach",
+	"borussia vfl monchengladbach": "borussia monchengladbach",
+	"hamburger":                    "hamburg",
+	"cologne":                      "koln",
 }
 
 // letters that don't decompose into a base letter and an accent.
