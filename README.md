@@ -16,7 +16,7 @@ Real-time football analytics: a Go simulator replays StatsBomb match events as a
 | `engine/` | Python (uv): metrics, windows, alerts; `engine.backtest` replays exported feeds offline |
 | `model/` | Python (uv): offline modeling on the exported feeds (our own xT grid, the goal model's dataset and models); see [docs/MODEL.md](docs/MODEL.md) |
 | `notifier/` | Go: delivers the alerts from Kafka to webhooks |
-| `markets/` | Go: the prediction markets' prices (Kalshi, Polymarket US, Novig) for Premier League and La Liga games, for the dashboard's Markets page |
+| `markets/` | Go: the prediction markets' prices (Kalshi, Polymarket US, Novig) for Premier League, La Liga, MLS and Champions League games, for the dashboard's Markets page |
 | `dashboard/` | React + Vite + TypeScript (pnpm) |
 | `scripts/` | Data fetch and offline tooling |
 | `data/` | Local StatsBomb cache (gitignored) |
@@ -191,7 +191,7 @@ notifier             HTTP POST     (the webhook)
 
 ### The prediction markets
 
-The dashboard's **Markets** page (http://localhost:3000/#/markets with `make up`) shows the Premier League's and La Liga's games as Kalshi, Polymarket US and Novig list them:
+The dashboard's **Markets** page (http://localhost:3000/#/markets with `make up`) shows the Premier League's, La Liga's, MLS's and the Champions League's games as Kalshi, Polymarket US and Novig list them:
 - which venues list each game;
 - the live score and clock;
 - each venue's price to buy each contract (total goals over 0.5 to 6.5, the result, and each team's goals over 0.5 to 3.5, all after 90' plus stoppage), with its bid and fee; each kind folds away;
